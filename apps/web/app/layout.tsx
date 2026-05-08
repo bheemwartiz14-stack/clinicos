@@ -1,0 +1,30 @@
+import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
+import { AppProviders } from "@/components/providers/app-providers";
+import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "MediClinic Pro",
+  description: "Enterprise AI-ready clinic management system",
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0f766e",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <AppProviders>
+          <Suspense fallback={null}>{children}</Suspense>
+          <ServiceWorkerRegister />
+        </AppProviders>
+      </body>
+    </html>
+  );
+}
