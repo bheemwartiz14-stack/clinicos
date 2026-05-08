@@ -5,10 +5,6 @@ import { AppProviders } from "@/components/providers/app-providers";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 
 import "../globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@mediclinicpro/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "MediClinic Pro",
@@ -28,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className="font-sans">
       <body
         suppressHydrationWarning
         className="min-h-screen bg-background text-foreground antialiased"
