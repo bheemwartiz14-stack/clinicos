@@ -1,15 +1,18 @@
 import Link from "next/link";
+
 import {
-  Facebook,
-  Instagram,
-  Linkedin,
+  FacebookIcon,
+  InstagramIcon,
+  LinkedinIcon,
   Menu,
+  MessageCircle,
   Stethoscope,
-  Twitter,
 } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+
 import { Button } from "@/components/ui/button";
+
 import {
   Sheet,
   SheetContent,
@@ -33,9 +36,14 @@ export default function FrontendLayout({
 }) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-background text-foreground">
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
+          {/* Logo */}
+          <Link
+            href="/"
+            className="flex min-w-0 items-center gap-3"
+          >
             <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground">
               <Stethoscope className="size-5" />
             </div>
@@ -44,89 +52,122 @@ export default function FrontendLayout({
               <h2 className="truncate text-base font-bold sm:text-lg">
                 MediClinic Pro
               </h2>
+
               <p className="hidden text-xs text-muted-foreground sm:block">
                 AI Clinic Platform
               </p>
             </div>
           </Link>
 
+          {/* Desktop Nav */}
           <nav className="hidden items-center gap-8 md:flex">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-sm text-muted-foreground transition hover:text-foreground"
+                className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
 
+          {/* Desktop Actions */}
           <div className="hidden items-center gap-3 md:flex">
             <ThemeToggle />
 
             <Link href="/login">
-              <Button variant="outline">Login</Button>
+              <Button variant="outline">
+                Login
+              </Button>
             </Link>
 
             <Link href="/register">
-              <Button>Get Started</Button>
+              <Button>
+                Get Started
+              </Button>
             </Link>
           </div>
 
+          {/* Mobile Menu */}
           <div className="flex items-center gap-2 md:hidden">
             <ThemeToggle />
 
             <Sheet>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="Open menu">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Open menu"
+                >
                   <Menu className="size-5" />
                 </Button>
               </SheetTrigger>
 
-              <SheetContent side="right" className="w-[85vw] max-w-sm">
+              <SheetContent
+                side="right"
+                className="w-[85vw] max-w-sm"
+              >
                 <SheetHeader className="sr-only">
-                  <SheetTitle>Mobile navigation menu</SheetTitle>
+                  <SheetTitle>
+                    Mobile navigation menu
+                  </SheetTitle>
+
                   <SheetDescription>
-                    Navigation links for MediClinic Pro website.
+                    Navigation links for MediClinic Pro
+                    website.
                   </SheetDescription>
                 </SheetHeader>
 
                 <div className="flex h-full flex-col gap-8 pt-8">
-                  <Link href="/" className="flex items-center gap-3">
+                  {/* Mobile Logo */}
+                  <Link
+                    href="/"
+                    className="flex items-center gap-3"
+                  >
                     <div className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
                       <Stethoscope className="size-5" />
                     </div>
 
                     <div>
-                      <h3 className="font-bold">MediClinic Pro</h3>
+                      <h3 className="font-bold">
+                        MediClinic Pro
+                      </h3>
+
                       <p className="text-xs text-muted-foreground">
                         AI Clinic Platform
                       </p>
                     </div>
                   </Link>
 
+                  {/* Mobile Nav */}
                   <nav className="grid gap-3">
                     {navItems.map((item) => (
                       <Link
                         key={item.href}
                         href={item.href}
-                        className="rounded-xl px-3 py-3 text-base font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                        className="rounded-xl px-3 py-3 text-base font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
                         {item.label}
                       </Link>
                     ))}
                   </nav>
 
+                  {/* Mobile Actions */}
                   <div className="mt-auto grid gap-3">
                     <Link href="/login">
-                      <Button variant="outline" className="w-full">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                      >
                         Login
                       </Button>
                     </Link>
 
                     <Link href="/register">
-                      <Button className="w-full">Get Started</Button>
+                      <Button className="w-full">
+                        Get Started
+                      </Button>
                     </Link>
                   </div>
                 </div>
@@ -136,10 +177,15 @@ export default function FrontendLayout({
         </div>
       </header>
 
-      <main className="min-h-screen">{children}</main>
+      {/* Main */}
+      <main className="min-h-screen">
+        {children}
+      </main>
 
+      {/* Footer */}
       <footer className="border-t bg-muted/30">
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 sm:py-16 md:grid-cols-2 lg:grid-cols-4">
+          {/* Brand */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="grid size-10 place-items-center rounded-2xl bg-primary text-primary-foreground">
@@ -147,7 +193,10 @@ export default function FrontendLayout({
               </div>
 
               <div>
-                <h3 className="font-bold">MediClinic Pro</h3>
+                <h3 className="font-bold">
+                  MediClinic Pro
+                </h3>
+
                 <p className="text-xs text-muted-foreground">
                   Smart Clinic Management
                 </p>
@@ -155,36 +204,67 @@ export default function FrontendLayout({
             </div>
 
             <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-              Modern AI-powered clinic management platform for appointments,
-              EMR, billing and analytics.
+              Modern AI-powered clinic management
+              platform for appointments, EMR,
+              billing and analytics.
             </p>
 
+            {/* Social Icons */}
             <div className="flex flex-wrap items-center gap-3">
-              {[Facebook, Instagram, Twitter, Linkedin].map((Icon, index) => (
-                <Button key={index} variant="outline" size="icon">
+              {[
+                FacebookIcon,
+                InstagramIcon,
+                MessageCircle,
+                LinkedinIcon,
+              ].map((Icon, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="icon"
+                  className="rounded-xl"
+                >
                   <Icon className="size-4" />
                 </Button>
               ))}
             </div>
           </div>
 
+          {/* Company */}
           <div>
-            <h4 className="mb-4 font-semibold">Company</h4>
+            <h4 className="mb-4 font-semibold">
+              Company
+            </h4>
+
             <div className="space-y-3 text-sm text-muted-foreground">
-              <Link href="/about" className="block hover:text-foreground">
+              <Link
+                href="/about"
+                className="block transition-colors hover:text-foreground"
+              >
                 About
               </Link>
-              <Link href="/blog" className="block hover:text-foreground">
+
+              <Link
+                href="/blog"
+                className="block transition-colors hover:text-foreground"
+              >
                 Blog
               </Link>
-              <Link href="/contact" className="block hover:text-foreground">
+
+              <Link
+                href="/contact"
+                className="block transition-colors hover:text-foreground"
+              >
                 Contact
               </Link>
             </div>
           </div>
 
+          {/* Features */}
           <div>
-            <h4 className="mb-4 font-semibold">Features</h4>
+            <h4 className="mb-4 font-semibold">
+              Features
+            </h4>
+
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>Appointments</p>
               <p>EMR</p>
@@ -194,8 +274,12 @@ export default function FrontendLayout({
             </div>
           </div>
 
+          {/* Contact */}
           <div>
-            <h4 className="mb-4 font-semibold">Contact</h4>
+            <h4 className="mb-4 font-semibold">
+              Contact
+            </h4>
+
             <div className="space-y-3 break-words text-sm text-muted-foreground">
               <p>support@mediclinicpro.com</p>
               <p>+91 99999 99999</p>
@@ -204,8 +288,10 @@ export default function FrontendLayout({
           </div>
         </div>
 
+        {/* Bottom */}
         <div className="border-t px-4 py-5 text-center text-sm text-muted-foreground">
-          © 2026 MediClinic Pro. All rights reserved.
+          © 2026 MediClinic Pro. All rights
+          reserved.
         </div>
       </footer>
     </div>
