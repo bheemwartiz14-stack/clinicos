@@ -1,13 +1,7 @@
 import Link from "next/link";
+import { FaFacebookF, FaInstagram, FaLinkedinIn, FaXTwitter } from "react-icons/fa6";
 
-import {
-  FacebookIcon,
-  InstagramIcon,
-  LinkedinIcon,
-  Menu,
-  MessageCircle,
-  Stethoscope,
-} from "lucide-react";
+import { Menu, Stethoscope } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -211,12 +205,7 @@ export default function FrontendLayout({
 
             {/* Social Icons */}
             <div className="flex flex-wrap items-center gap-3">
-              {[
-                FacebookIcon,
-                InstagramIcon,
-                MessageCircle,
-                LinkedinIcon,
-              ].map((Icon, index) => (
+              {[FaFacebookF, FaInstagram, FaXTwitter, FaLinkedinIn].map((Icon, index) => (
                 <Button
                   key={index}
                   variant="outline"
