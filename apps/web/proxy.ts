@@ -1,11 +1,37 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-const protectedPrefixes = ["/dashboard", "/patients", "/appointments", "/billing", "/settings"];
+const protectedPrefixes = [
+  "/dashboard",
+  "/patients",
+  "/doctors",
+  "/appointments",
+  "/billing",
+  "/prescriptions",
+  "/inventory",
+  "/ai-notes",
+  "/roles",
+  "/permissions",
+  "/settings",
+];
 
 export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
   const nonce = crypto.randomUUID();
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
+
+  const isProtected = protectedPrefixes.some((prefix) => pathname.startsWith(prefix));
+  const hasSessionCookie = request.cookies.has("accessToken");
+
+  if (isProtected && !hasSessionCookie) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (pathname === "/login" && hasSessionCookie) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
 
   const response = NextResponse.next({
     request: {
@@ -25,15 +51,6 @@ export function proxy(request: NextRequest) {
       "frame-ancestors 'none'",
     ].join("; "),
   );
-
-  const isProtected = protectedPrefixes.some((prefix) =>
-    request.nextUrl.pathname.startsWith(prefix),
-  );
-  const hasSessionCookie = request.cookies.get("clinic_session");
-
-  if (isProtected && !hasSessionCookie) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
 
   return response;
 }

@@ -4,7 +4,6 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   cacheComponents: true,
   transpilePackages: [
-    "@mediclinicpro/api",
     "@mediclinicpro/db",
     "@mediclinicpro/ui",
     "@mediclinicpro/utils",

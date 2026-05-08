@@ -1,21 +1,24 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "plugins": [
       {
         "name": "next"
       }
     ],
     "paths": {
-      "@/*": ["*"],
-      "@mediclinicpro/api": ["../../packages/api/src"],
-      "@mediclinicpro/db": ["../../packages/db/src"],
+      "@/*": ["./src/*"],
+      "@mediclinicpro/db": ["../../packages/db/src/index.ts"],
       "@mediclinicpro/ui/*": ["../../packages/ui/src/*"],
-      "@mediclinicpro/utils": ["../../packages/utils/src"],
-      "@mediclinicpro/validations": ["../../packages/validations/src"]
+      "@mediclinicpro/utils": ["../../packages/utils/src/index.ts"],
+      "@mediclinicpro/validations": ["../../packages/validations/src/index.ts"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }

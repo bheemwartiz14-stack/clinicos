@@ -12,16 +12,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@mediclinicpro/api": ["packages/api/src"],
-      "@mediclinicpro/db": ["packages/db/src"],
-      "@mediclinicpro/types": ["packages/types/src"],
-      "@mediclinicpro/ui/*": ["packages/ui/src/*"],
-      "@mediclinicpro/utils": ["packages/utils/src"],
-      "@mediclinicpro/validations": ["packages/validations/src"]
-    }
+    "types": ["node"]
   }
 }

@@ -23,6 +23,11 @@ export const patientUpdateSchema = patientCreateSchema.partial().extend({
   version: z.number().int().nonnegative(),
 });
 
+export const userProfileUpdateSchema = z.object({
+  name: z.string().trim().min(2).max(160),
+  email: z.string().trim().email().max(255),
+});
+
 export const appointmentCreateSchema = z.object({
   patientId: z.string().uuid(),
   doctorId: z.string().uuid(),
@@ -76,3 +81,4 @@ export const offlineMutationSchema = z.object({
 
 export type PatientCreateInput = z.infer<typeof patientCreateSchema>;
 export type PatientUpdateInput = z.infer<typeof patientUpdateSchema>;
+export type UserProfileUpdateInput = z.infer<typeof userProfileUpdateSchema>;
