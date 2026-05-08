@@ -1,43 +1,108 @@
 {
   "$schema": "https://turbo.build/schema.json",
+
   "globalPassThroughEnv": [
     "DATABASE_URL",
     "AUTH_SECRET",
     "NEXT_PUBLIC_APP_URL",
-    "NEXT_PUBLIC_APP_NAME"
+    "NEXT_PUBLIC_APP_NAME",
+    "ADMIN_EMAIL",
+    "ADMIN_PASSWORD",
+    "NODE_ENV"
   ],
+
   "tasks": {
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "env": [
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_APP_NAME",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD",
+        "NODE_ENV"
+      ]
     },
+
     "build": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_APP_NAME",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD",
+        "NODE_ENV"
+      ]
     },
+
     "@mediclinicpro/web#build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      "env": [
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_APP_NAME",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD",
+        "NODE_ENV"
+      ]
     },
+
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "AUTH_SECRET",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_APP_NAME",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD",
+        "NODE_ENV"
+      ]
     },
+
     "lint": {},
+
     "test": {},
+
     "test:e2e": {
       "cache": false
     },
+
     "db:generate": {
-      "cache": false
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
     },
+
     "db:push": {
-      "cache": false
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
     },
+
     "db:migrate": {
-      "cache": false
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
     },
+
     "db:seed": {
-      "cache": false
+      "cache": false,
+      "env": [
+        "DATABASE_URL",
+        "ADMIN_EMAIL",
+        "ADMIN_PASSWORD"
+      ]
     }
   }
 }
