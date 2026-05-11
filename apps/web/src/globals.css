@@ -1,7 +1,8 @@
+@import "filepond/dist/filepond.min.css";
+@import "filepond-plugin-image-preview/dist/filepond-plugin-image-preview.min.css";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-
 
 @custom-variant dark (&:is(.dark *));
 :root {
@@ -74,8 +75,9 @@
 }
 
 @theme inline {
-  --font-system: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-system:
+    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
   --font-sans: var(--font-system);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -128,5 +130,32 @@
   html {
     @apply font-sans;
     font-family: var(--font-system);
+  }
+}
+
+@layer components {
+  .filepond--root {
+    margin-bottom: 0;
+    font-family: inherit;
+  }
+
+  .filepond--panel-root {
+    background-color: var(--color-background);
+    border: 1px dashed var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .filepond--drop-label {
+    color: var(--color-muted-foreground);
+    min-height: 7rem;
+  }
+
+  .filepond--label-action {
+    color: var(--color-primary);
+    text-decoration-color: var(--color-primary);
+  }
+
+  .filepond--item-panel {
+    background-color: var(--color-primary);
   }
 }

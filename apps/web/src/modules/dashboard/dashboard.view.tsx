@@ -1,22 +1,34 @@
-import { Suspense } from "react";
-import { ActivityFeed } from "@/components/dashboard/activity-feed";
-import { RevenueChart } from "@/components/dashboard/revenue-chart";
-import { StatCards } from "@/components/dashboard/stat-cards";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { PatientTable } from "@/components/patients/patient-table";
-import type { DashboardPageModel } from "./dashboard.types";
 
-export function DashboardView({ title, breadcrumb }: DashboardPageModel) {
+import { StatCards } from "./components/stat-cards";
+
+import type { DashboardPageModel } from "./dashboard.types";
+import { RevenueChart } from "./components/revenue-chart";
+import { ActivityFeed } from "./components/activity-feed";
+
+export function DashboardView({
+  title,
+  description,
+  breadcrumb,
+  stats,
+}: DashboardPageModel) {
   return (
-    <DashboardShell title={title} breadcrumb={breadcrumb}>
-      <Suspense fallback={<div className="h-32 animate-pulse rounded-lg bg-slate-100" />}>
-        <StatCards />
-      </Suspense>
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+    <DashboardShell
+      title={title}
+      breadcrumb={breadcrumb}
+    >
+      <div className="space-y-6">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            {description}
+          </p>
+        </div>
+        <StatCards stats={stats} />
+      </div>
+       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <RevenueChart />
         <ActivityFeed />
       </div>
-      <PatientTable />
     </DashboardShell>
   );
 }

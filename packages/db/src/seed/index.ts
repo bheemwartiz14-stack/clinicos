@@ -1,21 +1,22 @@
 // src/seed/index.ts
 
-import { seedAdminUser } from "./admin-user.seed.js";
+import "dotenv/config";
+
 import { seedRBAC } from "./rbac.seed.js";
+import { seedUsers } from "./admin-user.seed.js";
+import { seedGeneralSettings } from "./general-settings.seed.js";
 
 async function main() {
   try {
     console.log("🌱 Starting database seeding...");
-
-    // Step 1: Seed RBAC
     await seedRBAC();
-    console.log("✅ RBAC seeding completed");
-
-    // Step 2: Seed Admin User
-    await seedAdminUser();
-    console.log("✅ Admin user seeding completed");
-
-    console.log("🎉 All seeding completed successfully");
+    console.log("RBAC seeding completed");
+    await seedUsers();
+    console.log("Users seeding completed");
+    await seedGeneralSettings();
+    console.log("General settings seeding completed");
+    console.log("All seeding completed successfully");
+    process.exit(0);
   } catch (error) {
     console.error("❌ Seeding failed");
     console.error(error);

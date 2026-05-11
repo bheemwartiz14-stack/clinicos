@@ -3,78 +3,141 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../index.js";
 
-export async function seedAdminUser() {
-  console.log("🌱 Admin user seeding started...");
-  try {
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const adminPassword = process.env.ADMIN_PASSWORD;
+type SeedUser = {
+  roleName: string;
+  name: string;
+  email: string;
+  password: string;
+  profile: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    gender: "male" | "female" | "other";
+    city: string;
+    state: string;
+    country: string;
+    postalCode: string;
+  };
+};
 
-    if (!adminEmail || !adminPassword) {
-      throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD are required");
-    }
+async function createUserWithProfile(userData: SeedUser) {
+  const existingRole = await db.query.roles.findFirst({
+    where: eq(schema.roles.name, userData.roleName),
+  });
 
-    const adminRole = await db.query.roles.findFirst({
-      where: eq(schema.roles.name, "admin"),
-    });
+  if (!existingRole) {
+    throw new Error(`${userData.roleName} role not found`);
+  }
 
-    if (!adminRole) {
-      throw new Error("Admin role not found. Run RBAC seed first.");
-    }
+  let existingUser = await db.query.users.findFirst({
+    where: eq(schema.users.email, userData.email),
+  });
 
-    let adminUser = await db.query.users.findFirst({
-      where: eq(schema.users.email, adminEmail),
-    });
+  if (!existingUser) {
+    const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-    if (!adminUser) {
-      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+    const [createdUser] = await db
+      .insert(schema.users)
+      .values({
+        name: userData.name,
+        email: userData.email,
+        password: hashedPassword,
+        roleId: existingRole.id,
+      })
+      .returning();
 
-      const [createdUser] = await db
-        .insert(schema.users)
-        .values({
-          name: "Super Admin",
-          email: adminEmail,
-          password: hashedPassword,
-          roleId: adminRole.id,
-        })
-        .returning();
+    existingUser = createdUser;
 
-      adminUser = createdUser;
-      console.log("✅ Admin user created");
-    } else {
-      console.log("ℹAdmin user already exists");
-    }
+    console.log(`✅ ${userData.roleName} user created`);
+  } else {
+    console.log(`ℹ️ ${userData.roleName} user already exists`);
+  }
 
-    const existingProfile = await db.query.userProfiles.findFirst({
-      where: eq(schema.userProfiles.userId, adminUser.id),
-    });
+  const existingProfile = await db.query.userProfiles.findFirst({
+    where: eq(schema.userProfiles.userId, existingUser.id),
+  });
 
-    if (existingProfile) {
-      console.log("ℹAdmin profile already exists");
-      return;
-    }
+  if (!existingProfile) {
     await db.insert(schema.userProfiles).values({
-      userId: adminUser.id,
-      firstName: "Super",
-      lastName: "Admin",
-      phone: "9999999999",
-      gender: "male",
-      city: "Delhi",
-      state: "Delhi",
-      country: "India",
-      postalCode: "110001",
+      userId: existingUser.id,
+      ...userData.profile,
+    });
+    console.log(`${userData.roleName} profile created`);
+  } else {
+    console.log(`ℹ${userData.roleName} profile already exists`);
+  }
+}
+
+export async function seedUsers() {
+  console.log("🌱 User seeding started...");
+
+  try {
+    await createUserWithProfile({
+      roleName: "admin",
+      name: "Super Admin",
+      email: process.env.ADMIN_EMAIL || "admin@example.com",
+      password: process.env.ADMIN_PASSWORD || "Admin@123",
+      profile: {
+        firstName: "Super",
+        lastName: "Admin",
+        phone: "9999999999",
+        gender: "male",
+        city: "Delhi",
+        state: "Delhi",
+        country: "India",
+        postalCode: "110001",
+      },
     });
 
-    console.log("✅ Admin profile created");
+    await createUserWithProfile({
+      roleName: "doctor",
+      name: "Dr John",
+      email: process.env.DOCTOR_EMAIL || "doctor@example.com",
+      password: process.env.DOCTOR_PASSWORD || "Doctor@123",
+      profile: {
+        firstName: "John",
+        lastName: "Doctor",
+        phone: "8888888888",
+        gender: "male",
+        city: "Mumbai",
+        state: "Maharashtra",
+        country: "India",
+        postalCode: "400001",
+      },
+    });
+
+    await createUserWithProfile({
+      roleName: "receptionist",
+      name: "Reception User",
+      email:
+        process.env.RECEPTIONIST_EMAIL ||
+        "receptionist@example.com",
+      password:
+        process.env.RECEPTIONIST_PASSWORD ||
+        "Reception@123",
+      profile: {
+        firstName: "Reception",
+        lastName: "User",
+        phone: "7777777777",
+        gender: "female",
+        city: "Chandigarh",
+        state: "Punjab",
+        country: "India",
+        postalCode: "160001",
+      },
+    });
+
+    console.log("✅ All users seeded successfully");
   } catch (error) {
-    console.error("❌ Admin seed failed:", error);
+    console.error("❌ User seed failed:", error);
     throw error;
   }
 }
 
 if (import.meta.main) {
-  seedAdminUser()
+  seedUsers()
     .then(() => {
-      console.log("✅ Seed finished");
+      console.log("Seed finished");
       process.exit(0);
     })
     .catch((error) => {

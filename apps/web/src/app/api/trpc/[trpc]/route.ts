@@ -1,12 +1,12 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-
 import { appRouter } from "@/server/api/root";
 
-const handler = (req: Request) =>
-  fetchRequestHandler({
+function handler(request: Request) {
+  return fetchRequestHandler({
     endpoint: "/api/trpc",
-    req,
+    req: request,
     router: appRouter,
   });
+}
 
 export { handler as GET, handler as POST };

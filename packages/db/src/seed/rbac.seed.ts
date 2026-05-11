@@ -1,28 +1,60 @@
+// src/db/seeds/rbac.seed.ts
+
 import { db, schema } from "../index.js";
 
 const modules = [
   "dashboard",
   "patients",
-  "doctors",
   "appointments",
   "billing",
-  "reports",
+  "general-settings",
+  "audit-logs",
+  "login-history",
   "settings",
+  "users",
   "roles",
   "permissions",
 ] as const;
 
-const actions = ["view", "create", "edit", "delete"] as const;
+type ModuleName = (typeof modules)[number];
+
+const moduleActions: Record<ModuleName, string[]> = {
+  dashboard: ["view"],
+
+  patients: ["view", "create", "edit", "delete"],
+  appointments: ["view", "create", "edit", "delete"],
+  billing: ["view", "create", "edit", "delete"],
+
+  // Admin only CRUD
+  "general-settings": ["view", "create", "edit", "delete"],
+
+  // Admin, Doctor, Receptionist view
+  "audit-logs": ["view"],
+  "login-history": ["view"],
+
+  settings: ["manage"],
+  users: ["manage"],
+  roles: ["manage"],
+  permissions: ["manage"],
+};
 
 export async function seedRBAC() {
   console.log("🌱 RBAC seeding started...");
 
   try {
     const rolesData: (typeof schema.roles.$inferInsert)[] = [
-      { name: "admin", description: "System Administrator" },
-      { name: "doctor", description: "Doctor Role" },
-      { name: "receptionist", description: "Receptionist Role" },
-      { name: "user", description: "Standard User" },
+      {
+        name: "admin",
+        description: "System Administrator",
+      },
+      {
+        name: "doctor",
+        description: "Doctor Role",
+      },
+      {
+        name: "receptionist",
+        description: "Receptionist Role",
+      },
     ];
 
     await db.insert(schema.roles).values(rolesData).onConflictDoNothing({
@@ -35,96 +67,117 @@ export async function seedRBAC() {
 
     const adminRole = roles.find((role) => role.name === "admin");
     const doctorRole = roles.find((role) => role.name === "doctor");
-    const receptionistRole = roles.find((role) => role.name === "receptionist");
-    const userRole = roles.find((role) => role.name === "user");
+    const receptionistRole = roles.find(
+      (role) => role.name === "receptionist",
+    );
 
-    if (!adminRole || !doctorRole || !receptionistRole || !userRole) {
+    if (!adminRole || !doctorRole || !receptionistRole) {
       throw new Error("Required roles not found");
     }
 
-    const permissionData: (typeof schema.permissions.$inferInsert)[] = modules.flatMap((module) =>
-      actions.map((action) => ({
-        name: `${module}:${action}`,
-        description: `${action} ${module}`,
-        module,
-        action,
-      })),
-    );
+    const permissionData: (typeof schema.permissions.$inferInsert)[] =
+      modules.flatMap((module) =>
+        moduleActions[module].map((action) => ({
+          name: `${module}.${action}`,
+          description: `${action} ${module}`,
+          module,
+          action,
+        })),
+      );
 
-    await db.insert(schema.permissions).values(permissionData).onConflictDoNothing({
-      target: schema.permissions.name,
-    });
+    await db
+      .insert(schema.permissions)
+      .values(permissionData)
+      .onConflictDoNothing({
+        target: schema.permissions.name,
+      });
 
     console.log("✅ Permissions inserted");
 
     const permissions = await db.query.permissions.findMany();
 
-    const adminMappings: (typeof schema.roleHasPermissions.$inferInsert)[] = permissions.map(
-      (permission) => ({
+    async function mapPermissions(
+      roleId: string,
+      permissionNames: string[],
+      label: string,
+    ) {
+      const mappings: (typeof schema.roleHasPermissions.$inferInsert)[] =
+        permissions
+          .filter((permission) => permissionNames.includes(permission.name))
+          .map((permission) => ({
+            roleId,
+            permissionId: permission.id,
+          }));
+
+      if (mappings.length > 0) {
+        await db
+          .insert(schema.roleHasPermissions)
+          .values(mappings)
+          .onConflictDoNothing();
+      }
+
+      console.log(`✅ ${label} permissions mapped`);
+    }
+
+    // Admin gets all permissions, including:
+    // general-settings.view/create/edit/delete
+    // audit-logs.view
+    // login-history.view
+    const adminMappings: (typeof schema.roleHasPermissions.$inferInsert)[] =
+      permissions.map((permission) => ({
         roleId: adminRole.id,
         permissionId: permission.id,
-      }),
-    );
+      }));
 
-    await db.insert(schema.roleHasPermissions).values(adminMappings).onConflictDoNothing();
+    if (adminMappings.length > 0) {
+      await db
+        .insert(schema.roleHasPermissions)
+        .values(adminMappings)
+        .onConflictDoNothing();
+    }
 
     console.log("✅ Admin mapped to all permissions");
 
-    const doctorMappings: (typeof schema.roleHasPermissions.$inferInsert)[] = permissions
-      .filter((permission) =>
-        [
-          "dashboard:view",
-          "patients:view",
-          "patients:create",
-          "patients:edit",
-          "appointments:view",
-          "appointments:create",
-          "appointments:edit",
-          "reports:view",
-        ].includes(permission.name),
-      )
-      .map((permission) => ({
-        roleId: doctorRole.id,
-        permissionId: permission.id,
-      }));
+    // Doctor permissions
+    await mapPermissions(
+      doctorRole.id,
+      [
+        "dashboard.view",
 
-    await db.insert(schema.roleHasPermissions).values(doctorMappings).onConflictDoNothing();
+        "patients.view",
+        "patients.create",
+        "patients.edit",
 
-    console.log("✅ Doctor permissions mapped");
+        "appointments.view",
+        "appointments.create",
+        "appointments.edit",
+        "settings.manage",
+        // Tabs view permissions
+        "audit-logs.view",
+        "login-history.view",
+      ],
+      "Doctor",
+    );
 
-    const receptionistMappings: (typeof schema.roleHasPermissions.$inferInsert)[] = permissions
-      .filter((permission) =>
-        [
-          "dashboard:view",
-          "patients:view",
-          "patients:create",
-          "patients:edit",
-          "appointments:view",
-          "appointments:create",
-          "appointments:edit",
-          "billing:view",
-          "billing:create",
-        ].includes(permission.name),
-      )
-      .map((permission) => ({
-        roleId: receptionistRole.id,
-        permissionId: permission.id,
-      }));
+    // Receptionist permissions
+    await mapPermissions(
+      receptionistRole.id,
+      [
+        "dashboard.view",
 
-    await db.insert(schema.roleHasPermissions).values(receptionistMappings).onConflictDoNothing();
+        "patients.view",
+        "patients.create",
 
-    console.log("✅ Receptionist permissions mapped");
-
-    const userMappings: (typeof schema.roleHasPermissions.$inferInsert)[] = permissions
-      .filter((permission) => permission.action === "view")
-      .map((permission) => ({
-        roleId: userRole.id,
-        permissionId: permission.id,
-      }));
-
-    await db.insert(schema.roleHasPermissions).values(userMappings).onConflictDoNothing();
-
-    console.log("✅ User mapped to view permissions");
+        "appointments.view",
+        "appointments.create",
+        "appointments.edit",
+        "billing.view",
+        "billing.create",
+        "audit-logs.view",
+        "login-history.view",
+      ],
+      "Receptionist",
+    );
 
     console.log("🎉 RBAC seeding completed successfully");
   } catch (error) {

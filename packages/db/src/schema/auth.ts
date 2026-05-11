@@ -1,12 +1,5 @@
 import { relations } from "drizzle-orm";
-import {
-  boolean,
-  index,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { roles } from "./roles";
 export const users = pgTable(
   "users",
@@ -17,8 +10,8 @@ export const users = pgTable(
     emailVerified: boolean("email_verified").default(false).notNull(),
     password: text("password").notNull(),
     image: text("image"),
-    roleId: uuid("role_id").references(() => roles.id, { onDelete: "set null",}),
-    createdAt: timestamp("created_at", { withTimezone: true,}).defaultNow().notNull(),
+    roleId: uuid("role_id").references(() => roles.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
     })
@@ -48,17 +41,13 @@ export const sessions = pgTable(
     }).notNull(),
 
     token: text("token").notNull().unique(),
-
     ipAddress: text("ip_address"),
-
     userAgent: text("user_agent"),
-
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, {
         onDelete: "cascade",
       }),
-
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })

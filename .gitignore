@@ -9,3 +9,4 @@ drizzle
 .vercel
 playwright-report
 test-results
+apps/web/public/uploads/*

@@ -2,10 +2,17 @@ import type { Role } from "@mediclinicpro/types";
 import bcrypt from "bcryptjs";
 import { jwtVerify, SignJWT } from "jose";
 import { cookies } from "next/headers";
-import { findUserByEmail, findUserById } from "./auth.model";
-import type { AuthUser } from "./auth.types";
+import {
+  createSessionRecord,
+  deleteSessionByToken,
+  findUserByEmail,
+  findUserById,
+  findValidSessionByToken,
+} from "./auth.model";
+import type { AuthUser, SessionUser } from "./auth.types";
 
 export const sessionCookieName = "accessToken";
+const sessionDurationSeconds = 60 * 60 * 24 * 7;
 
 function getSecret() {
   const secret = process.env.AUTH_SECRET;
@@ -15,13 +22,45 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
+export function getSessionCookieOptions(maxAge = sessionDurationSeconds) {
+  return {
+    httpOnly: true,
+    maxAge,
+    path: "/",
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+  };
+}
+
 export async function createSessionToken(user: { id: string; role: Role }) {
   return new SignJWT({ role: user.role })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(`${sessionDurationSeconds}s`)
     .sign(getSecret());
+}
+
+export async function createUserSession(input: {
+  user: AuthUser;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}) {
+  const expiresAt = new Date(Date.now() + sessionDurationSeconds * 1000);
+  const token = await createSessionToken({
+    id: input.user.id,
+    role: input.user.role,
+  });
+
+  await createSessionRecord({
+    expiresAt,
+    ipAddress: input.ipAddress,
+    token,
+    userAgent: input.userAgent,
+    userId: input.user.id,
+  });
+
+  return { expiresAt, token };
 }
 
 export async function login(email: string, password: string): Promise<AuthUser | null> {
@@ -38,10 +77,12 @@ export async function login(email: string, password: string): Promise<AuthUser |
     name: user.name,
     email: user.email,
     role: user.role,
+    roleId: user.roleId,
+    permissions: user.permissions,
   };
 }
 
-export async function getCurrentUser(): Promise<AuthUser | null> {
+export async function getCurrentUser(): Promise<SessionUser | null> {
   const token = (await cookies()).get(sessionCookieName)?.value;
   if (!token) {
     return null;
@@ -51,6 +92,11 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const verified = await jwtVerify(token, getSecret());
     const userId = verified.payload.sub;
     if (!userId) {
+      return null;
+    }
+
+    const session = await findValidSessionByToken(token);
+    if (!session || session.userId !== userId) {
       return null;
     }
 
@@ -64,8 +110,20 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       name: user.name,
       email: user.email,
       role: user.role,
+      roleId: user.roleId,
+      permissions: user.permissions,
+      sessionId: session.id,
+      sessionExpiresAt: session.expiresAt,
     };
   } catch {
     return null;
+  }
+}
+
+export async function logout() {
+  const token = (await cookies()).get(sessionCookieName)?.value;
+
+  if (token) {
+    await deleteSessionByToken(token);
   }
 }

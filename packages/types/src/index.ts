@@ -1,58 +1,70 @@
-export const roles = ["admin", "doctor", "receptionist"] as const;
+export const roles = ["admin", "doctor", "receptionist", "user"] as const;
 export type Role = (typeof roles)[number];
 
 export const appointmentStatuses = ["scheduled", "checked_in", "completed", "cancelled"] as const;
 export type AppointmentStatus = (typeof appointmentStatuses)[number];
 
 export type Permission =
-  | "dashboard.read"
-  | "patients.read"
-  | "patients.write"
-  | "appointments.read"
-  | "appointments.write"
-  | "billing.read"
-  | "billing.write"
-  | "inventory.read"
-  | "ai_notes.read"
+  | "dashboard.view"
+  | "patients.view"
+  | "patients.create"
+  | "patients.edit"
+  | "patients.delete"
+  | "appointments.view"
+  | "appointments.create"
+  | "appointments.edit"
+  | "appointments.delete"
+  | "billing.view"
+  | "billing.create"
+  | "billing.edit"
+  | "billing.delete"
   | "settings.manage"
   | "roles.manage"
-  | "prescriptions.write";
+  | "permissions.manage";
 
 export const permissions = [
-  "dashboard.read",
-  "patients.read",
-  "patients.write",
-  "appointments.read",
-  "appointments.write",
-  "billing.read",
-  "billing.write",
-  "inventory.read",
-  "ai_notes.read",
+  "dashboard.view",
+  "patients.view",
+  "patients.create",
+  "patients.edit",
+  "patients.delete",
+  "appointments.view",
+  "appointments.create",
+  "appointments.edit",
+  "appointments.delete",
+  "billing.view",
+  "billing.create",
+  "billing.edit",
+  "billing.delete",
   "settings.manage",
   "roles.manage",
-  "prescriptions.write",
+  "permissions.manage",
 ] as const satisfies readonly Permission[];
 
 export const rolePermissions: Record<Role, Permission[]> = {
   admin: [...permissions],
   doctor: [
-    "dashboard.read",
-    "patients.read",
-    "appointments.read",
-    "appointments.write",
-    "ai_notes.read",
-    "prescriptions.write",
+    "dashboard.view",
+    "patients.view",
+    "patients.create",
+    "patients.edit",
+    "appointments.view",
+    "appointments.create",
+    "appointments.edit",
   ],
   receptionist: [
-    "dashboard.read",
-    "patients.read",
-    "patients.write",
-    "appointments.read",
-    "appointments.write",
-    "billing.read",
-    "billing.write",
-    "inventory.read",
+    "dashboard.view",
+    "patients.view",
+    "patients.create",
+    "patients.edit",
+    "appointments.view",
+    "appointments.create",
+    "appointments.edit",
+    "billing.view",
+    "billing.create",
+    "billing.edit",
   ],
+  user: ["dashboard.view"],
 };
 
 export function hasPermission(role: Role, permission: Permission) {

@@ -1,2 +1,5 @@
 import { loginController } from "@/modules/auth/auth.controller";
-export const POST = loginController;
+
+export async function POST(request: Request) {
+  return loginController(request);
+}

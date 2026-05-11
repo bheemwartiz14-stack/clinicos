@@ -5,9 +5,16 @@ export type AuthUser = {
   name: string;
   email: string;
   role: Role;
+  roleId: string | null;
+  permissions: string[];
 };
 
 export type LoginInput = {
   email: string;
   password: string;
+};
+
+export type SessionUser = AuthUser & {
+  sessionId: string;
+  sessionExpiresAt: Date;
 };

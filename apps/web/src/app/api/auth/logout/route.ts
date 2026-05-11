@@ -1,3 +1,5 @@
 import { logoutController } from "@/modules/auth/auth.controller";
 
-export const POST = logoutController;
+export async function POST() {
+  return logoutController();
+}
