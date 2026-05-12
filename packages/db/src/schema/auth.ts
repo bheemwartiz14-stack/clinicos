@@ -35,11 +35,9 @@ export const sessions = pgTable(
   "sessions",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-
     expiresAt: timestamp("expires_at", {
       withTimezone: true,
     }).notNull(),
-
     token: text("token").notNull().unique(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
@@ -53,7 +51,6 @@ export const sessions = pgTable(
     })
       .defaultNow()
       .notNull(),
-
     updatedAt: timestamp("updated_at", {
       withTimezone: true,
     })

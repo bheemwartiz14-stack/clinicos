@@ -6,26 +6,30 @@ import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register"
 import { getGeneralSettingsMetadataData } from "@/modules/setting/genral-setting/genral-setting.service";
 
 import "../globals.css";
-
 const defaultTitle = "MediClinic Pro";
 const defaultDescription = "Enterprise AI-ready clinic management system";
-
 export async function generateMetadata(): Promise<Metadata> {
-  const settings = await getGeneralSettingsMetadataData();
-  const title = settings.companyName ?? defaultTitle;
-  const description = settings.tagline ?? defaultDescription;
-  const favicon = settings.favicon;
-  const mainLogo = settings.mainLogo;
-
-  return {
-    title,
-    description,
-    manifest: "/manifest.webmanifest",
-    icons: {
-      icon: favicon ? [{ url: favicon }] : undefined,
-      apple: mainLogo ? [{ url: mainLogo }] : undefined,
-    },
-  };
+  try {
+    const settings = await getGeneralSettingsMetadataData();
+    const title = settings.companyName ?? defaultTitle;
+    const description = settings.tagline ?? defaultDescription;
+    const favicon = settings.favicon;
+    const mainLogo = settings.mainLogo;
+    return {
+      title,
+      description,
+      manifest: "/manifest.webmanifest",
+      icons: {
+        icon: favicon ? [{ url: favicon }] : undefined,
+        apple: mainLogo ? [{ url: mainLogo }] : undefined,
+      },
+    };
+  } catch (error) {
+    return {
+      title: defaultTitle,
+      description: defaultDescription,
+    };
+  }
 }
 
 export const viewport: Viewport = {

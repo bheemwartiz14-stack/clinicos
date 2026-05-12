@@ -26,7 +26,7 @@ async function requireLoginHistoryPermission() {
 export async function getLoginHistoryPageData(
   searchParams: Promise<LoginHistoryPageSearchParams>,
 ) {
-  await requireLoginHistoryPermission();
+  const user = await requireLoginHistoryPermission();
 
   const { q } = await searchParams;
   const query = q?.trim() ?? "";
@@ -38,10 +38,10 @@ export async function getLoginHistoryPageData(
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   const [logins, totalLogins, todayLogins, thisWeekLogins] = await Promise.all([
-    findLoginHistory({ query }),
-    countLoginHistory(query),
-    countLoginHistorySince(today),
-    countLoginHistorySince(sevenDaysAgo),
+    findLoginHistory({ query, userId: user.id }),
+    countLoginHistory(user.id, query),
+    countLoginHistorySince(user.id, today),
+    countLoginHistorySince(user.id, sevenDaysAgo),
   ]);
 
   return getLoginHistoryPageModel({

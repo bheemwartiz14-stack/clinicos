@@ -11,11 +11,27 @@ export const patientCreateSchema = z.object({
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().min(7),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+  age: z.preprocess(
+    (value) => (value === "" || value === undefined || value === null ? undefined : value),
+    z.coerce.number().int().min(0).max(130).optional(),
+  ),
   gender: z.enum(["female", "male", "other", "unknown"]).default("unknown"),
   bloodGroup: z.string().max(8).optional(),
+  doctorAssigned: z.string().max(160).optional(),
+  admissionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD"),
+  dischargeDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD")
+    .optional(),
+  status: z.enum(["active", "admitted", "discharged", "transferred"]).default("active"),
   address: z.string().optional(),
   allergies: z.string().optional(),
   medicalHistory: z.string().optional(),
+  insuranceProvider: z.string().max(160).optional(),
+  insurancePolicyNumber: z.string().max(120).optional(),
+  insuranceMemberId: z.string().max(120).optional(),
+  insuranceGroupNumber: z.string().max(120).optional(),
+  portalLoginEnabled: z.coerce.boolean().default(false),
 });
 
 export const patientUpdateSchema = patientCreateSchema.partial().extend({

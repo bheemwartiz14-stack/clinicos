@@ -1,6 +1,7 @@
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 import { getClientIp } from "@/hooks/common";
 import { getCurrentUser } from "@/modules/auth/auth.service";
 import { hasPermission } from "@/modules/auth/permissions";
@@ -11,15 +12,25 @@ import {
   countPatients,
   countUpdatedPatientsSince,
   createPatient,
+  createPatientWithPortalUser,
   deletePatient,
+  findDoctorOptions,
   findPatients,
   updatePatient,
 } from "./patients.repository";
 import type { ActionState, PatientsPageSearchParams } from "./patients.types";
 import { createPatientSchema, updatePatientSchema } from "./patients.validation";
 
-const PATIENTS_PATH = "/patients";
+const PATIENTS_PATH = "/patients/view";
 const ipAddress = await getClientIp();
+
+const portalUserSchema = z.object({
+  email: z.string().trim().email("Enter a valid portal email."),
+  emailVerified: z.coerce.boolean().default(false),
+  name: z.string().trim().min(2, "Portal user name is required."),
+  password: z.string().min(8, "Portal password must be at least 8 characters."),
+});
+
 async function requirePatientsPermission(
   permission: "patients.view" | "patients.create" | "patients.edit" | "patients.delete",
 ) {
@@ -47,12 +58,38 @@ function parsePatientForm(formData: FormData) {
     email: emptyToUndefined(formData.get("email")),
     phone: formData.get("phone"),
     dateOfBirth: formData.get("dateOfBirth"),
+    age: emptyToUndefined(formData.get("age")),
     gender: formData.get("gender"),
     bloodGroup: emptyToUndefined(formData.get("bloodGroup")),
+    doctorAssigned: emptyToUndefined(formData.get("doctorAssigned")),
+    admissionDate: formData.get("admissionDate"),
+    dischargeDate: emptyToUndefined(formData.get("dischargeDate")),
+    status: formData.get("status"),
     address: emptyToUndefined(formData.get("address")),
     allergies: emptyToUndefined(formData.get("allergies")),
     medicalHistory: emptyToUndefined(formData.get("medicalHistory")),
+    insuranceProvider: emptyToUndefined(formData.get("insuranceProvider")),
+    insurancePolicyNumber: emptyToUndefined(formData.get("insurancePolicyNumber")),
+    insuranceMemberId: emptyToUndefined(formData.get("insuranceMemberId")),
+    insuranceGroupNumber: emptyToUndefined(formData.get("insuranceGroupNumber")),
+    portalLoginEnabled: formData.get("portalLoginEnabled") === "on",
   };
+}
+
+function parsePortalUserForm(formData: FormData, patient: ReturnType<typeof parsePatientForm>) {
+  if (formData.get("portalLoginEnabled") !== "on") {
+    return undefined;
+  }
+
+  const fullName =
+    `${String(patient.firstName ?? "").trim()} ${String(patient.lastName ?? "").trim()}`.trim();
+
+  return portalUserSchema.parse({
+    email: emptyToUndefined(formData.get("portalEmail")) ?? patient.email,
+    emailVerified: formData.get("portalEmailVerified") === "on",
+    name: emptyToUndefined(formData.get("portalName")) ?? fullName,
+    password: formData.get("portalPassword"),
+  });
 }
 
 function parseUpdatePatientForm(formData: FormData) {
@@ -81,6 +118,16 @@ function getActionError(error: unknown, fallback: string): ActionState {
     };
   }
 
+  if (
+    error instanceof Error &&
+    (error.message.includes("duplicate key") || error.message.includes("unique"))
+  ) {
+    return {
+      ok: false,
+      message: "A patient or portal user with these details already exists.",
+    };
+  }
+
   console.error("Action error:", error);
 
   return { ok: false, message: fallback };
@@ -88,13 +135,10 @@ function getActionError(error: unknown, fallback: string): ActionState {
 
 export async function getPatientsPageData(searchParams: Promise<PatientsPageSearchParams>) {
   await requirePatientsPermission("patients.view");
-
   const { created, q } = await searchParams;
   const query = q?.trim() ?? "";
-
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
   const [patients, totalPatients, newThisWeek, recentlyUpdated] = await Promise.all([
     findPatients({ query }),
     countPatients(query),
@@ -112,6 +156,12 @@ export async function getPatientsPageData(searchParams: Promise<PatientsPageSear
       recentlyUpdated,
     },
   });
+}
+
+export async function getDoctorAssignedOptions() {
+  await requirePatientsPermission("patients.create");
+
+  return findDoctorOptions();
 }
 
 export async function createPatientFromForm(formData: FormData): Promise<ActionState> {
@@ -139,6 +189,63 @@ export async function createPatientFromForm(formData: FormData): Promise<ActionS
     });
     revalidatePath(PATIENTS_PATH);
     return { ok: true, message: "Patient created successfully." };
+  } catch (error) {
+    return getActionError(error, "Unable to create patient. Please try again.");
+  }
+}
+
+export async function createPatientWithPortalFromForm(formData: FormData): Promise<ActionState> {
+  const user = await requirePatientsPermission("patients.create");
+
+  try {
+    const rawPatient = parsePatientForm(formData);
+    const input = createPatientSchema.parse(rawPatient);
+    const portalUser = parsePortalUserForm(formData, rawPatient);
+    const patient = await createPatientWithPortalUser(
+      input,
+      portalUser
+        ? {
+            email: portalUser.email,
+            emailVerified: portalUser.emailVerified,
+            firstName: input.firstName,
+            lastName: input.lastName,
+            name: portalUser.name,
+            passwordHash: await bcrypt.hash(portalUser.password, 10),
+            phone: input.phone,
+          }
+        : undefined,
+    );
+
+    if (!patient) {
+      return {
+        ok: false,
+        message: "Unable to create patient.",
+      };
+    }
+
+    await createActivityLog({
+      action: "CREATE_PATIENT",
+      module: "patients",
+      description: `Created patient ${patient.fullName}`,
+      userId: user.id,
+      userName: getUserDisplayName(user),
+      ipAddress,
+      metadata: {
+        patientId: patient.id,
+        patientName: patient.fullName,
+        portalLoginEnabled: input.portalLoginEnabled,
+      },
+    });
+
+    revalidatePath(PATIENTS_PATH);
+    revalidatePath("/patients/add-patient");
+
+    return {
+      ok: true,
+      message: portalUser
+        ? "Patient and portal user created successfully."
+        : "Patient created successfully.",
+    };
   } catch (error) {
     return getActionError(error, "Unable to create patient. Please try again.");
   }

@@ -1,10 +1,14 @@
+// src/db/seeds/users.seed.ts
+
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../index.js";
 
-type SeedUser = {
-  roleName: string;
+type Gender = "male" | "female" | "other";
+
+type BaseSeedUser = {
+  roleName: "admin" | "doctor" | "receptionist";
   name: string;
   email: string;
   password: string;
@@ -12,13 +16,39 @@ type SeedUser = {
     firstName: string;
     lastName: string;
     phone: string;
-    gender: "male" | "female" | "other";
+    gender: Gender;
     city: string;
     state: string;
     country: string;
     postalCode: string;
   };
 };
+
+type DoctorSeedUser = BaseSeedUser & {
+  roleName: "doctor";
+  doctor: {
+    departmentCode: string;
+    specialization: string;
+    qualification: string;
+    experienceYears: number;
+    consultationFee: string;
+    licenseNumber: string;
+  };
+};
+
+type ReceptionistSeedUser = BaseSeedUser & {
+  roleName: "receptionist";
+  receptionist: {
+    employeeCode: string;
+    shift: string;
+  };
+};
+
+type AdminSeedUser = BaseSeedUser & {
+  roleName: "admin";
+};
+
+type SeedUser = AdminSeedUser | DoctorSeedUser | ReceptionistSeedUser;
 
 async function createUserWithProfile(userData: SeedUser) {
   const existingRole = await db.query.roles.findFirst({
@@ -62,9 +92,58 @@ async function createUserWithProfile(userData: SeedUser) {
       userId: existingUser.id,
       ...userData.profile,
     });
-    console.log(`${userData.roleName} profile created`);
+
+    console.log(`✅ ${userData.roleName} profile created`);
   } else {
-    console.log(`ℹ${userData.roleName} profile already exists`);
+    console.log(`ℹ️ ${userData.roleName} profile already exists`);
+  }
+
+  if (userData.roleName === "doctor") {
+    const department = await db.query.departments.findFirst({
+      where: eq(schema.departments.code, userData.doctor.departmentCode),
+    });
+
+    if (!department) {
+      throw new Error(`Department with code ${userData.doctor.departmentCode} not found`);
+    }
+
+    const existingDoctor = await db.query.doctors.findFirst({
+      where: eq(schema.doctors.userId, existingUser.id),
+    });
+
+    if (!existingDoctor) {
+      await db.insert(schema.doctors).values({
+        userId: existingUser.id,
+        departmentId: department.id,
+        specialization: userData.doctor.specialization,
+        qualification: userData.doctor.qualification,
+        experienceYears: userData.doctor.experienceYears,
+        consultationFee: userData.doctor.consultationFee,
+        licenseNumber: userData.doctor.licenseNumber,
+      });
+
+      console.log("✅ Doctor record created");
+    } else {
+      console.log("ℹ️ Doctor record already exists");
+    }
+  }
+
+  if (userData.roleName === "receptionist") {
+    const existingReceptionist = await db.query.receptionists.findFirst({
+      where: eq(schema.receptionists.userId, existingUser.id),
+    });
+
+    if (!existingReceptionist) {
+      await db.insert(schema.receptionists).values({
+        userId: existingUser.id,
+        employeeCode: userData.receptionist.employeeCode,
+        shift: userData.receptionist.shift,
+      });
+
+      console.log("✅ Receptionist record created");
+    } else {
+      console.log("ℹ️ Receptionist record already exists");
+    }
   }
 }
 
@@ -91,7 +170,7 @@ export async function seedUsers() {
 
     await createUserWithProfile({
       roleName: "doctor",
-      name: "Dr John",
+      name: "Dr John Doctor",
       email: process.env.DOCTOR_EMAIL || "doctor@example.com",
       password: process.env.DOCTOR_PASSWORD || "Doctor@123",
       profile: {
@@ -104,17 +183,21 @@ export async function seedUsers() {
         country: "India",
         postalCode: "400001",
       },
+      doctor: {
+        departmentCode: "GEN-MED",
+        specialization: "General Physician",
+        qualification: "MBBS",
+        experienceYears: 8,
+        consultationFee: "500",
+        licenseNumber: "DOC-MH-1001",
+      },
     });
 
     await createUserWithProfile({
       roleName: "receptionist",
       name: "Reception User",
-      email:
-        process.env.RECEPTIONIST_EMAIL ||
-        "receptionist@example.com",
-      password:
-        process.env.RECEPTIONIST_PASSWORD ||
-        "Reception@123",
+      email: process.env.RECEPTIONIST_EMAIL || "receptionist@example.com",
+      password: process.env.RECEPTIONIST_PASSWORD || "Reception@123",
       profile: {
         firstName: "Reception",
         lastName: "User",
@@ -125,9 +208,13 @@ export async function seedUsers() {
         country: "India",
         postalCode: "160001",
       },
+      receptionist: {
+        employeeCode: "REC-1001",
+        shift: "morning",
+      },
     });
 
-    console.log("✅ All users seeded successfully");
+    console.log("🎉 All users seeded successfully");
   } catch (error) {
     console.error("❌ User seed failed:", error);
     throw error;
@@ -137,7 +224,7 @@ export async function seedUsers() {
 if (import.meta.main) {
   seedUsers()
     .then(() => {
-      console.log("Seed finished");
+      console.log("✅ Seed finished");
       process.exit(0);
     })
     .catch((error) => {

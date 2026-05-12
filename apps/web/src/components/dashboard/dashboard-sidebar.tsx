@@ -3,7 +3,11 @@
 "use client";
 
 import {
+  BarChart3,
   Bell,
+  Building2,
+  CalendarDays,
+  CalendarX2,
   ChevronDown,
   ChevronsUpDown,
   ClipboardList,
@@ -13,16 +17,19 @@ import {
   Monitor,
   MonitorCog,
   Moon,
+  PlusCircle,
   Settings,
   ShieldCheck,
   Stethoscope,
   Sun,
   UserRound,
   Users,
+  Users2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
+import type { ElementType } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -48,35 +55,39 @@ import {
 import { logoutAction } from "@/modules/auth/auth.actions";
 import { hasAnyPermission, hasPermission, type Permission } from "@/modules/auth/permissions";
 import type { WorkspaceSettings } from "./protected-workspace";
-
 export type SidebarUser = {
   name: string;
   email: string;
   permissions: string[];
   role: "admin" | "doctor" | "receptionist" | string;
 };
-
 type SingleMenu = {
   type: "single";
   label: string;
   href: string;
-  icon: React.ElementType;
+  icon: ElementType;
   permission: Permission;
 };
-
 type SubMenu = {
+  type?: "link";
   label: string;
   href: string;
-  icon?: React.ElementType;
+  icon?: ElementType;
   permission: Permission;
 };
-
+type SectionMenu = {
+  type: "section";
+  label: string;
+  icon?: ElementType;
+  permissions: Permission[];
+  children: SubMenu[];
+};
 type GroupMenu = {
   type: "group";
   label: string;
-  icon: React.ElementType;
+  icon: ElementType;
   permissions: Permission[];
-  children: SubMenu[];
+  children: Array<SubMenu | SectionMenu>;
 };
 
 type SidebarMenuItemType = SingleMenu | GroupMenu;
@@ -90,11 +101,50 @@ const sidebarMenus: SidebarMenuItemType[] = [
     permission: "dashboard.view",
   },
   {
-    type: "single",
+    type: "group",
+    label: "Doctor",
+    icon: Stethoscope,
+    permissions: ["doctors.view", "doctors.create"],
+    children: [
+      {
+        label: "All Departments",
+        href: "/doctors/department",
+        icon: Building2,
+        permission: "departments.view",
+      }, {
+        label: "All Doctors",
+        href: "/doctors/view",
+        icon: Users,
+        permission: "doctors.view",
+      },
+      {
+        label: "Add Doctor",
+        href: "/doctors/add-doctor",
+        icon: UserRound,
+        permission: "doctors.create",
+      }
+    ],
+  },
+
+  {
+    type: "group",
     label: "Patients",
-    href: "/patients",
     icon: Users,
-    permission: "patients.view",
+    permissions: ["patients.view", "patients.create"],
+    children: [
+      {
+        label: "All Patients",
+        href: "/patients/view",
+        icon: Users,
+        permission: "patients.view",
+      },
+      {
+        label: "Add Patient",
+        href: "/patients/add-patient",
+        icon: UserRound,
+        permission: "patients.create",
+      },
+    ],
   },
   {
     type: "group",
@@ -106,6 +156,8 @@ const sidebarMenus: SidebarMenuItemType[] = [
       "audit-logs.view",
       "login-history.view",
       "roles.manage",
+      "departments.manage",
+      "branches.view",
       "users.manage",
     ],
     children: [
@@ -120,6 +172,12 @@ const sidebarMenus: SidebarMenuItemType[] = [
         href: "/setting/roles-permissions",
         icon: ShieldCheck,
         permission: "roles.manage",
+      },
+      {
+        label: "Clinic / Branch Setup",
+        href: "/setting/branches",
+        icon: Building2,
+        permission: "branches.view",
       },
       {
         label: "User Management",
@@ -164,7 +222,37 @@ function isMenuActive(pathname: string, menu: SidebarMenuItemType) {
     return isHrefActive(pathname, menu.href);
   }
 
-  return menu.children.some((child) => isHrefActive(pathname, child.href));
+  return menu.children.some((child) => {
+    if (child.type === "section") {
+      return child.children.some((sectionChild) => isHrefActive(pathname, sectionChild.href));
+    }
+
+    return isHrefActive(pathname, child.href);
+  });
+}
+
+function filterGroupChildren(children: GroupMenu["children"], permissions: readonly string[]) {
+  return children
+    .map((child) => {
+      if (child.type === "section") {
+        const visibleChildren = child.children.filter((sectionChild) =>
+          hasPermission(permissions, sectionChild.permission),
+        );
+
+        const canShowSection =
+          visibleChildren.length > 0 || hasAnyPermission(permissions, child.permissions);
+
+        if (!canShowSection) return null;
+
+        return {
+          ...child,
+          children: visibleChildren,
+        };
+      }
+
+      return hasPermission(permissions, child.permission) ? child : null;
+    })
+    .filter(Boolean) as GroupMenu["children"];
 }
 
 export function DashboardSidebar({
@@ -176,14 +264,13 @@ export function DashboardSidebar({
 }) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
-
   const companyName = settings.companyName ?? "MediClinic";
   const workspaceLabel = settings.tagline ?? "System Workspace";
   const mainLogo = settings.mainLogo;
-
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
-    "System & Admin": true,
+    "Patient Module": false,
+    "System & Admin": false,
   });
 
   const permissions = useMemo(() => {
@@ -197,10 +284,7 @@ export function DashboardSidebar({
           return hasPermission(permissions, menu.permission) ? menu : null;
         }
 
-        const visibleChildren = menu.children.filter((child) =>
-          hasPermission(permissions, child.permission),
-        );
-
+        const visibleChildren = filterGroupChildren(menu.children, permissions);
         const canShowGroup =
           visibleChildren.length > 0 || hasAnyPermission(permissions, menu.permissions);
 
@@ -285,11 +369,10 @@ export function DashboardSidebar({
                         <SidebarMenuItem key={menu.href}>
                           <SidebarMenuButton
                             asChild
-                            className={`h-11 rounded-lg px-3 transition-all duration-200 ${
-                              active
-                                ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 dark:bg-blue-500"
-                                : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
-                            }`}
+                            className={`h-11 rounded-lg px-3 transition-all duration-200 ${active
+                              ? "bg-blue-600 text-white shadow-lg shadow-blue-600/20 dark:bg-blue-500"
+                              : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                              }`}
                           >
                             <Link href={menu.href} className="flex items-center gap-3">
                               <Icon className="size-4" />
@@ -312,44 +395,90 @@ export function DashboardSidebar({
                               [menu.label]: !(prev[menu.label] ?? active),
                             }))
                           }
-                          className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-all ${
-                            active
-                              ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400"
-                              : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
-                          }`}
+                          className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-all ${active
+                            ? "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400"
+                            : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                            }`}
                         >
                           <Icon className="size-4 shrink-0" />
 
                           <span className="flex-1 text-left">{menu.label}</span>
 
                           <ChevronDown
-                            className={`size-4 shrink-0 transition-transform ${
-                              isOpen ? "rotate-180" : ""
-                            }`}
+                            className={`size-4 shrink-0 transition-transform ${isOpen ? "rotate-180" : ""
+                              }`}
                           />
                         </button>
 
                         {isOpen ? (
                           <div className="ml-6 mt-1 space-y-1 border-l border-slate-200 pl-4 dark:border-slate-800">
                             {menu.children.map((child) => {
+                              if (child.type === "section") {
+                                const SectionIcon = child.icon;
+                                const childActive = child.children.some((sectionChild) =>
+                                  isHrefActive(pathname, sectionChild.href),
+                                );
+
+                                return (
+                                  <div key={child.label} className="space-y-1 pt-2 first:pt-1">
+                                    <div
+                                      className={`flex h-8 items-center gap-2 rounded-lg px-2 text-xs font-semibold uppercase tracking-wide ${childActive
+                                        ? "text-blue-700 dark:text-blue-400"
+                                        : "text-slate-400 dark:text-slate-500"
+                                        }`}
+                                    >
+                                      {SectionIcon ? <SectionIcon className="size-3.5" /> : null}
+                                      <span className="truncate">{child.label}</span>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      {child.children.map((sectionChild) => {
+                                        const sectionChildActive = isHrefActive(
+                                          pathname,
+                                          sectionChild.href,
+                                        );
+
+                                        return (
+                                          <Link
+                                            key={sectionChild.href}
+                                            href={sectionChild.href}
+                                            className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-all ${sectionChildActive
+                                              ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-400"
+                                              : "text-slate-500 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                                              }`}
+                                          >
+                                            <span
+                                              className={`size-1.5 shrink-0 rounded-full ${sectionChildActive
+                                                ? "bg-blue-600 dark:bg-blue-400"
+                                                : "bg-slate-300 dark:bg-slate-600"
+                                                }`}
+                                            />
+
+                                            <span className="truncate">{sectionChild.label}</span>
+                                          </Link>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              }
+
                               const childActive = isHrefActive(pathname, child.href);
 
                               return (
                                 <Link
                                   key={child.href}
                                   href={child.href}
-                                  className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-all ${
-                                    childActive
-                                      ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-400"
-                                      : "text-slate-500 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-blue-400"
-                                  }`}
+                                  className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm transition-all ${childActive
+                                    ? "bg-blue-100 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-400"
+                                    : "text-slate-500 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-blue-400"
+                                    }`}
                                 >
                                   <span
-                                    className={`size-1.5 shrink-0 rounded-full ${
-                                      childActive
-                                        ? "bg-blue-600 dark:bg-blue-400"
-                                        : "bg-slate-300 dark:bg-slate-600"
-                                    }`}
+                                    className={`size-1.5 shrink-0 rounded-full ${childActive
+                                      ? "bg-blue-600 dark:bg-blue-400"
+                                      : "bg-slate-300 dark:bg-slate-600"
+                                      }`}
                                   />
 
                                   <span className="truncate">{child.label}</span>
@@ -411,32 +540,7 @@ export function DashboardSidebar({
                     </span>
                   </span>
                 </DropdownMenuLabel>
-
                 <DropdownMenuSeparator />
-
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/profile">
-                    <UserRound className="size-4" />
-                    Account
-                  </Link>
-                </DropdownMenuItem>
-
-                {hasPermission(permissions, "billing.view") ? (
-                  <DropdownMenuItem asChild>
-                    <Link href="/billing">
-                      <CreditCard className="size-4" />
-                      Billing
-                    </Link>
-                  </DropdownMenuItem>
-                ) : null}
-
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard/notifications/system-notifications">
-                    <Bell className="size-4" />
-                    Notifications
-                  </Link>
-                </DropdownMenuItem>
-
                 <DropdownMenuItem onClick={toggleTheme}>
                   {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
                   {theme === "dark" ? "Light Mode" : "Dark Mode"}

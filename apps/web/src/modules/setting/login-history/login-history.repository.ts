@@ -1,10 +1,11 @@
 import { db, schema } from "@mediclinicpro/db";
-import { count, desc, eq, gte, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, gte, ilike, or } from "drizzle-orm";
 import type { LoginHistoryListItem } from "./login-history.types";
 
 type FindLoginHistoryOptions = {
   query?: string;
   limit?: number;
+  userId: string;
 };
 
 type LoginHistoryRow = {
@@ -46,6 +47,12 @@ function buildLoginHistorySearch(query?: string) {
   );
 }
 
+function buildLoginHistoryWhere(userId: string, query?: string) {
+  const search = buildLoginHistorySearch(query);
+
+  return search ? and(eq(schema.sessions.userId, userId), search) : eq(schema.sessions.userId, userId);
+}
+
 function baseLoginHistoryQuery() {
   return db
     .select({
@@ -65,30 +72,31 @@ function baseLoginHistoryQuery() {
 export async function findLoginHistory({
   limit = 50,
   query,
-}: FindLoginHistoryOptions = {}): Promise<LoginHistoryListItem[]> {
+  userId,
+}: FindLoginHistoryOptions): Promise<LoginHistoryListItem[]> {
   const rows = await baseLoginHistoryQuery()
-    .where(buildLoginHistorySearch(query))
+    .where(buildLoginHistoryWhere(userId, query))
     .orderBy(desc(schema.sessions.createdAt))
     .limit(limit);
 
   return rows.map(mapLoginHistory);
 }
 
-export async function countLoginHistory(query?: string) {
+export async function countLoginHistory(userId: string, query?: string) {
   const [result] = await db
     .select({ value: count() })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.sessions.userId, schema.users.id))
-    .where(buildLoginHistorySearch(query));
+    .where(buildLoginHistoryWhere(userId, query));
 
   return Number(result?.value ?? 0);
 }
 
-export async function countLoginHistorySince(date: Date) {
+export async function countLoginHistorySince(userId: string, date: Date) {
   const [result] = await db
     .select({ value: count() })
     .from(schema.sessions)
-    .where(gte(schema.sessions.createdAt, date));
+    .where(and(eq(schema.sessions.userId, userId), gte(schema.sessions.createdAt, date)));
 
   return Number(result?.value ?? 0);
 }

@@ -9,6 +9,13 @@ export type Permission =
   | "patients.create"
   | "patients.edit"
   | "patients.delete"
+  // Doctors
+  | "doctors.view"
+  | "doctors.create"
+  | "doctors.edit"
+  | "doctors.delete"
+  | "doctors.schedule.view"
+  | "doctors.leave.view"
 
   // Appointments
   | "appointments.view"
@@ -36,6 +43,16 @@ export type Permission =
 
   // System Management
   | "settings.manage"
+  | "departments.manage"
+  | "departments.view"
+  | "departments.create"
+  | "departments.edit"
+  | "departments.delete"
+  | "departments.analytics.view"
+  | "branches.view"
+  | "branches.create"
+  | "branches.edit"
+  | "branches.delete"
   | "users.manage"
   | "roles.manage"
   | "permissions.manage";

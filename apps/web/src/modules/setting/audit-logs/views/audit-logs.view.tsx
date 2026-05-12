@@ -93,7 +93,6 @@ export function AuditLogsView({
                   <TableHead>Action</TableHead>
                   <TableHead>Module</TableHead>
                   <TableHead>User</TableHead>
-                  <TableHead>IP Address</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -120,9 +119,6 @@ export function AuditLogsView({
                         {log.userName ?? "System"}
                       </span>
                     </TableCell>
-
-                    <TableCell className="text-muted-foreground">{log.ipAddress ?? "-"}</TableCell>
-
                     <TableCell className="text-muted-foreground">
                       {formatDateTime(log.createdAt)}
                     </TableCell>

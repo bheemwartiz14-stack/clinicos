@@ -5,15 +5,18 @@ import { db, schema } from "../index.js";
 const modules = [
   "dashboard",
   "patients",
+  "doctors",
   "appointments",
   "billing",
   "general-settings",
   "audit-logs",
   "login-history",
   "settings",
+  "departments",
   "users",
   "roles",
   "permissions",
+  "branches",
 ] as const;
 
 type ModuleName = (typeof modules)[number];
@@ -22,17 +25,18 @@ const moduleActions: Record<ModuleName, string[]> = {
   dashboard: ["view"],
 
   patients: ["view", "create", "edit", "delete"],
+  doctors: ["view", "create", "edit", "delete", "schedule.view", "leave.view"],
   appointments: ["view", "create", "edit", "delete"],
   billing: ["view", "create", "edit", "delete"],
 
-  // Admin only CRUD
   "general-settings": ["view", "create", "edit", "delete"],
+  branches: ["view", "create", "edit", "delete"],
 
-  // Admin, Doctor, Receptionist view
   "audit-logs": ["view"],
   "login-history": ["view"],
 
   settings: ["manage"],
+  departments: ["manage", "view", "create", "edit", "delete", "analytics.view"],
   users: ["manage"],
   roles: ["manage"],
   permissions: ["manage"],
@@ -55,6 +59,10 @@ export async function seedRBAC() {
         name: "receptionist",
         description: "Receptionist Role",
       },
+      {
+        name: "patient",
+        description: "Patient Role",
+      },
     ];
 
     await db.insert(schema.roles).values(rolesData).onConflictDoNothing({
@@ -70,8 +78,9 @@ export async function seedRBAC() {
     const receptionistRole = roles.find(
       (role) => role.name === "receptionist",
     );
+    const patientRole = roles.find((role) => role.name === "patient");
 
-    if (!adminRole || !doctorRole || !receptionistRole) {
+    if (!adminRole || !doctorRole || !receptionistRole || !patientRole) {
       throw new Error("Required roles not found");
     }
 
@@ -119,10 +128,6 @@ export async function seedRBAC() {
       console.log(`✅ ${label} permissions mapped`);
     }
 
-    // Admin gets all permissions, including:
-    // general-settings.view/create/edit/delete
-    // audit-logs.view
-    // login-history.view
     const adminMappings: (typeof schema.roleHasPermissions.$inferInsert)[] =
       permissions.map((permission) => ({
         roleId: adminRole.id,
@@ -138,7 +143,6 @@ export async function seedRBAC() {
 
     console.log("✅ Admin mapped to all permissions");
 
-    // Doctor permissions
     await mapPermissions(
       doctorRole.id,
       [
@@ -148,18 +152,22 @@ export async function seedRBAC() {
         "patients.create",
         "patients.edit",
 
+        "doctors.view",
+        "doctors.schedule.view",
+        "doctors.leave.view",
+
         "appointments.view",
         "appointments.create",
         "appointments.edit",
+
         "settings.manage",
-        // Tabs view permissions
+
         "audit-logs.view",
         "login-history.view",
       ],
       "Doctor",
     );
 
-    // Receptionist permissions
     await mapPermissions(
       receptionistRole.id,
       [
@@ -171,12 +179,31 @@ export async function seedRBAC() {
         "appointments.view",
         "appointments.create",
         "appointments.edit",
+
         "billing.view",
         "billing.create",
+
         "audit-logs.view",
         "login-history.view",
       ],
       "Receptionist",
+    );
+
+    await mapPermissions(
+      patientRole.id,
+      [
+        "dashboard.view",
+
+        "patients.view",
+
+        "appointments.view",
+        "appointments.create",
+
+        "billing.view",
+
+        "login-history.view",
+      ],
+      "Patient",
     );
 
     console.log("🎉 RBAC seeding completed successfully");

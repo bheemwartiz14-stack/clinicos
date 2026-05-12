@@ -1,13 +1,42 @@
 import { db, schema } from "@mediclinicpro/db";
-import { and, count, desc, eq, gte, ilike, or } from "drizzle-orm";
-import type { CreatePatientInput, PatientListItem, UpdatePatientInput } from "./patients.types";
+import { and, asc, count, desc, eq, gte, ilike, inArray, or } from "drizzle-orm";
+import type {
+  CreatePatientInput,
+  DoctorOption,
+  PatientDocument,
+  PatientFamilyMember,
+  PatientFeedback,
+  PatientListItem,
+  PatientVisit,
+  UpdatePatientInput,
+} from "./patients.types";
 
 type FindPatientsOptions = {
   query?: string;
   limit?: number;
 };
 
-function mapPatient(row: typeof schema.patients.$inferSelect): PatientListItem {
+type PatientDetailCollections = {
+  documents?: PatientDocument[];
+  familyMembers?: PatientFamilyMember[];
+  feedback?: PatientFeedback[];
+  visits?: PatientVisit[];
+};
+
+type PatientPortalUserInput = {
+  email: string;
+  emailVerified: boolean;
+  firstName: string;
+  lastName: string;
+  name: string;
+  passwordHash: string;
+  phone: string;
+};
+
+function mapPatient(
+  row: typeof schema.patients.$inferSelect,
+  details: PatientDetailCollections = {},
+): PatientListItem {
   return {
     id: row.id,
     firstName: row.firstName,
@@ -16,13 +45,75 @@ function mapPatient(row: typeof schema.patients.$inferSelect): PatientListItem {
     email: row.email,
     phone: row.phone,
     dateOfBirth: row.dateOfBirth,
+    age: row.age,
     gender: row.gender,
     bloodGroup: row.bloodGroup,
+    doctorAssigned: row.doctorAssigned,
+    admissionDate: row.admissionDate,
+    dischargeDate: row.dischargeDate,
+    status: row.status,
     address: row.address,
     allergies: row.allergies,
     medicalHistory: row.medicalHistory,
+    insuranceProvider: row.insuranceProvider,
+    insurancePolicyNumber: row.insurancePolicyNumber,
+    insuranceMemberId: row.insuranceMemberId,
+    insuranceGroupNumber: row.insuranceGroupNumber,
+    portalLoginEnabled: row.portalLoginEnabled,
+    portalLastLoginAt: row.portalLastLoginAt,
+    familyMembers: details.familyMembers ?? [],
+    visits: details.visits ?? [],
+    documents: details.documents ?? [],
+    feedback: details.feedback ?? [],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function groupByPatientId<T extends { patientId: string }>(rows: T[]) {
+  return rows.reduce<Record<string, T[]>>((groups, row) => {
+    groups[row.patientId] ??= [];
+    groups[row.patientId].push(row);
+    return groups;
+  }, {});
+}
+
+async function getPatientDetails(patientIds: string[]) {
+  if (patientIds.length === 0) {
+    return {};
+  }
+
+  const [familyRows, visitRows, documentRows, feedbackRows] = await Promise.all([
+    db
+      .select()
+      .from(schema.patientFamilyMembers)
+      .where(inArray(schema.patientFamilyMembers.patientId, patientIds))
+      .orderBy(desc(schema.patientFamilyMembers.updatedAt)),
+    db
+      .select()
+      .from(schema.patientVisits)
+      .where(inArray(schema.patientVisits.patientId, patientIds))
+      .orderBy(desc(schema.patientVisits.visitDate))
+      .limit(150),
+    db
+      .select()
+      .from(schema.patientDocuments)
+      .where(inArray(schema.patientDocuments.patientId, patientIds))
+      .orderBy(desc(schema.patientDocuments.createdAt))
+      .limit(150),
+    db
+      .select()
+      .from(schema.patientFeedback)
+      .where(inArray(schema.patientFeedback.patientId, patientIds))
+      .orderBy(desc(schema.patientFeedback.createdAt))
+      .limit(150),
+  ]);
+
+  return {
+    documents: groupByPatientId(documentRows),
+    familyMembers: groupByPatientId(familyRows),
+    feedback: groupByPatientId(feedbackRows),
+    visits: groupByPatientId(visitRows),
   };
 }
 
@@ -54,7 +145,16 @@ export async function findPatients({
     .orderBy(desc(schema.patients.updatedAt))
     .limit(limit);
 
-  return rows.map(mapPatient);
+  const details = await getPatientDetails(rows.map((row) => row.id));
+
+  return rows.map((row) =>
+    mapPatient(row, {
+      documents: details.documents?.[row.id],
+      familyMembers: details.familyMembers?.[row.id],
+      feedback: details.feedback?.[row.id],
+      visits: details.visits?.[row.id],
+    }),
+  );
 }
 
 export async function countPatients(query?: string) {
@@ -84,8 +184,68 @@ export async function countUpdatedPatientsSince(date: Date) {
   return Number(result?.value ?? 0);
 }
 
+export async function findDoctorOptions(): Promise<DoctorOption[]> {
+  const rows = await db
+    .select({
+      id: schema.doctors.id,
+      name: schema.users.name,
+      specialization: schema.doctors.specialization,
+    })
+    .from(schema.doctors)
+    .innerJoin(schema.users, eq(schema.doctors.userId, schema.users.id))
+    .where(eq(schema.doctors.isAvailable, true))
+    .orderBy(asc(schema.users.name));
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    label: row.specialization ? `${row.name} - ${row.specialization}` : row.name,
+  }));
+}
+
 export async function createPatient(input: CreatePatientInput) {
   const [patient] = await db.insert(schema.patients).values(input).returning();
+
+  return patient ? mapPatient(patient) : null;
+}
+
+export async function createPatientWithPortalUser(
+  input: CreatePatientInput,
+  portalUser?: PatientPortalUserInput,
+) {
+  const patient = await db.transaction(async (tx) => {
+    const [createdPatient] = await tx.insert(schema.patients).values(input).returning();
+
+    if (!createdPatient) {
+      return null;
+    }
+
+    if (portalUser) {
+      const [createdUser] = await tx
+        .insert(schema.users)
+        .values({
+          email: portalUser.email.toLowerCase(),
+          emailVerified: portalUser.emailVerified,
+          name: portalUser.name,
+          password: portalUser.passwordHash,
+        })
+        .returning({ id: schema.users.id });
+
+      if (createdUser) {
+        await tx.insert(schema.userProfiles).values({
+          userId: createdUser.id,
+          firstName: portalUser.firstName,
+          lastName: portalUser.lastName,
+          phone: portalUser.phone,
+          gender: input.gender === "unknown" ? null : input.gender,
+          dateOfBirth: input.dateOfBirth,
+          address: input.address ?? null,
+        });
+      }
+    }
+
+    return createdPatient;
+  });
 
   return patient ? mapPatient(patient) : null;
 }
