@@ -13,15 +13,15 @@ import {
   Monitor,
   MonitorCog,
   Moon,
+  Settings,
   ShieldCheck,
   Stethoscope,
   Sun,
   UserRound,
   Users,
-  Settings,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 
@@ -45,15 +45,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { logoutAction } from "@/modules/auth/auth.actions";
+import { hasAnyPermission, hasPermission, type Permission } from "@/modules/auth/permissions";
+import type { WorkspaceSettings } from "./protected-workspace";
 
-import {
-  hasAnyPermission,
-  hasPermission,
-  type Permission,
-} from "@/modules/auth/permissions";
-import { useGeneralSettings } from "@/modules/setting/genral-setting";
-
-type SidebarUser = {
+export type SidebarUser = {
   name: string;
   email: string;
   permissions: string[];
@@ -171,56 +167,27 @@ function isMenuActive(pathname: string, menu: SidebarMenuItemType) {
   return menu.children.some((child) => isHrefActive(pathname, child.href));
 }
 
-export function DashboardSidebar() {
+export function DashboardSidebar({
+  settings,
+  user,
+}: {
+  settings: WorkspaceSettings;
+  user: SidebarUser;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
 
-  const { data: generalSettingsData } = useGeneralSettings();
-  const generalSettings = generalSettingsData?.settings;
+  const companyName = settings.companyName ?? "MediClinic";
+  const workspaceLabel = settings.tagline ?? "System Workspace";
+  const mainLogo = settings.mainLogo;
 
-  const companyName = generalSettings?.companyName ?? "MediClinic";
-  const workspaceLabel = generalSettings?.tagline ?? "System Workspace";
-  const mainLogo = generalSettings?.mainLogo;
-
-  const [user, setUser] = useState<SidebarUser | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({
     "System & Admin": true,
   });
 
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadUser() {
-      try {
-        const response = await fetch("/api/auth/me", {
-          cache: "no-store",
-        });
-
-        if (!response.ok) return;
-
-        const data = (await response.json()) as {
-          user?: SidebarUser | null;
-        };
-
-        if (!ignore && data.user) {
-          setUser(data.user);
-        }
-      } catch {
-        setUser(null);
-      }
-    }
-
-    loadUser();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
   const permissions = useMemo(() => {
-    return user?.permissions ?? [];
+    return user.permissions ?? [];
   }, [user]);
 
   const visibleMenus = useMemo(() => {
@@ -235,8 +202,7 @@ export function DashboardSidebar() {
         );
 
         const canShowGroup =
-          visibleChildren.length > 0 ||
-          hasAnyPermission(permissions, menu.permissions);
+          visibleChildren.length > 0 || hasAnyPermission(permissions, menu.permissions);
 
         if (!canShowGroup) return null;
 
@@ -249,16 +215,13 @@ export function DashboardSidebar() {
   }, [permissions]);
 
   useEffect(() => {
-    const activeGroups = visibleMenus.reduce<Record<string, boolean>>(
-      (acc, menu) => {
-        if (menu.type === "group" && isMenuActive(pathname, menu)) {
-          acc[menu.label] = true;
-        }
+    const activeGroups = visibleMenus.reduce<Record<string, boolean>>((acc, menu) => {
+      if (menu.type === "group" && isMenuActive(pathname, menu)) {
+        acc[menu.label] = true;
+      }
 
-        return acc;
-      },
-      {},
-    );
+      return acc;
+    }, {});
 
     setOpenMenus((prev) => ({
       ...prev,
@@ -268,13 +231,7 @@ export function DashboardSidebar() {
 
   async function handleLogout() {
     setIsLoggingOut(true);
-
-    await fetch("/api/auth/logout", {
-      method: "POST",
-    });
-
-    router.replace("/login");
-    router.refresh();
+    await logoutAction();
   }
 
   function toggleTheme() {
@@ -334,14 +291,9 @@ export function DashboardSidebar() {
                                 : "text-slate-700 hover:bg-slate-100 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900 dark:hover:text-blue-400"
                             }`}
                           >
-                            <Link
-                              href={menu.href}
-                              className="flex items-center gap-3"
-                            >
+                            <Link href={menu.href} className="flex items-center gap-3">
                               <Icon className="size-4" />
-                              <span className="font-semibold">
-                                {menu.label}
-                              </span>
+                              <span className="font-semibold">{menu.label}</span>
                             </Link>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -368,9 +320,7 @@ export function DashboardSidebar() {
                         >
                           <Icon className="size-4 shrink-0" />
 
-                          <span className="flex-1 text-left">
-                            {menu.label}
-                          </span>
+                          <span className="flex-1 text-left">{menu.label}</span>
 
                           <ChevronDown
                             className={`size-4 shrink-0 transition-transform ${
@@ -382,10 +332,7 @@ export function DashboardSidebar() {
                         {isOpen ? (
                           <div className="ml-6 mt-1 space-y-1 border-l border-slate-200 pl-4 dark:border-slate-800">
                             {menu.children.map((child) => {
-                              const childActive = isHrefActive(
-                                pathname,
-                                child.href,
-                              );
+                              const childActive = isHrefActive(pathname, child.href);
 
                               return (
                                 <Link
@@ -405,9 +352,7 @@ export function DashboardSidebar() {
                                     }`}
                                   />
 
-                                  <span className="truncate">
-                                    {child.label}
-                                  </span>
+                                  <span className="truncate">{child.label}</span>
                                 </Link>
                               );
                             })}
@@ -448,12 +393,7 @@ export function DashboardSidebar() {
                 </button>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent
-                align="end"
-                className="w-60"
-                side="right"
-                sideOffset={10}
-              >
+              <DropdownMenuContent align="end" className="w-60" side="right" sideOffset={10}>
                 <DropdownMenuLabel className="flex min-w-0 items-center gap-3 p-2">
                   <Avatar className="size-9 border border-border">
                     <AvatarFallback className="bg-blue-600 text-xs font-semibold text-white">
@@ -498,11 +438,7 @@ export function DashboardSidebar() {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem onClick={toggleTheme}>
-                  {theme === "dark" ? (
-                    <Sun className="size-4" />
-                  ) : (
-                    <Moon className="size-4" />
-                  )}
+                  {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
                   {theme === "dark" ? "Light Mode" : "Dark Mode"}
                 </DropdownMenuItem>
 

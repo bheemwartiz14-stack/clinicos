@@ -29,10 +29,6 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (pathname === "/login" && hasSessionCookie) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
   const response = NextResponse.next({
     request: {
       headers: requestHeaders,

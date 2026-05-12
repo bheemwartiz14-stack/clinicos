@@ -3,48 +3,18 @@
 import { Button } from "@mediclinicpro/ui/components/button";
 import { Input } from "@mediclinicpro/ui/components/input";
 import { Eye, EyeOff, Loader2, Lock, Mail, Sparkles } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useActionState, useState } from "react";
+
+import { type LoginActionState, loginAction } from "./auth.actions";
+
+const initialLoginState: LoginActionState = {};
 
 export function LoginView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [state, formAction, isPending] = useActionState(loginAction, initialLoginState);
   const [showPassword, setShowPassword] = useState(false);
-
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      const form = new FormData(event.currentTarget);
-
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email: form.get("email"),
-          password: form.get("password"),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { message?: string } | null;
-        setError(data?.message ?? "Invalid email or password.");
-        return;
-      }
-
-      const next = searchParams.get("next");
-      router.push(next?.startsWith("/") ? next : "/dashboard");
-      router.refresh();
-    } catch {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const nextPath = searchParams.get("next") ?? "/dashboard";
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 px-4 py-10 text-slate-950 dark:bg-[#020617] dark:text-white">
@@ -82,9 +52,11 @@ export function LoginView() {
         </section>
 
         <form
-          onSubmit={onSubmit}
+          action={formAction}
           className="mx-auto w-full max-w-md rounded-[2rem] border border-slate-200 bg-white/90 p-6 shadow-2xl shadow-slate-200/70 backdrop-blur-2xl dark:border-white/10 dark:bg-white/10 dark:shadow-black/40 sm:p-8"
         >
+          <input type="hidden" name="next" value={nextPath} />
+
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-950 text-white shadow-lg dark:bg-white dark:text-slate-950">
               <Sparkles className="h-6 w-6" />
@@ -143,18 +115,18 @@ export function LoginView() {
             </label>
           </div>
 
-          {error ? (
+          {state.message ? (
             <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
-              {error}
+              {state.message}
             </div>
           ) : null}
 
           <Button
             className="mt-6 h-12 w-full rounded-2xl bg-slate-950 text-white shadow-lg transition hover:scale-[1.01] hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
-            disabled={loading}
+            disabled={isPending}
             type="submit"
           >
-            {loading ? (
+            {isPending ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Signing in...

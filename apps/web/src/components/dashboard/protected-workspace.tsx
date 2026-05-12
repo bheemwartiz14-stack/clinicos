@@ -3,11 +3,17 @@
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
+import { DashboardSidebar, type SidebarUser } from "@/components/dashboard/dashboard-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+
+export type WorkspaceSettings = {
+  companyName: string | null;
+  tagline: string | null;
+  mainLogo: string | null;
+};
 
 const pageTitles: Record<string, string> = {
   "/ai-notes": "AI Notes",
@@ -29,14 +35,22 @@ function getWorkspaceTitle(pathname: string) {
   return match?.[1] ?? "Workspace";
 }
 
-export function ProtectedWorkspace({ children }: { children: React.ReactNode }) {
+export function ProtectedWorkspace({
+  children,
+  settings,
+  user,
+}: {
+  children: React.ReactNode;
+  settings: WorkspaceSettings;
+  user: SidebarUser;
+}) {
   const pathname = usePathname();
   const title = getWorkspaceTitle(pathname);
 
   return (
     <SidebarProvider>
       <TooltipProvider delayDuration={0}>
-        <DashboardSidebar />
+        <DashboardSidebar settings={settings} user={user} />
 
         <SidebarInset className="overflow-hidden">
           <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-2xl sm:px-6">

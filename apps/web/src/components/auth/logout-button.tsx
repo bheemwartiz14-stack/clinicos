@@ -2,18 +2,16 @@
 
 import { Button } from "@mediclinicpro/ui/components/button";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { logoutAction } from "@/modules/auth/auth.actions";
+
 export function LogoutButton() {
-  const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   async function handleLogout() {
     setIsLoggingOut(true);
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
+    await logoutAction();
   }
 
   return (
