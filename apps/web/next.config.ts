@@ -3,6 +3,19 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   cacheComponents: true,
+  images: {
+    remotePatterns: [
+      {
+        hostname: "clinicos-rosy.vercel.app",
+        protocol: "https",
+      },
+      {
+        hostname: "localhost",
+        port: "3000",
+        protocol: "http",
+      },
+    ],
+  },
   transpilePackages: [
     "@mediclinicpro/db",
     "@mediclinicpro/ui",
