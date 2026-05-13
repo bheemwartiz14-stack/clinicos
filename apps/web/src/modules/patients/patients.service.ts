@@ -15,6 +15,7 @@ import {
   createPatientWithPortalUser,
   deletePatient,
   findDoctorOptions,
+  findPatientBranchOptions,
   findPatients,
   updatePatient,
 } from "./patients.repository";
@@ -53,6 +54,7 @@ function emptyToUndefined(value: FormDataEntryValue | null) {
 }
 function parsePatientForm(formData: FormData) {
   return {
+    branchId: emptyToUndefined(formData.get("branchId")),
     firstName: formData.get("firstName"),
     lastName: formData.get("lastName"),
     email: emptyToUndefined(formData.get("email")),
@@ -162,6 +164,12 @@ export async function getDoctorAssignedOptions() {
   await requirePatientsPermission("patients.create");
 
   return findDoctorOptions();
+}
+
+export async function getPatientBranchOptions() {
+  await requirePatientsPermission("patients.create");
+
+  return findPatientBranchOptions();
 }
 
 export async function createPatientFromForm(formData: FormData): Promise<ActionState> {

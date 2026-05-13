@@ -108,6 +108,7 @@ export function DoctorsView({
                   <TableHead>Doctor</TableHead>
                   <TableHead>Specialty</TableHead>
                   <TableHead>Department</TableHead>
+                  <TableHead>Branch</TableHead>
                   <TableHead>Fee</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
@@ -149,6 +150,17 @@ export function DoctorsView({
 
                     <TableCell className="text-muted-foreground">
                       {doctor.department ?? "-"}
+                    </TableCell>
+
+                    <TableCell className="text-muted-foreground">
+                      {doctor.branchName ? (
+                        <span>
+                          {doctor.branchName}
+                          {doctor.branchCode ? ` (${doctor.branchCode})` : ""}
+                        </span>
+                      ) : (
+                        "-"
+                      )}
                     </TableCell>
 
                     <TableCell>

@@ -12,6 +12,7 @@ import {
   countDoctorDepartments,
   countDoctors,
   createDoctor,
+  findDoctorBranchOptions,
   findDoctorDepartmentOptions,
   findDoctorRoleId,
   findDoctors,
@@ -62,6 +63,7 @@ function parseDoctorForm(formData: FormData) {
     country: emptyToUndefined(formData.get("country")),
     postalCode: emptyToUndefined(formData.get("postalCode")),
     departmentId: formData.get("departmentId"),
+    branchId: emptyToUndefined(formData.get("branchId")),
     specialization: formData.get("specialization"),
     qualification: emptyToUndefined(formData.get("qualification")),
     experienceYears: emptyToUndefined(formData.get("experienceYears")),
@@ -125,9 +127,12 @@ export async function getDoctorsPageData(searchParams: Promise<DoctorsPageSearch
 export async function getAddDoctorPageData() {
   await requireDoctorsPermission("doctors.create");
 
-  const departments = await findDoctorDepartmentOptions();
+  const [departments, branches] = await Promise.all([
+    findDoctorDepartmentOptions(),
+    findDoctorBranchOptions(),
+  ]);
 
-  return getAddDoctorPageModel(departments);
+  return getAddDoctorPageModel(departments, branches);
 }
 
 export async function createDoctorFromForm(formData: FormData): Promise<ActionState> {

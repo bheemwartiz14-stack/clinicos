@@ -148,6 +148,20 @@ const sidebarMenus: SidebarMenuItemType[] = [
   },
   {
     type: "group",
+    label: "Appointments",
+    icon: CalendarDays,
+    permissions: ["appointments.view", "appointments.create"],
+    children: [
+      {
+        label: "Smart Scheduling",
+        href: "/appointments",
+        icon: CalendarDays,
+        permission: "appointments.view",
+      },
+    ],
+  },
+  {
+    type: "group",
     label: "System & Admin",
     icon: Settings,
     permissions: [

@@ -8,7 +8,7 @@ import { db, schema } from "../index.js";
 type Gender = "male" | "female" | "other";
 
 type BaseSeedUser = {
-  roleName: "admin" | "doctor" | "receptionist";
+  roleName: "admin" | "doctor" | "receptionist" | "accountant";
   name: string;
   email: string;
   password: string;
@@ -27,6 +27,7 @@ type BaseSeedUser = {
 type DoctorSeedUser = BaseSeedUser & {
   roleName: "doctor";
   doctor: {
+    branchCode: string;
     departmentCode: string;
     specialization: string;
     qualification: string;
@@ -44,11 +45,23 @@ type ReceptionistSeedUser = BaseSeedUser & {
   };
 };
 
+type AccountantSeedUser = BaseSeedUser & {
+  roleName: "accountant";
+  accountant: {
+    employeeCode: string;
+    designation: string;
+  };
+};
+
 type AdminSeedUser = BaseSeedUser & {
   roleName: "admin";
 };
 
-type SeedUser = AdminSeedUser | DoctorSeedUser | ReceptionistSeedUser;
+type SeedUser =
+  | AdminSeedUser
+  | DoctorSeedUser
+  | ReceptionistSeedUser
+  | AccountantSeedUser;
 
 async function createUserWithProfile(userData: SeedUser) {
   const existingRole = await db.query.roles.findFirst({
@@ -98,13 +111,32 @@ async function createUserWithProfile(userData: SeedUser) {
     console.log(`ℹ️ ${userData.roleName} profile already exists`);
   }
 
+  // =========================
+  // Doctor
+  // =========================
+
   if (userData.roleName === "doctor") {
+    const branch = await db.query.branches.findFirst({
+      where: eq(schema.branches.code, userData.doctor.branchCode),
+    });
+
+    if (!branch) {
+      throw new Error(
+        `Branch with code ${userData.doctor.branchCode} not found`,
+      );
+    }
+
     const department = await db.query.departments.findFirst({
-      where: eq(schema.departments.code, userData.doctor.departmentCode),
+      where: eq(
+        schema.departments.code,
+        userData.doctor.departmentCode,
+      ),
     });
 
     if (!department) {
-      throw new Error(`Department with code ${userData.doctor.departmentCode} not found`);
+      throw new Error(
+        `Department with code ${userData.doctor.departmentCode} not found`,
+      );
     }
 
     const existingDoctor = await db.query.doctors.findFirst({
@@ -114,6 +146,7 @@ async function createUserWithProfile(userData: SeedUser) {
     if (!existingDoctor) {
       await db.insert(schema.doctors).values({
         userId: existingUser.id,
+        branchId: branch.id,
         departmentId: department.id,
         specialization: userData.doctor.specialization,
         qualification: userData.doctor.qualification,
@@ -124,9 +157,23 @@ async function createUserWithProfile(userData: SeedUser) {
 
       console.log("✅ Doctor record created");
     } else {
+      if (!existingDoctor.branchId) {
+        await db
+          .update(schema.doctors)
+          .set({
+            branchId: branch.id,
+            updatedAt: new Date(),
+          })
+          .where(eq(schema.doctors.id, existingDoctor.id));
+      }
+
       console.log("ℹ️ Doctor record already exists");
     }
   }
+
+  // =========================
+  // Receptionist
+  // =========================
 
   if (userData.roleName === "receptionist") {
     const existingReceptionist = await db.query.receptionists.findFirst({
@@ -145,12 +192,24 @@ async function createUserWithProfile(userData: SeedUser) {
       console.log("ℹ️ Receptionist record already exists");
     }
   }
+
+  // =========================
+  // Accountant
+  // =========================
+
+  if (userData.roleName === "accountant") {
+    console.log("✅ Accountant role assigned");
+  }
 }
 
 export async function seedUsers() {
   console.log("🌱 User seeding started...");
 
   try {
+    // =========================
+    // Admin
+    // =========================
+
     await createUserWithProfile({
       roleName: "admin",
       name: "Super Admin",
@@ -168,6 +227,10 @@ export async function seedUsers() {
       },
     });
 
+    // =========================
+    // Doctor
+    // =========================
+
     await createUserWithProfile({
       roleName: "doctor",
       name: "Dr John Doctor",
@@ -184,6 +247,7 @@ export async function seedUsers() {
         postalCode: "400001",
       },
       doctor: {
+        branchCode: process.env.CLINIC_BRANCH_CODE || "MAIN",
         departmentCode: "GEN-MED",
         specialization: "General Physician",
         qualification: "MBBS",
@@ -193,11 +257,19 @@ export async function seedUsers() {
       },
     });
 
+    // =========================
+    // Receptionist
+    // =========================
+
     await createUserWithProfile({
       roleName: "receptionist",
       name: "Reception User",
-      email: process.env.RECEPTIONIST_EMAIL || "receptionist@example.com",
-      password: process.env.RECEPTIONIST_PASSWORD || "Reception@123",
+      email:
+        process.env.RECEPTIONIST_EMAIL ||
+        "receptionist@example.com",
+      password:
+        process.env.RECEPTIONIST_PASSWORD ||
+        "Reception@123",
       profile: {
         firstName: "Reception",
         lastName: "User",
@@ -211,6 +283,35 @@ export async function seedUsers() {
       receptionist: {
         employeeCode: "REC-1001",
         shift: "morning",
+      },
+    });
+
+    // =========================
+    // Accountant
+    // =========================
+
+    await createUserWithProfile({
+      roleName: "accountant",
+      name: "Finance Accountant",
+      email:
+        process.env.ACCOUNTANT_EMAIL ||
+        "accountant@example.com",
+      password:
+        process.env.ACCOUNTANT_PASSWORD ||
+        "Accountant@123",
+      profile: {
+        firstName: "Finance",
+        lastName: "Manager",
+        phone: "6666666666",
+        gender: "male",
+        city: "Ludhiana",
+        state: "Punjab",
+        country: "India",
+        postalCode: "141001",
+      },
+      accountant: {
+        employeeCode: "ACC-1001",
+        designation: "Senior Accountant",
       },
     });
 

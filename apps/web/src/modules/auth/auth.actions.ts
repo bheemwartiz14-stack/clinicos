@@ -2,7 +2,13 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-
+import {
+  clearLoginRateLimit,
+  formatRetryAfter,
+  getLoginRateLimitKey,
+  getLoginRateLimitState,
+  recordFailedLoginAttempt,
+} from "./auth.rate-limit";
 import {
   createUserSession,
   getSessionCookieOptions,
@@ -16,15 +22,6 @@ export type LoginActionState = {
   message?: string;
 };
 
-type LoginAttempt = {
-  count: number;
-  resetAt: number;
-};
-
-const loginAttempts = new Map<string, LoginAttempt>();
-const rateLimitWindowMs = 15 * 60 * 1000;
-const maxLoginAttempts = 5;
-
 function getSafeNextPath(value: FormDataEntryValue | null) {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
     return "/dashboard";
@@ -36,40 +33,6 @@ function getSafeNextPath(value: FormDataEntryValue | null) {
 function getClientIp(headerStore: Headers) {
   const forwardedFor = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwardedFor || headerStore.get("x-real-ip") || "unknown";
-}
-
-function getAttemptKey(ipAddress: string, email: string) {
-  return `${ipAddress}:${email.toLowerCase()}`;
-}
-
-function isRateLimited(key: string) {
-  const now = Date.now();
-  const attempt = loginAttempts.get(key);
-
-  if (!attempt || attempt.resetAt <= now) {
-    loginAttempts.delete(key);
-    return false;
-  }
-
-  return attempt.count >= maxLoginAttempts;
-}
-
-function recordFailedAttempt(key: string) {
-  const now = Date.now();
-  const current = loginAttempts.get(key);
-
-  if (!current || current.resetAt <= now) {
-    loginAttempts.set(key, {
-      count: 1,
-      resetAt: now + rateLimitWindowMs,
-    });
-    return;
-  }
-
-  loginAttempts.set(key, {
-    ...current,
-    count: current.count + 1,
-  });
 }
 
 export async function loginAction(
@@ -87,20 +50,25 @@ export async function loginAction(
 
   const headerStore = await headers();
   const ipAddress = getClientIp(headerStore);
-  const attemptKey = getAttemptKey(ipAddress, input.data.email);
+  const attemptKey = getLoginRateLimitKey(ipAddress, input.data.email);
+  const rateLimit = getLoginRateLimitState(attemptKey);
 
-  if (isRateLimited(attemptKey)) {
-    return { message: "Too many login attempts. Please try again later." };
+  if (rateLimit.limited) {
+    return {
+      message: `Too many login attempts. Please try again in ${formatRetryAfter(
+        rateLimit.retryAfterSeconds,
+      )}.`,
+    };
   }
 
   const user = await login(input.data.email, input.data.password);
 
   if (!user) {
-    recordFailedAttempt(attemptKey);
+    recordFailedLoginAttempt(attemptKey);
     return { message: "Invalid email or password." };
   }
 
-  loginAttempts.delete(attemptKey);
+  clearLoginRateLimit(attemptKey);
 
   const { token } = await createUserSession({
     ipAddress,

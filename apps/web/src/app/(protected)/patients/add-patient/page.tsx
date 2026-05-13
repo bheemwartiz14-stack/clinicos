@@ -1,4 +1,8 @@
-import { createPatientWithPortalFromForm, getDoctorAssignedOptions } from "@/modules/patients";
+import {
+  createPatientWithPortalFromForm,
+  getDoctorAssignedOptions,
+  getPatientBranchOptions,
+} from "@/modules/patients";
 import { AddNewPatientView } from "@/modules/patients/views/add-new-patient.view";
 
 async function createPatientAction(formData: FormData) {
@@ -7,6 +11,16 @@ async function createPatientAction(formData: FormData) {
 }
 
 export default async function AddPatientPage() {
-  const doctorOptions = await getDoctorAssignedOptions();
-  return <AddNewPatientView action={createPatientAction} doctorOptions={doctorOptions} />;
+  const [doctorOptions, branchOptions] = await Promise.all([
+    getDoctorAssignedOptions(),
+    getPatientBranchOptions(),
+  ]);
+
+  return (
+    <AddNewPatientView
+      action={createPatientAction}
+      branchOptions={branchOptions}
+      doctorOptions={doctorOptions}
+    />
+  );
 }

@@ -10,6 +10,9 @@ export type DoctorListItem = {
   consultationFee: string | null;
   licenseNumber: string | null;
   department: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  branchCode: string | null;
   bio: string | null;
   isAvailable: boolean | null;
   createdAt: Date;
@@ -26,6 +29,12 @@ export type DoctorDepartmentOption = {
   id: string;
   name: string;
   code: string | null;
+};
+
+export type DoctorBranchOption = {
+  id: string;
+  name: string;
+  code: string;
 };
 
 export type DoctorsPageSearchParams = {
@@ -46,6 +55,7 @@ export type AddDoctorPageModel = {
   description: string;
   breadcrumb: string[];
   departments: DoctorDepartmentOption[];
+  branches: DoctorBranchOption[];
 };
 
 export type ActionState = {
@@ -70,6 +80,7 @@ export type CreateDoctorInput = {
   country?: string;
   postalCode?: string;
   departmentId: string;
+  branchId?: string;
   specialization: string;
   qualification?: string;
   experienceYears?: number;

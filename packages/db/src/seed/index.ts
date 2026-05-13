@@ -2,8 +2,8 @@
 
 import "dotenv/config";
 
-import { seedActivityLogs } from "./activity-logs.seed.js";
 import { seedUsers } from "./admin-user.seed.js";
+import { seedAppointmentAvailability } from "./appointments.seed.js";
 import { seedBranches } from "./branches.seed.js";
 import { seedDepartments } from "./departments.seed.js";
 import { seedGeneralSettings } from "./general-settings.seed.js";
@@ -25,11 +25,11 @@ async function main() {
     await seedUsers();
     console.log("✅ Users seeding completed");
 
+    await seedAppointmentAvailability();
+    console.log("✅ Appointment availability seeding completed");
+
     await seedGeneralSettings();
     console.log("✅ General settings seeding completed");
-
-    await seedActivityLogs();
-    console.log("✅ Activity logs seeding completed");
 
     console.log("🎉 All seeding completed successfully");
     process.exit(0);

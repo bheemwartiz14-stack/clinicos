@@ -1,6 +1,11 @@
 import { db, schema } from "@mediclinicpro/db";
 import { asc, count, countDistinct, desc, eq, ilike, or } from "drizzle-orm";
-import type { CreateDoctorInput, DoctorDepartmentOption, DoctorListItem } from "./doctors.types";
+import type {
+  CreateDoctorInput,
+  DoctorBranchOption,
+  DoctorDepartmentOption,
+  DoctorListItem,
+} from "./doctors.types";
 
 type FindDoctorsOptions = {
   query?: string;
@@ -19,6 +24,9 @@ function mapDoctor(row: {
   consultationFee: string | null;
   licenseNumber: string | null;
   department: string | null;
+  branchId: string | null;
+  branchName: string | null;
+  branchCode: string | null;
   bio: string | null;
   isAvailable: boolean | null;
   createdAt: Date;
@@ -43,6 +51,8 @@ function buildDoctorSearch(query?: string) {
     ilike(schema.doctors.qualification, search),
     ilike(schema.departments.name, search),
     ilike(schema.departments.code, search),
+    ilike(schema.branches.name, search),
+    ilike(schema.branches.code, search),
     ilike(schema.doctors.licenseNumber, search),
   );
 }
@@ -60,6 +70,9 @@ function doctorSelection() {
     consultationFee: schema.doctors.consultationFee,
     licenseNumber: schema.doctors.licenseNumber,
     department: schema.departments.name,
+    branchId: schema.doctors.branchId,
+    branchName: schema.branches.name,
+    branchCode: schema.branches.code,
     bio: schema.doctors.bio,
     isAvailable: schema.doctors.isAvailable,
     createdAt: schema.doctors.createdAt,
@@ -76,6 +89,7 @@ export async function findDoctors({
     .from(schema.doctors)
     .innerJoin(schema.users, eq(schema.doctors.userId, schema.users.id))
     .leftJoin(schema.departments, eq(schema.doctors.departmentId, schema.departments.id))
+    .leftJoin(schema.branches, eq(schema.doctors.branchId, schema.branches.id))
     .where(buildDoctorSearch(query))
     .orderBy(desc(schema.doctors.updatedAt), asc(schema.users.name))
     .limit(limit);
@@ -89,6 +103,7 @@ export async function countDoctors(query?: string) {
     .from(schema.doctors)
     .innerJoin(schema.users, eq(schema.doctors.userId, schema.users.id))
     .leftJoin(schema.departments, eq(schema.doctors.departmentId, schema.departments.id))
+    .leftJoin(schema.branches, eq(schema.doctors.branchId, schema.branches.id))
     .where(buildDoctorSearch(query));
 
   return Number(result?.value ?? 0);
@@ -121,6 +136,18 @@ export async function findDoctorDepartmentOptions(): Promise<DoctorDepartmentOpt
     .from(schema.departments)
     .where(eq(schema.departments.isActive, true))
     .orderBy(asc(schema.departments.name));
+}
+
+export async function findDoctorBranchOptions(): Promise<DoctorBranchOption[]> {
+  return db
+    .select({
+      id: schema.branches.id,
+      name: schema.branches.name,
+      code: schema.branches.code,
+    })
+    .from(schema.branches)
+    .where(eq(schema.branches.isActive, true))
+    .orderBy(asc(schema.branches.name));
 }
 
 export async function findDoctorRoleId() {
@@ -174,6 +201,7 @@ export async function createDoctor(input: CreateDoctorInput, passwordHash: strin
       .values({
         userId: user.id,
         departmentId: input.departmentId,
+        branchId: input.branchId ?? null,
         specialization: input.specialization,
         qualification: input.qualification ?? null,
         experienceYears: input.experienceYears ?? null,

@@ -1,5 +1,6 @@
 import type {
   AddDoctorPageModel,
+  DoctorBranchOption,
   DoctorDepartmentOption,
   DoctorListItem,
   DoctorStats,
@@ -27,11 +28,15 @@ export function getDoctorsPageModel({
   };
 }
 
-export function getAddDoctorPageModel(departments: DoctorDepartmentOption[]): AddDoctorPageModel {
+export function getAddDoctorPageModel(
+  departments: DoctorDepartmentOption[],
+  branches: DoctorBranchOption[],
+): AddDoctorPageModel {
   return {
     title: "Add Doctor",
     description: "Create a doctor login and clinical profile linked to a department.",
     breadcrumb: ["Workspace", "Doctors", "Add Doctor"],
     departments,
+    branches,
   };
 }

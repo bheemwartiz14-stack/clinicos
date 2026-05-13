@@ -63,6 +63,10 @@ export async function seedRBAC() {
         name: "patient",
         description: "Patient Role",
       },
+      {
+        name: "accountant",
+        description: "Accountant Role",
+      },
     ];
 
     await db.insert(schema.roles).values(rolesData).onConflictDoNothing({
@@ -79,8 +83,15 @@ export async function seedRBAC() {
       (role) => role.name === "receptionist",
     );
     const patientRole = roles.find((role) => role.name === "patient");
+    const accountantRole = roles.find((role) => role.name === "accountant");
 
-    if (!adminRole || !doctorRole || !receptionistRole || !patientRole) {
+    if (
+      !adminRole ||
+      !doctorRole ||
+      !receptionistRole ||
+      !patientRole ||
+      !accountantRole
+    ) {
       throw new Error("Required roles not found");
     }
 
@@ -190,17 +201,28 @@ export async function seedRBAC() {
     );
 
     await mapPermissions(
+      accountantRole.id,
+      [
+        "dashboard.view",
+        "billing.view",
+        "billing.create",
+        "billing.edit",
+        "patients.view",
+        "appointments.view",
+        "audit-logs.view",
+        "login-history.view",
+      ],
+      "Accountant",
+    );
+
+    await mapPermissions(
       patientRole.id,
       [
         "dashboard.view",
-
         "patients.view",
-
         "appointments.view",
         "appointments.create",
-
         "billing.view",
-
         "login-history.view",
       ],
       "Patient",

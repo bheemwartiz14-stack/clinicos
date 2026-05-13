@@ -65,6 +65,10 @@ export const createDoctorSchema = z.object({
   departmentId: z
     .string({ required_error: "Please select a department." })
     .uuid("Please select a department."),
+  branchId: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+    z.string().uuid("Please select a clinic branch.").optional(),
+  ),
   specialization: z.string().trim().min(2, "Specialization is required.").max(150),
   qualification: optionalText,
   experienceYears: optionalInteger,

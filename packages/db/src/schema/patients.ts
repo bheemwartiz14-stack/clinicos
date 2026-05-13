@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  index,
   integer,
   pgTable,
   text,
@@ -8,36 +9,44 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
+import { branches } from "./branches";
 
-export const patients = pgTable("patients", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  firstName: varchar("first_name", { length: 100 }).notNull(),
-  lastName: varchar("last_name", { length: 100 }).notNull(),
-  email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 30 }).notNull(),
-  dateOfBirth: date("date_of_birth").notNull(),
-  age: integer("age"),
-  gender: varchar("gender", { length: 20 }).notNull().default("unknown"),
-  bloodGroup: varchar("blood_group", { length: 8 }),
-  doctorAssigned: varchar("doctor_assigned", { length: 160 }),
-  admissionDate: date("admission_date"),
-  dischargeDate: date("discharge_date"),
-  status: varchar("status", { length: 40 }).notNull().default("active"),
-  address: text("address"),
-  allergies: text("allergies"),
-  medicalHistory: text("medical_history"),
-  insuranceProvider: varchar("insurance_provider", { length: 160 }),
-  insurancePolicyNumber: varchar("insurance_policy_number", { length: 120 }),
-  insuranceMemberId: varchar("insurance_member_id", { length: 120 }),
-  insuranceGroupNumber: varchar("insurance_group_number", { length: 120 }),
-  portalLoginEnabled: boolean("portal_login_enabled").default(false).notNull(),
-  portalLastLoginAt: timestamp("portal_last_login_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+export const patients = pgTable(
+  "patients",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    branchId: uuid("branch_id").references(() => branches.id, {
+      onDelete: "set null",
+    }),
+    firstName: varchar("first_name", { length: 100 }).notNull(),
+    lastName: varchar("last_name", { length: 100 }).notNull(),
+    email: varchar("email", { length: 255 }),
+    phone: varchar("phone", { length: 30 }).notNull(),
+    dateOfBirth: date("date_of_birth").notNull(),
+    age: integer("age"),
+    gender: varchar("gender", { length: 20 }).notNull().default("unknown"),
+    bloodGroup: varchar("blood_group", { length: 8 }),
+    doctorAssigned: varchar("doctor_assigned", { length: 160 }),
+    admissionDate: date("admission_date"),
+    dischargeDate: date("discharge_date"),
+    status: varchar("status", { length: 40 }).notNull().default("active"),
+    address: text("address"),
+    allergies: text("allergies"),
+    medicalHistory: text("medical_history"),
+    insuranceProvider: varchar("insurance_provider", { length: 160 }),
+    insurancePolicyNumber: varchar("insurance_policy_number", { length: 120 }),
+    insuranceMemberId: varchar("insurance_member_id", { length: 120 }),
+    insuranceGroupNumber: varchar("insurance_group_number", { length: 120 }),
+    portalLoginEnabled: boolean("portal_login_enabled").default(false).notNull(),
+    portalLastLoginAt: timestamp("portal_last_login_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [index("patients_branch_id_idx").on(table.branchId)],
+);
 
 export const patientFamilyMembers = pgTable("patient_family_members", {
   id: uuid("id").primaryKey().defaultRandom(),

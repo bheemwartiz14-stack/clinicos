@@ -2,6 +2,9 @@ import type { PatientCreateInput } from "@mediclinicpro/validations";
 
 export type PatientListItem = {
   id: string;
+  branchId: string | null;
+  branchName: string | null;
+  branchCode: string | null;
   fullName: string;
   firstName: string;
   lastName: string;
@@ -74,6 +77,12 @@ export type DoctorOption = {
   id: string;
   label: string;
   name: string;
+};
+
+export type PatientBranchOption = {
+  id: string;
+  name: string;
+  code: string;
 };
 
 export type PatientStats = {

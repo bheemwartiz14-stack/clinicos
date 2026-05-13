@@ -23,6 +23,11 @@ type PatientDetailCollections = {
   visits?: PatientVisit[];
 };
 
+type PatientRow = typeof schema.patients.$inferSelect & {
+  branchName?: string | null;
+  branchCode?: string | null;
+};
+
 type PatientPortalUserInput = {
   email: string;
   emailVerified: boolean;
@@ -33,12 +38,12 @@ type PatientPortalUserInput = {
   phone: string;
 };
 
-function mapPatient(
-  row: typeof schema.patients.$inferSelect,
-  details: PatientDetailCollections = {},
-): PatientListItem {
+function mapPatient(row: PatientRow, details: PatientDetailCollections = {}): PatientListItem {
   return {
     id: row.id,
+    branchId: row.branchId,
+    branchName: row.branchName ?? null,
+    branchCode: row.branchCode ?? null,
     firstName: row.firstName,
     lastName: row.lastName,
     fullName: `${row.firstName} ${row.lastName}`.trim(),
@@ -131,6 +136,8 @@ function buildPatientSearch(query?: string) {
     ilike(schema.patients.lastName, search),
     ilike(schema.patients.phone, search),
     ilike(schema.patients.email, search),
+    ilike(schema.branches.name, search),
+    ilike(schema.branches.code, search),
   );
 }
 
@@ -139,8 +146,37 @@ export async function findPatients({
   query,
 }: FindPatientsOptions = {}): Promise<PatientListItem[]> {
   const rows = await db
-    .select()
+    .select({
+      id: schema.patients.id,
+      branchId: schema.patients.branchId,
+      branchName: schema.branches.name,
+      branchCode: schema.branches.code,
+      firstName: schema.patients.firstName,
+      lastName: schema.patients.lastName,
+      email: schema.patients.email,
+      phone: schema.patients.phone,
+      dateOfBirth: schema.patients.dateOfBirth,
+      age: schema.patients.age,
+      gender: schema.patients.gender,
+      bloodGroup: schema.patients.bloodGroup,
+      doctorAssigned: schema.patients.doctorAssigned,
+      admissionDate: schema.patients.admissionDate,
+      dischargeDate: schema.patients.dischargeDate,
+      status: schema.patients.status,
+      address: schema.patients.address,
+      allergies: schema.patients.allergies,
+      medicalHistory: schema.patients.medicalHistory,
+      insuranceProvider: schema.patients.insuranceProvider,
+      insurancePolicyNumber: schema.patients.insurancePolicyNumber,
+      insuranceMemberId: schema.patients.insuranceMemberId,
+      insuranceGroupNumber: schema.patients.insuranceGroupNumber,
+      portalLoginEnabled: schema.patients.portalLoginEnabled,
+      portalLastLoginAt: schema.patients.portalLastLoginAt,
+      createdAt: schema.patients.createdAt,
+      updatedAt: schema.patients.updatedAt,
+    })
     .from(schema.patients)
+    .leftJoin(schema.branches, eq(schema.patients.branchId, schema.branches.id))
     .where(buildPatientSearch(query))
     .orderBy(desc(schema.patients.updatedAt))
     .limit(limit);
@@ -161,6 +197,7 @@ export async function countPatients(query?: string) {
   const [result] = await db
     .select({ value: count() })
     .from(schema.patients)
+    .leftJoin(schema.branches, eq(schema.patients.branchId, schema.branches.id))
     .where(buildPatientSearch(query));
 
   return Number(result?.value ?? 0);
@@ -201,6 +238,18 @@ export async function findDoctorOptions(): Promise<DoctorOption[]> {
     name: row.name,
     label: row.specialization ? `${row.name} - ${row.specialization}` : row.name,
   }));
+}
+
+export async function findPatientBranchOptions() {
+  return db
+    .select({
+      id: schema.branches.id,
+      name: schema.branches.name,
+      code: schema.branches.code,
+    })
+    .from(schema.branches)
+    .where(eq(schema.branches.isActive, true))
+    .orderBy(asc(schema.branches.name));
 }
 
 export async function createPatient(input: CreatePatientInput) {

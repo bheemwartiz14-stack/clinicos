@@ -13,10 +13,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAdultDate } from "../hooks/use-adult-date";
-import type { ActionState, DoctorOption, PatientListItem } from "../patients.types";
+import type {
+  ActionState,
+  DoctorOption,
+  PatientBranchOption,
+  PatientListItem,
+} from "../patients.types";
 
 type AddNewPatientViewProps = {
   action: (formData: FormData) => Promise<ActionState>;
+  branchOptions: PatientBranchOption[];
   doctorOptions: DoctorOption[];
 };
 
@@ -72,7 +78,11 @@ export function PatientsToast() {
   );
 }
 
-export function AddNewPatientView({ action, doctorOptions }: AddNewPatientViewProps) {
+export function AddNewPatientView({
+  action,
+  branchOptions,
+  doctorOptions,
+}: AddNewPatientViewProps) {
   const router = useRouter();
   const fieldId = useId();
   const formRef = useRef<HTMLFormElement>(null);
@@ -245,6 +255,23 @@ export function AddNewPatientView({ action, doctorOptions }: AddNewPatientViewPr
                 {doctorOptions.map((doctor) => (
                   <option key={doctor.id} value={doctor.name}>
                     {doctor.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor={`${fieldId}-branchId`}>
+              Clinic / Branch
+              <select
+                id={`${fieldId}-branchId`}
+                name="branchId"
+                defaultValue=""
+                className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="">Select branch</option>
+                {branchOptions.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code})
                   </option>
                 ))}
               </select>

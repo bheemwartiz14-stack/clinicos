@@ -1,5 +1,6 @@
 import {
   boolean,
+  index,
   integer,
   numeric,
   pgTable,
@@ -7,10 +8,10 @@ import {
   timestamp,
   uuid,
   varchar,
-  index,
 } from "drizzle-orm/pg-core";
 
 import { users } from "./auth";
+import { branches } from "./branches";
 import { departments } from "./departments";
 
 export const doctors = pgTable(
@@ -25,12 +26,13 @@ export const doctors = pgTable(
         onDelete: "cascade",
       }),
 
-    departmentId: uuid("department_id").references(
-      () => departments.id,
-      {
-        onDelete: "set null",
-      },
-    ),
+    departmentId: uuid("department_id").references(() => departments.id, {
+      onDelete: "set null",
+    }),
+
+    branchId: uuid("branch_id").references(() => branches.id, {
+      onDelete: "set null",
+    }),
 
     specialization: varchar("specialization", {
       length: 150,
@@ -53,9 +55,7 @@ export const doctors = pgTable(
 
     bio: text("bio"),
 
-    isAvailable: boolean("is_available")
-      .default(true)
-      .notNull(),
+    isAvailable: boolean("is_available").default(true).notNull(),
 
     createdAt: timestamp("created_at", {
       withTimezone: true,
@@ -73,6 +73,7 @@ export const doctors = pgTable(
   (table) => [
     index("doctors_user_id_idx").on(table.userId),
     index("doctors_department_id_idx").on(table.departmentId),
+    index("doctors_branch_id_idx").on(table.branchId),
     index("doctors_specialization_idx").on(table.specialization),
     index("doctors_license_number_idx").on(table.licenseNumber),
     index("doctors_is_available_idx").on(table.isAvailable),

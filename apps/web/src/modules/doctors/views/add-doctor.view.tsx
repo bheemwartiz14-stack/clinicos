@@ -71,6 +71,7 @@ function formatFormDate(date: Date) {
 export function AddDoctorView({
   action,
   breadcrumb,
+  branches,
   departments,
   description,
   title,
@@ -219,6 +220,23 @@ export function AddDoctorView({
             >
               Specialization
               <Input id={`${fieldId}-specialization`} name="specialization" required />
+            </label>
+
+            <label className="grid gap-1.5 text-sm font-medium" htmlFor={`${fieldId}-branchId`}>
+              Clinic / Branch
+              <select
+                id={`${fieldId}-branchId`}
+                name="branchId"
+                defaultValue=""
+                className="h-9 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <option value="">Select branch</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} ({branch.code})
+                  </option>
+                ))}
+              </select>
             </label>
 
             <label

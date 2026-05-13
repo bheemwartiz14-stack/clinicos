@@ -1,4 +1,4 @@
-import { CalendarDays, Mail, Phone, Plus, Search, UserRound, Users } from "lucide-react";
+import { Building2, CalendarDays, Mail, Phone, Plus, Search, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
@@ -173,6 +173,13 @@ export function PatientsView({
                         {patient.admissionDate ? (
                           <span className="text-muted-foreground">
                             Admitted {formatDate(patient.admissionDate)}
+                          </span>
+                        ) : null}
+                        {patient.branchName ? (
+                          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                            <Building2 className="size-3.5" />
+                            {patient.branchName}
+                            {patient.branchCode ? ` (${patient.branchCode})` : ""}
                           </span>
                         ) : null}
                       </div>
