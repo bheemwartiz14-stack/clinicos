@@ -83,19 +83,17 @@ async function createUserWithProfile(userData: SeedUser) {
       .insert(schema.users)
       .values({
         name: userData.name,
+        username:"admin",
         email: userData.email,
         password: hashedPassword,
         roleId: existingRole.id,
       })
       .returning();
-
     existingUser = createdUser;
-
-    console.log(`✅ ${userData.roleName} user created`);
+    console.log(`${userData.roleName} user created`);
   } else {
-    console.log(`ℹ️ ${userData.roleName} user already exists`);
+    console.log(`ℹ${userData.roleName} user already exists`);
   }
-
   const existingProfile = await db.query.userProfiles.findFirst({
     where: eq(schema.userProfiles.userId, existingUser.id),
   });
@@ -106,15 +104,10 @@ async function createUserWithProfile(userData: SeedUser) {
       ...userData.profile,
     });
 
-    console.log(`✅ ${userData.roleName} profile created`);
+    console.log(`${userData.roleName} profile created`);
   } else {
-    console.log(`ℹ️ ${userData.roleName} profile already exists`);
+    console.log(`ℹ${userData.roleName} profile already exists`);
   }
-
-  // =========================
-  // Doctor
-  // =========================
-
   if (userData.roleName === "doctor") {
     const branch = await db.query.branches.findFirst({
       where: eq(schema.branches.code, userData.doctor.branchCode),

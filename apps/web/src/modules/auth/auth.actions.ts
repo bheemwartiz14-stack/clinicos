@@ -40,7 +40,7 @@ export async function loginAction(
   formData: FormData,
 ): Promise<LoginActionState> {
   const input = loginSchema.safeParse({
-    email: formData.get("email"),
+    username: formData.get("username"),
     password: formData.get("password"),
   });
 
@@ -50,7 +50,7 @@ export async function loginAction(
 
   const headerStore = await headers();
   const ipAddress = getClientIp(headerStore);
-  const attemptKey = getLoginRateLimitKey(ipAddress, input.data.email);
+  const attemptKey = getLoginRateLimitKey(ipAddress, input.data.username);
   const rateLimit = getLoginRateLimitState(attemptKey);
 
   if (rateLimit.limited) {
@@ -61,7 +61,7 @@ export async function loginAction(
     };
   }
 
-  const user = await login(input.data.email, input.data.password);
+  const user = await login(input.data.username, input.data.password);
 
   if (!user) {
     recordFailedLoginAttempt(attemptKey);

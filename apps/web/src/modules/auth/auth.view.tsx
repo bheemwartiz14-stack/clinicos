@@ -76,13 +76,13 @@ export function LoginView() {
               className="block text-sm font-medium text-slate-700 dark:text-slate-200"
               htmlFor="email"
             >
-              Email address
+              Enter User name 
               <div className="relative mt-2">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input
-                  id="email"
-                  name="email"
-                  type="email"
+                  id="username"
+                  name="username"
+                  type="text"
                   className="h-12 rounded-2xl border-slate-200 bg-white pl-10 text-slate-950 placeholder:text-slate-400 dark:border-white/10 dark:bg-white/10 dark:text-white"
                   required
                 />

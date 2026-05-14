@@ -5,8 +5,8 @@ import { cookies } from "next/headers";
 import {
   createSessionRecord,
   deleteSessionByToken,
-  findUserByEmail,
   findUserById,
+  findUserByUsername,
   findValidSessionByToken,
 } from "./auth.model";
 import type { AuthUser, SessionUser } from "./auth.types";
@@ -63,8 +63,8 @@ export async function createUserSession(input: {
   return { expiresAt, token };
 }
 
-export async function login(email: string, password: string): Promise<AuthUser | null> {
-  const user = await findUserByEmail(email.toLowerCase());
+export async function login(username: string, password: string): Promise<AuthUser | null> {
+  const user = await findUserByUsername(username.toLowerCase());
   if (!user) {
     return null;
   }

@@ -46,7 +46,7 @@ async function mapUser(row: UserWithRoleRow) {
   };
 }
 
-export async function findUserByEmail(email: string) {
+export async function findUserByUsername(username: string) {
   const [row] = await db
     .select({
       id: schema.users.id,
@@ -58,7 +58,7 @@ export async function findUserByEmail(email: string) {
     })
     .from(schema.users)
     .leftJoin(schema.roles, eq(schema.users.roleId, schema.roles.id))
-    .where(eq(schema.users.email, email))
+    .where(eq(schema.users.username, username))
     .limit(1);
 
   return row ? mapUser(row) : null;
