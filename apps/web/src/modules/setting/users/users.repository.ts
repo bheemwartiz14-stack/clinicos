@@ -67,7 +67,9 @@ function mapRole(row: typeof schema.roles.$inferSelect): RoleOption {
 function mapUser(row: UserRow): UserListItem {
   return {
     id: row.id,
+
     name: row.name,
+
     email: row.email,
     emailVerified: row.emailVerified,
     image: row.image,
@@ -261,6 +263,7 @@ export async function findUserProtection(id: string) {
 function getUserValues(input: CreateUserInput | UpdateUserInput, password: string) {
   return {
     name: input.name,
+    username: input.name,
     email: input.email.toLowerCase(),
     emailVerified: input.emailVerified,
     password,

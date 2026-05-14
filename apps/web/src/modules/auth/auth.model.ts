@@ -38,6 +38,7 @@ async function mapUser(row: UserWithRoleRow) {
   return {
     id: row.id,
     name: row.name,
+    username:row.name,
     email: row.email,
     passwordHash: row.password,
     roleId: row.roleId,
@@ -50,6 +51,7 @@ export async function findUserByUsername(username: string) {
   const [row] = await db
     .select({
       id: schema.users.id,
+      username:schema.users.username,
       name: schema.users.name,
       email: schema.users.email,
       password: schema.users.password,
@@ -60,7 +62,6 @@ export async function findUserByUsername(username: string) {
     .leftJoin(schema.roles, eq(schema.users.roleId, schema.roles.id))
     .where(eq(schema.users.username, username))
     .limit(1);
-
   return row ? mapUser(row) : null;
 }
 

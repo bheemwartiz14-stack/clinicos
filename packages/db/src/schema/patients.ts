@@ -45,7 +45,8 @@ export const patients = pgTable(
       .$onUpdate(() => new Date())
       .notNull(),
   },
-  (table) => [index("patients_branch_id_idx").on(table.branchId)],
+  (table) => [
+  ],
 );
 
 export const patientFamilyMembers = pgTable("patient_family_members", {

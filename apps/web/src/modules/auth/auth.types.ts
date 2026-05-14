@@ -3,6 +3,7 @@ import type { Role } from "@mediclinicpro/types";
 export type AuthUser = {
   id: string;
   name: string;
+  username: string;
   email: string;
   role: Role;
   roleId: string | null;
@@ -10,7 +11,7 @@ export type AuthUser = {
 };
 
 export type LoginInput = {
-  email: string;
+  username: string;
   password: string;
 };
 

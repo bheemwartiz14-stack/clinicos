@@ -31,6 +31,7 @@ type PatientRow = typeof schema.patients.$inferSelect & {
 type PatientPortalUserInput = {
   email: string;
   emailVerified: boolean;
+  usernmae:string;
   firstName: string;
   lastName: string;
   name: string;
@@ -276,6 +277,7 @@ export async function createPatientWithPortalUser(
           email: portalUser.email.toLowerCase(),
           emailVerified: portalUser.emailVerified,
           name: portalUser.name,
+          username:portalUser.name.toLowerCase(),
           password: portalUser.passwordHash,
         })
         .returning({ id: schema.users.id });
@@ -283,6 +285,7 @@ export async function createPatientWithPortalUser(
       if (createdUser) {
         await tx.insert(schema.userProfiles).values({
           userId: createdUser.id,
+          
           firstName: portalUser.firstName,
           lastName: portalUser.lastName,
           phone: portalUser.phone,

@@ -215,6 +215,7 @@ export async function createPatientWithPortalFromForm(formData: FormData): Promi
         ? {
             email: portalUser.email,
             emailVerified: portalUser.emailVerified,
+            usernmae: input.firstName,
             firstName: input.firstName,
             lastName: input.lastName,
             name: portalUser.name,

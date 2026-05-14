@@ -19,9 +19,7 @@ export const branches = pgTable(
     type: varchar("type", { length: 80 }).notNull().default("clinic"),
     supportEmail: varchar("support_email", { length: 255 }),
     supportPhone: varchar("support_phone", { length: 50 }),
-    managerId: uuid("manager_id").references(() => users.id, {
-      onDelete: "set null",
-    }),
+    managerId: uuid("manager_id").references(() => users.id, { onDelete: "set null" }),
     address: jsonb("address").$type<{
       addressLine1?: string;
       addressLine2?: string;

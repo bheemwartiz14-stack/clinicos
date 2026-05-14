@@ -16,6 +16,7 @@ function mapDoctor(row: {
   id: string;
   userId: string;
   name: string;
+  username?:string;
   email: string;
   image: string | null;
   specialization: string | null;
@@ -166,6 +167,7 @@ export async function createDoctor(input: CreateDoctorInput, passwordHash: strin
       .insert(schema.users)
       .values({
         name: input.name,
+        username: input.name.toLowerCase(),
         email: input.email.toLowerCase(),
         emailVerified: input.emailVerified,
         password: passwordHash,
