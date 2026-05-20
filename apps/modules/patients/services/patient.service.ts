@@ -1,94 +1,60 @@
-import {
-  createPatient,
-  createPatientDocument,
-  createPatientMedicalHistory,
-  createPatientNote,
-  getPatientProfile,
-  listPatients,
-  savePatientAiSummary,
-  savePatientFollowupSuggestion,
-  softDeletePatient,
-  updatePatient
-} from "../repositories/patient.repository";
-import { buildFollowupSuggestion, buildPatientAiSummary } from "../utils/patient-ai-summary";
-import {
-  patientAISummaryRequestSchema,
-  patientCreateSchema,
-  patientDocumentUploadSchema,
-  patientFollowupSuggestionSchema,
-  patientMedicalHistorySchema,
-  patientNoteSchema,
-  patientSearchSchema,
-  patientUpdateSchema,
-  type PatientAISummaryRequestInput,
-  type PatientCreateInput,
-  type PatientDocumentUploadInput,
-  type PatientFollowupSuggestionInput,
-  type PatientMedicalHistoryInput,
-  type PatientNoteInput,
-  type PatientSearchInput,
-  type PatientUpdateInput
-} from "../validations/patient.validation";
+import { db } from "@mediclinic/db";
+import { eq, and, like, or } from "drizzle-orm";
+import { patients, patientNotes, patientDocuments, patientTimelines, branches } from "@mediclinic/db";
+import type { PatientRecord, PatientWithDetails, PatientFilterInput } from "../types/patient.types";
 
 export const patientService = {
-  list(branchId: string, search?: PatientSearchInput) {
-    return listPatients(branchId, search ? patientSearchSchema.parse(search) : undefined);
+  async list(filter?: PatientFilterInput): Promise<PatientRecord[]> {
+    const conditions = [];
+    if (filter?.branchId) conditions.push(eq(patients.branchId, filter.branchId));
+    if (filter?.isActive !== undefined) conditions.push(eq(patients.isActive, filter.isActive));
+    if (filter?.search) {
+      const search = `%${filter.search}%`;
+      conditions.push(
+        or(
+          like(patients.firstName, search),
+          like(patients.lastName, search),
+          like(patients.fullName, search),
+          like(patients.mrn, search),
+          like(patients.phone, search)
+        )
+      );
+    }
+    const result = await db.select().from(patients).where(conditions.length > 0 ? and(...conditions) : undefined);
+    return result.map((p) => ({
+      ...p,
+      branchName: null
+    }));
   },
 
-  profile(branchId: string, patientId: string) {
-    return getPatientProfile(branchId, patientId);
+  async getById(id: string): Promise<PatientRecord | null> {
+    const result = await db.select().from(patients).where(eq(patients.id, id)).limit(1);
+    if (!result[0]) return null;
+    return { ...result[0], branchName: null };
   },
 
-  create(branchId: string, input: PatientCreateInput, userId?: string) {
-    return createPatient(branchId, patientCreateSchema.parse(input), userId);
+  async getWithDetails(id: string): Promise<PatientWithDetails | null> {
+    const result = await db.select().from(patients).where(eq(patients.id, id)).limit(1);
+    if (!result[0]) return null;
+    const p = result[0];
+    return {
+      ...p,
+      branchName: null,
+      address: p.address as PatientWithDetails["address"],
+      emergencyContact: p.emergencyContact as PatientWithDetails["emergencyContact"],
+      insurance: p.insurance as PatientWithDetails["insurance"]
+    };
   },
 
-  update(branchId: string, input: PatientUpdateInput, userId?: string) {
-    return updatePatient(branchId, patientUpdateSchema.parse(input), userId);
+  async getNotes(patientId: string) {
+    return db.select().from(patientNotes).where(eq(patientNotes.patientId, patientId));
   },
 
-  remove(branchId: string, patientId: string, userId?: string) {
-    return softDeletePatient(branchId, patientId, userId);
+  async getDocuments(patientId: string) {
+    return db.select().from(patientDocuments).where(eq(patientDocuments.patientId, patientId));
   },
 
-  createNote(authorUserId: string, input: PatientNoteInput) {
-    return createPatientNote(authorUserId, patientNoteSchema.parse(input));
-  },
-
-  createMedicalHistory(authorUserId: string, input: PatientMedicalHistoryInput) {
-    return createPatientMedicalHistory(authorUserId, patientMedicalHistorySchema.parse(input));
-  },
-
-  createDocument(uploadedByUserId: string, input: PatientDocumentUploadInput) {
-    return createPatientDocument(uploadedByUserId, patientDocumentUploadSchema.parse(input));
-  },
-
-  async createAiSummary(requestedByUserId: string, branchId: string, input: PatientAISummaryRequestInput) {
-    const parsed = patientAISummaryRequestSchema.parse(input);
-    const profile = await getPatientProfile(branchId, parsed.patientId);
-    if (!profile) throw new Error("Patient not found.");
-    const summary = buildPatientAiSummary({
-      patient: profile.patient,
-      appointments: profile.appointmentHistory,
-      invoices: profile.billingHistory,
-      notes: profile.notes
-    });
-    return savePatientAiSummary(requestedByUserId, parsed.patientId, summary, {
-      appointmentCount: profile.appointmentHistory.length,
-      invoiceCount: profile.billingHistory.length,
-      noteCount: profile.notes.length
-    }, parsed.summaryType);
-  },
-
-  async createFollowupSuggestion(requestedByUserId: string, branchId: string, input: Pick<PatientFollowupSuggestionInput, "patientId">) {
-    const profile = await getPatientProfile(branchId, input.patientId);
-    if (!profile) throw new Error("Patient not found.");
-    const suggestion = buildFollowupSuggestion({
-      patient: profile.patient,
-      appointments: profile.appointmentHistory,
-      invoices: profile.billingHistory,
-      notes: profile.notes
-    });
-    return savePatientFollowupSuggestion(requestedByUserId, patientFollowupSuggestionSchema.parse({ patientId: input.patientId, ...suggestion }));
+  async getTimeline(patientId: string) {
+    return db.select().from(patientTimelines).where(eq(patientTimelines.patientId, patientId));
   }
 };

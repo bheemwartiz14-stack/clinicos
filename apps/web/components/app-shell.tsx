@@ -4,71 +4,36 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Activity,
-  Banknote,
   Bell,
-  Bot,
-  Building2,
-  CalendarClock,
+  CalendarDays,
   ChevronDown,
-  FileBarChart,
-  HelpCircle,
-  History,
-  LayoutDashboard,
-  LogOut,
   Menu,
-  Palette,
-  Search,
   Settings,
-  ShieldCheck,
   Stethoscope,
-  UserRound,
+  UserCog,
   UsersRound
 } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@mediclinic/ui";
-import { filterByPermission, type Permission } from "@mediclinic/rbac";
+import { type Permission, filterByPermission } from "@mediclinic/rbac";
 import type { SessionUser } from "@mediclinic/auth";
-import { logoutAction } from "@modules/auth/actions/auth.actions";
 import { ThemeToggle } from "./theme-toggle";
-
-type NavChild = {
-  label: string;
-  href: string;
-  permission: Permission;
-};
+import { Button } from "@/components/ui/button";
+import { cn } from "@mediclinic/ui";
 
 type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  permission?: Permission;
-  children?: NavChild[];
+  permission: Permission;
+  active?: boolean;
 };
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard, permission: "dashboard.view" },
-  { label: "Patients", href: "/patients", icon: UsersRound, permission: "patients.view" },
-  { label: "Doctors", href: "/doctors", icon: Stethoscope, permission: "doctors.view" },
-  { label: "Appointments", href: "/appointments", icon: CalendarClock, permission: "appointments.view" },
-  { label: "Billing", href: "/billing", icon: Banknote, permission: "billing.view" },
-  { label: "Reports", href: "/reports", icon: FileBarChart, permission: "reports.view" },
-  { label: "AI Assistant", href: "/ai", icon: Bot, permission: "ai.use" },
-  { label: "Branches", href: "/branches", icon: Building2, permission: "branches.manage" },
-  { label: "Staff", href: "/settings/staff-manage", icon: UsersRound, permission: "staff.manage" },
-  { label: "RBAC", href: "/rbac", icon: ShieldCheck, permission: "rbac.manage" },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: Settings,
-    children: [
-      { label: "My Profile", href: "/settings/profile", permission: "settings.profile" },
-      { label: "Security", href: "/settings/security", permission: "settings.profile" },
-      { label: "Notifications", href: "/settings/notifications", permission: "settings.profile" },
-      { label: "Integrations", href: "/settings/integration", permission: "integrations.view" },
-      { label: "Branch Settings", href: "/settings/branches", permission: "settings.manage" },
-      { label: "Department Settings", href: "/settings/departments", permission: "settings.manage" }
-    ]
-  }
+  { label: "Dashboard", href: "/", icon: Activity, permission: "dashboard.view", active: true },
+  { label: "Staff Management", href: "/settings/staff-manage", icon: UserCog, permission: "staff.manage" },
+  { label: "Doctor", href: "/doctors", icon: Stethoscope, permission: "doctors.view" },
+  { label: "Appointments", href: "/appointments", icon: CalendarDays, permission: "appointments.view" },
+  { label: "System & Admin", href: "/settings", icon: Settings, permission: "settings.manage" }
 ];
 
 type ShellUser = {
@@ -85,145 +50,122 @@ function initials(name: string) {
     .join("");
 }
 
-export function AppShell({ children, session, shellUser }: { children: React.ReactNode; session: SessionUser; shellUser?: ShellUser }) {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const visibleNavItems = navItems
-    .map((item) => {
-      if (item.children) {
-        const visibleChildren = filterByPermission(session.role, item.children);
-        if (visibleChildren.length === 0) return null;
-        return { ...item, children: visibleChildren };
-      }
-      return item.permission ? filterByPermission(session.role, [item]).length ? item : null : item;
-    })
-    .filter((item): item is NavItem => Boolean(item));
+function roleLabel(role: string) {
+  return role
+    .split(/[_-]/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function SidebarNav({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => void }) {
+  return (
+    <nav className="mt-7" aria-label="Primary">
+      <p className="px-2 text-[12px] font-bold text-black">Main Menu</p>
+      <div className="mt-4 space-y-2">
+        {items.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href as any}
+            onClick={onNavigate}
+            className={cn(
+              "flex h-[34px] items-center gap-3 rounded-md px-2.5 text-[12px] font-semibold text-zinc-700 transition hover:bg-zinc-100 hover:text-black",
+              item.active && "bg-cyan-700 text-white hover:bg-cyan-700 hover:text-white"
+            )}
+          >
+            <item.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            {!item.active ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-current" aria-hidden /> : null}
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
+export function AppShell({ children, session }: { children: React.ReactNode; session: SessionUser; shellUser?: ShellUser }) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const visibleNavItems = filterByPermission(session.role, navItems);
+  const userInitials = initials(session.name) || "SA";
+  const displayRole = roleLabel(session.role);
 
   return (
-    <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r bg-card/82 px-4 py-5 shadow-xl shadow-teal-950/5 backdrop-blur lg:block">
-        <div className="flex items-center gap-3 px-2">
-          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground">
-            <Activity className="h-5 w-5" aria-hidden="true" />
+    <div className="min-h-screen bg-white text-black">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[188px] border-r border-zinc-200 bg-white px-3 py-2 lg:block">
+        <div className="flex h-[34px] items-center gap-2">
+          <div className="grid h-[26px] w-[26px] place-items-center rounded-md bg-cyan-500 text-white">
+            <Activity className="h-4 w-4" aria-hidden />
           </div>
-          <div>
-            <p className="text-sm font-semibold">MediClinic Pro</p>
-            <p className="text-xs text-muted-foreground">Single clinic platform</p>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-bold leading-tight text-black">MediClinic Pro</p>
+            <p className="truncate text-[10px] leading-tight text-zinc-500">Modern Clinic Management ...</p>
           </div>
         </div>
-        <nav className="mt-8 space-y-1" aria-label="Primary">
-          {visibleNavItems.map((item, index) => (
-            <div key={item.label}>
-              <Link
-                href={item.href as any}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
-                  index === 0 && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground"
-                )}
-              >
-                <item.icon className="h-4 w-4" aria-hidden={true} />
-                {item.label}
-              </Link>
-
-              {item.children ? (
-                <div className="mt-2 space-y-1 pl-8">
-                  {item.children.map((child) => (
-                    <Link
-                      key={child.label}
-                      href={child.href as any}
-                      className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition hover:bg-muted hover:text-foreground"
-                    >
-                      {child.label}
-                    </Link>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </nav>
+        <SidebarNav items={visibleNavItems} />
+        <div className="absolute bottom-3 left-3 grid h-7 w-7 place-items-center rounded-full bg-zinc-800 text-[13px] font-semibold text-white ring-2 ring-zinc-400">
+          N
+        </div>
       </aside>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 border-b bg-background/78 px-4 py-3 backdrop-blur md:px-8">
-          <div className="flex items-center gap-3">
-            <button className="grid h-10 w-10 place-items-center rounded-lg border border-border bg-card lg:hidden" aria-label="Open navigation">
-              <Menu className="h-5 w-5 text-foreground" aria-hidden="true" />
-            </button>
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-              <input
-                aria-label="Global search"
-                className="h-11 w-full rounded-lg border bg-card/90 pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                placeholder="Search patients, MRNs, appointments, invoices"
-              />
+      <div className="lg:pl-[188px]">
+        <header className="sticky top-0 z-30 h-[46px] border-b border-zinc-200 bg-white px-4">
+          <div className="flex h-full items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-md" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
+                <Menu className="h-4 w-4 text-black" aria-hidden />
+              </Button>
+              <div>
+                <p className="text-[14px] font-bold leading-tight text-black">Dashboard</p>
+                <p className="text-[10px] leading-tight text-zinc-500">Clinic workspace</p>
+              </div>
             </div>
-            <button className="hidden rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm md:inline-flex">
-              New Appointment
-            </button>
-            <ThemeToggle />
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setDropdownOpen((value) => !value)}
-                className="flex items-center gap-3 rounded-lg border bg-card/90 px-2 py-1.5 text-left transition hover:border-primary/40"
-                aria-expanded={dropdownOpen}
-              >
-                <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-lg bg-primary text-xs font-bold text-primary-foreground">
-                  {shellUser?.avatar ? <img src={shellUser.avatar} alt="" className="h-full w-full object-cover" /> : initials(session.name)}
-                </span>
-                <span className="hidden min-w-0 md:block">
-                  <span className="block max-w-36 truncate text-sm font-semibold text-foreground">{session.name}</span>
-                  <span className="block max-w-36 truncate text-xs capitalize text-muted-foreground">{session.role} · {shellUser?.branchName ?? "Clinic"}</span>
-                </span>
-                <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+
+            <div className="flex items-center gap-3">
+              <ThemeToggle className="h-7 w-7 border-transparent bg-transparent shadow-none hover:bg-zinc-100 [&_svg]:h-4 [&_svg]:w-4" />
+              <button type="button" className="relative grid h-7 w-7 place-items-center rounded-md text-black transition hover:bg-zinc-100" aria-label="Notifications">
+                <Bell className="h-4 w-4" aria-hidden />
+                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-cyan-700" />
               </button>
-              {dropdownOpen ? (
-                <div className="absolute right-0 mt-2 w-72 overflow-hidden rounded-xl border border-border bg-card shadow-xl shadow-slate-950/10">
-                  <div className="flex items-center gap-3 border-b border-border p-4">
-                    <span className="grid h-12 w-12 place-items-center overflow-hidden rounded-xl bg-primary text-sm font-bold text-primary-foreground">
-                      {shellUser?.avatar ? <img src={shellUser.avatar} alt="" className="h-full w-full object-cover" /> : initials(session.name)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-foreground">{session.name}</span>
-                      <span className="block truncate text-xs capitalize text-muted-foreground">{session.role}</span>
-                      <span className="block truncate text-xs text-muted-foreground">{shellUser?.branchName ?? "MediClinic"}</span>
-                    </span>
-                  </div>
-                  <div className="grid p-2">
-                    {[
-                      { label: "My Profile", href: "/settings/profile", icon: UserRound },
-                      { label: "Account Settings", href: "/settings/account", icon: Settings },
-                      { label: "Security", href: "/settings/security", icon: ShieldCheck },
-                      { label: "Notifications", href: "/settings/notifications", icon: Bell },
-                      { label: "Appearance", href: "/settings/preferences", icon: Palette },
-                      { label: "Login History", href: "/settings/login-history", icon: History },
-                      { label: "Help & Support", href: "/settings", icon: HelpCircle }
-                    ].map((item) => (
-                      <Link key={item.label} href={item.href as any} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-primary/10 hover:text-foreground">
-                        <item.icon className="h-4 w-4" aria-hidden />
-                        {item.label}
-                      </Link>
-                    ))}
-                    <form action={logoutAction} className="mt-1 border-t pt-2">
-                      <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-50">
-                        <LogOut className="h-4 w-4" aria-hidden />
-                        Logout
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              ) : null}
+              <button type="button" className="flex h-[34px] items-center gap-2 rounded-full bg-zinc-100 py-1 pl-1 pr-3 text-left">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-black text-[10px] font-bold text-white">{userInitials}</span>
+                <span className="hidden text-[12px] font-medium text-black sm:inline">{session.name || displayRole}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-500" aria-hidden />
+              </button>
             </div>
           </div>
         </header>
+
         <motion.main
-          className="px-4 py-6 md:px-8"
-          initial={{ opacity: 0, y: 12 }}
+          className="px-[18px] py-[18px]"
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
+          transition={{ duration: 0.25 }}
         >
           {children}
         </motion.main>
       </div>
+
+      {mobileNavOpen ? (
+        <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm lg:hidden">
+          <aside className="h-full w-72 max-w-[86vw] border-r border-zinc-200 bg-white p-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex h-[34px] items-center gap-2">
+                <div className="grid h-[26px] w-[26px] place-items-center rounded-md bg-cyan-500 text-white">
+                  <Activity className="h-4 w-4" aria-hidden />
+                </div>
+                <div>
+                  <p className="text-[13px] font-bold text-black">MediClinic Pro</p>
+                  <p className="text-[10px] text-zinc-500">Modern Clinic Management</p>
+                </div>
+              </div>
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">
+                <Menu className="h-4 w-4" aria-hidden />
+              </Button>
+            </div>
+            <SidebarNav items={visibleNavItems} onNavigate={() => setMobileNavOpen(false)} />
+          </aside>
+        </div>
+      ) : null}
     </div>
   );
 }

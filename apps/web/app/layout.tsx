@@ -3,10 +3,6 @@ import { Toaster } from "sonner";
 import { ToastListener } from "@/components/toast-listener";
 import { ThemeProviderWrapper } from "@/components/theme-provider-wrapper";
 import "./globals.css";
-import { Geist } from "next/font/google";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
@@ -34,7 +30,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className="font-sans">
       <body suppressHydrationWarning>
         <ThemeProviderWrapper>
           {children}

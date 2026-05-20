@@ -1,6 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
-    "ui": "tui",
+  "ui": "tui",
   "globalPassThroughEnv": [
     "DATABASE_URL",
     "AUTH_SECRET",
@@ -54,7 +54,7 @@
       ]
     },
 
-    "@mediclinicpro/web#build": {
+    "@mediclinic/web#build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "!.next/cache/**"],
       "env": [

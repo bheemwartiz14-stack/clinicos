@@ -1,6 +1,8 @@
 "use client";
 
 import { cn } from "@mediclinic/ui";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 type FieldProps = {
   label?: string;
@@ -19,72 +21,16 @@ export function FormField({ label, error, hint, required, className, ...props }:
           {required ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
       ) : null}
-      <input
+      <Input
         {...props}
         className={cn(
-          "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20",
-          error && "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20",
+          "h-11",
+          error && "border-rose-400 focus-visible:ring-rose-500/25",
           className
         )}
       />
       {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
       {error ? <span className="text-xs font-medium text-rose-500">{error}</span> : null}
-    </label>
-  );
-}
-
-export function SelectField(props: { label?: string; error?: string; hint?: string; required?: boolean; className?: string; options: Array<{ value: string; label: string }> } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "label" | "options" | "className">) {
-  const { label, error, hint, required, options, className, ...rest } = props;
-  return (
-    <label className="grid gap-2 text-sm">
-      {label ? (
-        <span className="font-medium text-foreground">
-          {label}
-          {required ? <span className="ml-1 text-red-500">*</span> : null}
-        </span>
-      ) : null}
-      <select
-        {...rest}
-        className={cn(
-          "h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground shadow-sm outline-none transition hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20",
-          error && "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20",
-          className
-        )}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
-      {error ? <span className="text-xs font-medium text-rose-500">{error}</span> : null}
-    </label>
-  );
-}
-
-export function Select2Field(props: Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "className"> & { label?: string; error?: string; hint?: string; className?: string; children?: React.ReactNode }) {
-  const { className, children, ...rest } = props;
-  return (
-    <label className="grid gap-2 text-sm">
-      {props.label ? (
-        <span className="font-medium text-foreground">
-          {props.label}
-          {props.required ? <span className="ml-1 text-red-500">*</span> : null}
-        </span>
-      ) : null}
-      <select
-        {...rest}
-        className={cn(
-          "h-11 w-full appearance-none rounded-lg border border-border bg-background px-3 pr-10 text-sm text-foreground shadow-sm outline-none transition hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20",
-          props.error && "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20",
-          className
-        )}
-      >
-        {children}
-      </select>
-      {props.hint ? <span className="text-xs text-muted-foreground">{props.hint}</span> : null}
-      {props.error ? <span className="text-xs font-medium text-rose-500">{props.error}</span> : null}
     </label>
   );
 }
@@ -99,13 +45,12 @@ export function TextareaField(props: { label?: string; error?: string; hint?: st
           {required ? <span className="ml-1 text-red-500">*</span> : null}
         </span>
       ) : null}
-      <textarea
+      <Textarea
         {...rest}
         rows={rows}
         placeholder={placeholder}
         className={cn(
-          "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20",
-          error && "border-rose-400 focus:border-rose-500 focus:ring-rose-500/20",
+          error && "border-rose-400 focus-visible:ring-rose-500/25",
           className
         )}
       />
@@ -155,6 +100,41 @@ export function RadioField(props: { label: string; error?: string; className?: s
 
 export function DatePickerField(props: { label?: string; error?: string; hint?: string; required?: boolean; className?: string } & Omit<React.InputHTMLAttributes<HTMLInputElement>, keyof { label?: string; error?: string; hint?: string; required?: boolean; className?: string }>) {
   return <FormField type="date" {...props} />;
+}
+
+export function SelectField(props: { label?: string; error?: string; hint?: string; required?: boolean; className?: string; children?: React.ReactNode; options?: Array<{ value: string; label: string }> } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "label" | "error" | "hint" | "required" | "className" | "children" | "options">) {
+  const { options, children, ...rest } = props;
+  return (
+    <Select2Field {...rest}>
+      {options ? options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>) : children}
+    </Select2Field>
+  );
+}
+
+export function Select2Field(props: { label?: string; error?: string; hint?: string; required?: boolean; className?: string; children?: React.ReactNode } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "label" | "error" | "hint" | "required" | "className" | "children">) {
+  const { label, error, hint, required, className, children, ...rest } = props;
+  return (
+    <label className="grid gap-2 text-sm">
+      {label ? (
+        <span className="font-medium text-foreground">
+          {label}
+          {required ? <span className="ml-1 text-red-500">*</span> : null}
+        </span>
+      ) : null}
+      <select
+        {...rest}
+        className={cn(
+          "h-11 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
+          error && "border-rose-400 focus-visible:ring-rose-500/25",
+          className
+        )}
+      >
+        {children}
+      </select>
+      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+      {error ? <span className="text-xs font-medium text-rose-500">{error}</span> : null}
+    </label>
+  );
 }
 
 export type FormActionState = {

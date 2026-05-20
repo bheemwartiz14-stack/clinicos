@@ -14,7 +14,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push --force",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "bun src/wait-for-db.ts && drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "bun src/seed/seed.ts"
   },

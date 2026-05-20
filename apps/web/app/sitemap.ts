@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 const publicRoutes = ["/login", "/forgot-password", "/reset-password"];
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return publicRoutes.map((route) => ({
     url: new URL(route, baseUrl).toString(),

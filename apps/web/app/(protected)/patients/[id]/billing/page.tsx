@@ -1,12 +1,25 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/auth";
 import { patientService } from "@modules/patients/services/patient.service";
-import { PatientProfileView } from "@modules/patients/views/patient-profile.view";
+import { PatientBillingView } from "@modules/patients/views/patients-view";
 
-export default async function PatientBillingPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requirePermission("patients.billing.view");
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const profile = await patientService.profile(session.branchId, id);
-  if (!profile) notFound();
-  return <PatientProfileView profile={profile} role={session.role} section="billing" />;
+  const patient = await patientService.getById(id);
+  return {
+    title: patient ? `Billing - ${patient.fullName ?? patient.firstName} | MediClinic Pro` : "Patient Not Found"
+  };
+}
+
+export default async function PatientBillingPage({ params }: Props) {
+  await requirePermission("patients.billing.view");
+  const { id } = await params;
+  const patient = await patientService.getById(id);
+  if (!patient) notFound();
+  return <PatientBillingView patientId={id} />;
 }

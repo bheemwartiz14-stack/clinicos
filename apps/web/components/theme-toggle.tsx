@@ -2,6 +2,8 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "./theme-provider";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
@@ -11,16 +13,20 @@ export function ThemeToggle({ className }: { className?: string }) {
   };
 
   return (
-    <button
+    <Button
+      type="button"
+      variant="outline"
+      size="icon"
       onClick={toggleTheme}
-      className={`grid h-10 w-10 place-items-center rounded-lg border border-border bg-card transition hover:border-primary ${className || ""}`}
+      className={cn(className)}
       aria-label="Toggle theme"
+      title={`Switch to ${resolvedTheme === "light" ? "dark" : "light"} mode`}
     >
       {resolvedTheme === "light" ? (
         <Moon className="h-5 w-5 text-foreground" aria-hidden="true" />
       ) : (
         <Sun className="h-5 w-5 text-foreground" aria-hidden="true" />
       )}
-    </button>
+    </Button>
   );
 }

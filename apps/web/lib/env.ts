@@ -19,14 +19,14 @@ if (process.env.NODE_ENV !== "production") {
 
   for (const envFile of envCandidates) {
     if (fs.existsSync(envFile)) {
-      loadDotenv({ path: envFile, quiet: true });
+      loadDotenv({ path: envFile, override: true, quiet: true });
     }
   }
 }
 
 export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  APP_URL: z.string().url().default("http://localhost:3000"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().optional(),
   COOKIE_NAME: z.string().default("mediclinic_session"),

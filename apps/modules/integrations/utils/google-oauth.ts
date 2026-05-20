@@ -28,9 +28,9 @@ export function googleRedirectUri(provider: IntegrationProvider) {
   if (provider === "google_calendar") {
     return env.GOOGLE_CALENDAR_REDIRECT_URI
       || env.GOOGLE_REDIRECT_URI
-      || `${env.APP_URL}/api/integrations/google-calendar/callback`;
+      || `${env.NEXT_PUBLIC_APP_URL}/api/integrations/google-calendar/callback`;
   }
-  return env.GOOGLE_MEET_REDIRECT_URI || `${env.APP_URL}/api/integrations/google-meet/callback`;
+  return env.GOOGLE_MEET_REDIRECT_URI || `${env.NEXT_PUBLIC_APP_URL}/api/integrations/google-meet/callback`;
 }
 
 export function googleScopes(provider: IntegrationProvider) {

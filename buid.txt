@@ -1,0 +1,24 @@
+
+   • Packages in scope: @mediclinic/auth, @mediclinic/db, @mediclinic/rbac, @mediclinic/ui, @mediclinic/web
+   • Running build in 5 packages
+   • Remote caching disabled
+
+@mediclinic/db:build: cache hit, replaying logs 6369bd113eefd08e
+@mediclinic/ui:build: cache hit, replaying logs e42c5f0d7ba0370e
+@mediclinic/rbac:build: cache hit, replaying logs 6bccb6c5e46e4e2f
+@mediclinic/ui:build: $ tsc --noEmit
+@mediclinic/db:build: $ tsc -p tsconfig.json --noEmit
+@mediclinic/rbac:build: $ tsc --noEmit
+@mediclinic/auth:build: cache hit, replaying logs c1b4e692bbcbde10
+@mediclinic/auth:build: $ tsc --noEmit
+@mediclinic/web:build: cache miss, executing 52583273f1f57645
+@mediclinic/web:build: $ next build --turbopack
+@mediclinic/web:build: ▲ Next.js 16.2.6 (Turbopack)
+@mediclinic/web:build: 
+@mediclinic/web:build:   Creating an optimized production build ...
+^C - Shutting down Turborepo tasks...
+
+ Tasks:    4 successful, 5 total
+Cached:    4 cached, 5 total
+  Time:    23.707s 
+

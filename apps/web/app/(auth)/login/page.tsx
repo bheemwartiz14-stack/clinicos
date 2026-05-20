@@ -3,7 +3,7 @@ import { LoginForm } from "@modules/auth/components/login-form";
 
 export default function LoginPage() {
   return (
-    <AuthFormShell title="Sign in" subtitle="Use your clinic email or username to access your workspace.">
+    <AuthFormShell title="Sign in" subtitle="Sign in to your clinic workspace">
       <LoginForm />
     </AuthFormShell>
   );
