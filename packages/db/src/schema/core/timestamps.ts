@@ -1,3 +1,0 @@
-export {
-  timestamps
-} from "../schema";

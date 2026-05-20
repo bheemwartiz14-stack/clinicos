@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { can } from "@mediclinic/rbac";
-import { getSession } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { doctorService } from "@modules/doctors/services/doctor.service";
 import { integrationService } from "@modules/integrations/services/integration.service";
 import { googleCalendarService } from "@modules/integrations/services/google-calendar.service";
@@ -14,9 +14,7 @@ type PageProps = {
 };
 
 export default async function IntegrationSettingsPage({ searchParams }: PageProps) {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  if (!can(session.role, "integrations.view")) redirect("/");
+  const session = await requirePagePermission("integrations.view");
 
   const params = searchParams ? await searchParams : {};
   const doctorIdParam = typeof params.doctorId === "string" ? params.doctorId : null;

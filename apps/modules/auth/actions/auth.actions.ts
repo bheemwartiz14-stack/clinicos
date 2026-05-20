@@ -11,14 +11,25 @@ import { clearSessionCookie, setSessionCookie } from "../services/session-cookie
 export type AuthActionState = {
   ok: boolean;
   message?: string;
+  fieldErrors?: {
+    identifier?: string;
+    password?: string;
+  };
   resetToken?: string;
 };
 
 export async function loginAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
-
   if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Check your login details" };
+    const fieldErrors = parsed.error.flatten().fieldErrors;
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Check your login details",
+      fieldErrors: {
+        identifier: fieldErrors.identifier?.[0],
+        password: fieldErrors.password?.[0]
+      }
+    };
   }
 
   try {
@@ -29,6 +40,7 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
     });
     await setSessionCookie(session);
   } catch (error) {
+    console.error("Login failed:", error);
     return { ok: false, message: error instanceof Error ? error.message : "Unable to sign in" };
   }
 

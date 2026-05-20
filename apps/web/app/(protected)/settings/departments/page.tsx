@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { departmentService } from "@modules/departments/services/department.service";
 import { DepartmentsView } from "@modules/departments/views/departments-view";
 
@@ -28,7 +28,7 @@ type RawDepartment = {
 };
 
 export default async function DepartmentsPage() {
-  await requirePermission("departments.manage");
+  await requirePagePermission("departments.manage");
   const departments = (await departmentService.list()) as RawDepartment[];
 
   const normalizedDepartments = departments.map((department) => ({

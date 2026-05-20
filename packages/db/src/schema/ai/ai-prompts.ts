@@ -1,3 +1,0 @@
-export {
-  aiPrompts
-} from "../schema";

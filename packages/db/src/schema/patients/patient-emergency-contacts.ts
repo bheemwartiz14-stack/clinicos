@@ -1,3 +1,0 @@
-export {
-  patientEmergencyContacts
-} from "../schema";

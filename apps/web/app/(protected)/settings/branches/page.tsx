@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { branchService } from "@modules/branches/services/branch.service";
 import { BranchesView } from "@modules/branches/views/branches-view";
 
@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function BranchesPage() {
-  await requirePermission("branches.manage");
+  await requirePagePermission("branches.manage");
   const branches = await branchService.list();
   return <BranchesView branches={branches} />;
 }

@@ -1,3 +1,0 @@
-export {
-  loginHistory
-} from "../schema";

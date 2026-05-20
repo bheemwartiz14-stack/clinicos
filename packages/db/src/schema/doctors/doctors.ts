@@ -1,3 +1,0 @@
-export {
-  doctors
-} from "../schema";

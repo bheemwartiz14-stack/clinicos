@@ -1,3 +1,0 @@
-export {
-  doctorLeaveBlocks
-} from "../schema";

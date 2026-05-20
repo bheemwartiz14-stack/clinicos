@@ -1,3 +1,0 @@
-export {
-  patients
-} from "../schema";

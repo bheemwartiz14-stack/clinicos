@@ -1,3 +1,0 @@
-export {
-  patientNotes
-} from "../schema";

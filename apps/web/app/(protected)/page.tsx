@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { requirePagePermission } from "@/lib/auth";
 import { DashboardView } from "@modules/dashboard/views/dashboard-view";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -11,6 +12,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
+  await requirePagePermission("dashboard.view");
+
   return (
     <Suspense fallback={<DashboardFallback />}>
       <DashboardView />

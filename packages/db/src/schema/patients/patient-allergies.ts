@@ -1,3 +1,0 @@
-export {
-  patientAllergies
-} from "../schema";

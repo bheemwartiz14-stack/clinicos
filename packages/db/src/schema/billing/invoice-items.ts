@@ -1,3 +1,0 @@
-export {
-  invoiceItems
-} from "../schema";

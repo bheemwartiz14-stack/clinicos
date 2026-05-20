@@ -1,3 +1,0 @@
-export {
-  doctorBreaks
-} from "../schema";

@@ -2,6 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Eye, EyeOff, Lock, Mail } from "lucide-react";
@@ -10,11 +11,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction, type AuthActionState } from "../actions/auth.actions";
-import { loginSchema } from "@mediclinic/auth";
+import { loginSchema, type LoginInput } from "@mediclinic/auth";
 
 const initialState: AuthActionState = { ok: false };
 
-export function LoginForm() {
+type LoginFormProps = {
+  redirectTo?: string;
+};
+
+export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
   const router = useRouter();
   const [state, action, isPending] = useActionState(loginAction, initialState);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -23,28 +28,33 @@ export function LoginForm() {
     register,
     handleSubmit,
     formState: { errors },
-    setError
-  } = useForm({
+    setError,
+    clearErrors
+  } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema) as any,
-    mode: "onBlur"
+    mode: "onBlur",
+    defaultValues: {
+      identifier: "",
+      password: ""
+    }
   });
 
   useEffect(() => {
     if (state.ok) {
-      router.push("/");
+      router.replace(redirectTo as Route);
+      router.refresh();
     } else if (state.message) {
       setErrorMessage(state.message);
-      if (state.message.toLowerCase().includes("email") || state.message.toLowerCase().includes("identifier")) {
-        setError("identifier", { message: state.message });
-      } else if (state.message.toLowerCase().includes("password")) {
-        setError("password", { message: state.message });
-      }
+      if (state.fieldErrors?.identifier) setError("identifier", { message: state.fieldErrors.identifier });
+      if (state.fieldErrors?.password) setError("password", { message: state.fieldErrors.password });
     }
-  }, [state, router, setError]);
+  }, [state, router, setError, redirectTo]);
 
-  const onSubmit = (data: any) => {
+  const onSubmit = (data: LoginInput) => {
+    setErrorMessage(null);
+    clearErrors();
     const formData = new FormData();
-    formData.append("identifier", data.identifier);
+    formData.append("identifier", data.identifier.trim());
     formData.append("password", data.password);
     startTransition(() => {
       action(formData);
@@ -52,7 +62,7 @@ export function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="space-y-2">
         <Label htmlFor="identifier" className="text-xs text-slate-700">
           Email or username

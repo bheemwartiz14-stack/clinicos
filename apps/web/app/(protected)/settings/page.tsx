@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { requireSession } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { settingsService } from "@modules/settings/profile/services/settings.service";
 import { SettingsDashboardView } from "@modules/settings/profile/views/settings-dashboard-view";
 
@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SettingsPage() {
-  const session = await requireSession();
+  const session = await requirePagePermission("settings.profile");
   const { profile } = await settingsService.overview(session.userId, session.sessionId);
 
   return (

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { patientService } from "@modules/patients/services/patient.service";
 import { PatientsView } from "@modules/patients/views/patients-view";
 
@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PatientsPage() {
-  await requirePermission("patients.view");
+  await requirePagePermission("patients.view");
   const patients = await patientService.list();
   return <PatientsView patients={patients} />;
 }

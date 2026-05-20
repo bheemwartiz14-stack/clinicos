@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { can } from "@mediclinic/rbac";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { doctorService } from "@modules/doctors/services/doctor.service";
 import { DoctorsView } from "@modules/doctors/views/doctors-view";
 import type { DoctorRecord } from "@modules/doctors/types/doctor.types";
@@ -13,7 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function DoctorsPage() {
-  const session = await requirePermission("doctors.view");
+  const session = await requirePagePermission("doctors.view");
   const doctorsList = await doctorService.list();
   
   const doctors: DoctorRecord[] = doctorsList.map((d) => ({

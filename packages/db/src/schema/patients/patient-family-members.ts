@@ -1,3 +1,0 @@
-export {
-  patientFamilyMembers
-} from "../schema";

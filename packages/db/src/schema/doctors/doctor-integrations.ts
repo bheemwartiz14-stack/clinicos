@@ -1,3 +1,0 @@
-export {
-  doctorIntegrations
-} from "../schema";

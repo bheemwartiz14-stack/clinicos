@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { DepartmentDetail } from "@modules/departments/components/department-detail";
 import { departmentService } from "@modules/departments/services/department.service";
 import { serializeDepartment } from "@modules/departments/views/departments-view";
@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function DepartmentViewPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePermission("departments.manage");
+  await requirePagePermission("departments.manage");
   const { id } = await params;
   const department = await departmentService.get(id);
 

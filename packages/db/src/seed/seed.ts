@@ -2,7 +2,7 @@ import { pbkdf2Sync, randomBytes } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config as loadDotenv } from "dotenv";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { branches, departments, doctors, users, doctorSchedules, doctorBreaks, doctorVisitSettings } from "../schema";
 import { createDb, DEFAULT_DATABASE_URL } from "..";
 
@@ -115,7 +115,19 @@ async function seed() {
     await db
       .insert(users)
       .values(seedUsers)
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: users.email,
+        set: {
+          branchId: sql`excluded.branch_id`,
+          departmentId: sql`excluded.department_id`,
+          role: sql`excluded.role`,
+          name: sql`excluded.name`,
+          username: sql`excluded.username`,
+          passwordHash: sql`excluded.password_hash`,
+          isActive: true,
+          updatedAt: new Date()
+        }
+      });
 
     const seededUsers = await db.select().from(users).where(eq(users.branchId, branch.id));
     console.log(`Users seeded: ${seededUsers.length}`);

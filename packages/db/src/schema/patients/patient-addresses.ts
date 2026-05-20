@@ -1,3 +1,0 @@
-export {
-  patientAddresses
-} from "../schema";

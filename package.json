@@ -17,9 +17,9 @@
     "test": "turbo test",
     "test:e2e": "turbo test:e2e",
     "db:generate": "turbo --filter @mediclinic/db db:generate",
+    "db:studio": "turbo --filter @mediclinic/db db:studio",
     "db:push": "turbo --filter @mediclinic/db db:push",
     "db:migrate": "turbo --filter @mediclinic/db db:migrate",
-    "db:studio": "turbo --filter @mediclinic/db db:studio",
     "db:seed": "turbo --filter @mediclinic/db db:seed"
   },
   "dependencies": {

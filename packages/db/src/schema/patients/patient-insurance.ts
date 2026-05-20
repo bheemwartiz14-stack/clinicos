@@ -1,3 +1,0 @@
-export {
-  patientInsurance
-} from "../schema";

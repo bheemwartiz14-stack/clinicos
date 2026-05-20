@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { can } from "@mediclinic/rbac";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { appointmentService } from "@modules/appointments/services/appointment.service";
 import { AppointmentsView } from "@modules/appointments/views/appointments-view";
 
@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AppointmentsPage() {
-  const session = await requirePermission("appointments.view");
+  const session = await requirePagePermission("appointments.view");
   const workspace = await appointmentService.workspace(session.branchId);
 
   return (

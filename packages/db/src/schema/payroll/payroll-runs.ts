@@ -1,3 +1,0 @@
-export {
-  payrollRuns
-} from "../schema";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSession } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { settingsService } from "@modules/settings/profile/services/settings.service";
 import { NotificationSettingsView } from "@modules/settings/profile/views/settings-dashboard-view";
 
@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 export default async function NotificationSettingsPage() {
-  const session = await requireSession();
+  const session = await requirePagePermission("settings.profile");
   const { profile, preferences } = await settingsService.overview(session.userId, session.sessionId);
   return <NotificationSettingsView profile={profile} preferences={preferences} />;
 }

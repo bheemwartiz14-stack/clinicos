@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { patientService } from "@modules/patients/services/patient.service";
 import { PatientBillingView } from "@modules/patients/views/patients-view";
 
@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PatientBillingPage({ params }: Props) {
-  await requirePermission("patients.billing.view");
+  await requirePagePermission("patients.billing.view");
   const { id } = await params;
   const patient = await patientService.getById(id);
   if (!patient) notFound();

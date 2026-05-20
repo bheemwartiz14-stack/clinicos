@@ -1,3 +1,0 @@
-export {
-  aiAuditLogs
-} from "../schema";

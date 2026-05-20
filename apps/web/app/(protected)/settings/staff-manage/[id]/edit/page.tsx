@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { StaffForm } from "@modules/staff/components/staff-form";
 import { staffService } from "@modules/staff/services/staff.service";
 import { serializeStaff } from "@modules/staff/utils/serialize-staff";
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 export default async function EditStaffPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePermission("staff.manage");
+  await requirePagePermission("staff.manage");
   const { id } = await params;
   const staff = await staffService.get(id);
 

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { DepartmentForm } from "@modules/departments/components/department-form";
 import { branchService } from "@modules/branches/services/branch.service";
 import { departmentService } from "@modules/departments/services/department.service";
@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CreateDepartmentPage() {
-  await requirePermission("departments.manage");
+  await requirePagePermission("departments.manage");
 
   const branches = await branchService.list();
   const heads = await departmentService.listHeads();

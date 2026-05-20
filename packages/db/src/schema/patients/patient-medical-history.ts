@@ -1,3 +1,0 @@
-export {
-  patientMedicalHistories
-} from "../schema";

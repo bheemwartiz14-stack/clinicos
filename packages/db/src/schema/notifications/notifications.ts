@@ -1,3 +1,0 @@
-export {
-  notifications
-} from "../schema";

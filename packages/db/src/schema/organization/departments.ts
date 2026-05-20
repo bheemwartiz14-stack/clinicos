@@ -1,3 +1,0 @@
-export {
-  departments
-} from "../schema";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requirePermission } from "@/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { BranchForm } from "@modules/branches/components/branch-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CreateBranchPage() {
-  await requirePermission("branches.manage");
+  await requirePagePermission("branches.manage");
 
   return <BranchForm />;
 }

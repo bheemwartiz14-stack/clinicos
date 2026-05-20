@@ -36,12 +36,10 @@ export const paymentStatusEnum = pgEnum("payment_status", ["pending", "succeeded
 export const refundStatusEnum = pgEnum("refund_status", ["pending", "succeeded", "failed"]);
 export const claimStatusEnum = pgEnum("claim_status", ["draft", "ready", "submitted", "accepted", "rejected", "paid", "denied"]);
 export const aiRecommendationStatusEnum = pgEnum("ai_recommendation_status", ["pending", "accepted", "dismissed", "expired"]);
-
 export const timestamps = () => ({
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull()
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull().$onUpdate(() => new Date())
 });
-
 export const branches = pgTable("branches", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: varchar("name", { length: 160 }).notNull(),
@@ -597,6 +595,41 @@ export const doctorCalendarBusyEvents = pgTable("doctor_calendar_busy_events", {
   }).onDelete("cascade")
 }));
 
+export const appointments = pgTable("appointments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  branchId: uuid("branch_id").references(() => branches.id).notNull(),
+  patientId: uuid("patient_id").references(() => patients.id).notNull(),
+  doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
+  status: appointmentStatusEnum("status").default("scheduled").notNull(),
+  mode: appointmentModeEnum("mode").default("offline").notNull(),
+  consultationMode: consultationModeEnum("consultation_mode").default("offline").notNull(),
+  locationType: locationTypeEnum("location_type").default("clinic").notNull(),
+  roomId: uuid("room_id"),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  reason: varchar("reason", { length: 255 }).notNull(),
+  notes: text("notes"),
+  insuranceId: uuid("insurance_id").references(() => patientInsurance.id),
+  insuranceVerificationStatus: insuranceVerificationStatusEnum("insurance_verification_status").default("not_verified").notNull(),
+  cptCodes: jsonb("cpt_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  icd10Codes: jsonb("icd10_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
+  queueToken: varchar("queue_token", { length: 32 }),
+  queuePriority: queuePriorityEnum("queue_priority").default("routine").notNull(),
+  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+  meetingProvider: varchar("meeting_provider", { length: 64 }),
+  meetingUrl: text("meeting_url"),
+  meetingEventId: varchar("meeting_event_id", { length: 255 }),
+  meetingCreatedAt: timestamp("meeting_created_at", { withTimezone: true }),
+  googleCalendarEventId: varchar("google_calendar_event_id", { length: 255 }),
+  googleMeetLink: text("google_meet_link"),
+  aiIntakeSummary: text("ai_intake_summary"),
+  ...timestamps()
+}, (table) => ({
+  branchScheduleIdx: index("appointments_branch_schedule_idx").on(table.branchId, table.startsAt),
+  doctorScheduleIdx: index("appointments_doctor_schedule_idx").on(table.doctorId, table.startsAt),
+  patientIdx: index("appointments_patient_idx").on(table.patientId)
+}));
+
 export const doctorMeetEvents = pgTable("doctor_meet_events", {
   id: uuid("id").primaryKey().defaultRandom(),
   doctorId: uuid("doctor_id").references(() => doctors.id, { onDelete: "cascade" }).notNull(),
@@ -650,41 +683,6 @@ export const doctorAppointmentSlots = pgTable("doctor_appointment_slots", {
 }, (table) => ({
   doctorDateIdx: index("doctor_appointment_slots_doctor_date_idx").on(table.doctorId, table.slotDate),
   statusIdx: index("doctor_appointment_slots_status_idx").on(table.status)
-}));
-
-export const appointments = pgTable("appointments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  branchId: uuid("branch_id").references(() => branches.id).notNull(),
-  patientId: uuid("patient_id").references(() => patients.id).notNull(),
-  doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
-  status: appointmentStatusEnum("status").default("scheduled").notNull(),
-  mode: appointmentModeEnum("mode").default("offline").notNull(),
-  consultationMode: consultationModeEnum("consultation_mode").default("offline").notNull(),
-  locationType: locationTypeEnum("location_type").default("clinic").notNull(),
-  roomId: uuid("room_id"),
-  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
-  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
-  reason: varchar("reason", { length: 255 }).notNull(),
-  notes: text("notes"),
-  insuranceId: uuid("insurance_id").references(() => patientInsurance.id),
-  insuranceVerificationStatus: insuranceVerificationStatusEnum("insurance_verification_status").default("not_verified").notNull(),
-  cptCodes: jsonb("cpt_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
-  icd10Codes: jsonb("icd10_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
-  queueToken: varchar("queue_token", { length: 32 }),
-  queuePriority: queuePriorityEnum("queue_priority").default("routine").notNull(),
-  checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
-  meetingProvider: varchar("meeting_provider", { length: 64 }),
-  meetingUrl: text("meeting_url"),
-  meetingEventId: varchar("meeting_event_id", { length: 255 }),
-  meetingCreatedAt: timestamp("meeting_created_at", { withTimezone: true }),
-  googleCalendarEventId: varchar("google_calendar_event_id", { length: 255 }),
-  googleMeetLink: text("google_meet_link"),
-  aiIntakeSummary: text("ai_intake_summary"),
-  ...timestamps()
-}, (table) => ({
-  branchScheduleIdx: index("appointments_branch_schedule_idx").on(table.branchId, table.startsAt),
-  doctorScheduleIdx: index("appointments_doctor_schedule_idx").on(table.doctorId, table.startsAt),
-  patientIdx: index("appointments_patient_idx").on(table.patientId)
 }));
 
 export const appointmentQueueEntries = pgTable("appointment_queue_entries", {

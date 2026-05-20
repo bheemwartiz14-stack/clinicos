@@ -1,3 +1,0 @@
-export {
-  appointments
-} from "../schema";

@@ -1,3 +1,0 @@
-export {
-  aiRecommendations
-} from "../schema";
