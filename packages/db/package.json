@@ -1,5 +1,5 @@
 {
-  "name": "@mediclinicpro/db",
+  "name": "@mediclinic/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -19,7 +19,6 @@
     "db:seed": "bun src/seed/seed.ts"
   },
   "dependencies": {
-    "@mediclinicpro/types": "workspace:*",
     "bcryptjs": "^3.0.2",
     "dotenv": "^16.6.1",
     "drizzle-orm": "^0.44.4",
