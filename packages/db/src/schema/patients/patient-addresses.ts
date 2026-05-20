@@ -1,0 +1,3 @@
+export {
+  patientAddresses
+} from "../schema";

@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@/*": ["./*"],
+      "@modules/*": ["../modules/*"],
+      "@mediclinic/db": ["../../packages/db/src/index.ts"],
+      "@mediclinic/db/*": ["../../packages/db/src/*"],
+      "@mediclinic/ui": ["../../packages/ui/src/index.ts"],
+      "@mediclinic/ui/*": ["../../packages/ui/src/*"],
+      "@mediclinic/rbac": ["../../packages/rbac/src/index.ts"],
+      "@mediclinic/rbac/*": ["../../packages/rbac/src/*"],
+      "@mediclinic/auth": ["../../packages/auth/src/index.ts"],
+      "@mediclinic/auth/*": ["../../packages/auth/src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../modules/**/*.ts", "../modules/**/*.tsx"],
+  "exclude": ["node_modules"]
+}

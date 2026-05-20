@@ -1,0 +1,3 @@
+export {
+  payments
+} from "../schema";

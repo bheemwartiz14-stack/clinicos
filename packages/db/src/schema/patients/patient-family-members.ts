@@ -1,0 +1,3 @@
+export {
+  patientFamilyMembers
+} from "../schema";

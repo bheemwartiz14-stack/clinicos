@@ -1,0 +1,3 @@
+export {
+  timestamps
+} from "../schema";

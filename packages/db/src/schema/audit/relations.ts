@@ -1,0 +1,3 @@
+export {
+  auditLogRelations
+} from "../schema";

@@ -1,0 +1,47 @@
+import type { Metadata } from "next";
+import { Toaster } from "sonner";
+import { ToastListener } from "@/components/toast-listener";
+import { ThemeProviderWrapper } from "@/components/theme-provider-wrapper";
+import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+
+export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
+  title: "MediClinic Pro",
+  description: "Enterprise AI-ready clinic management system for USA clinic workflows",
+  applicationName: "MediClinic Pro",
+  keywords: ["clinic management", "EHR", "appointments", "billing", "healthcare operations", "RBAC"],
+  authors: [{ name: "MediClinic Pro" }],
+  creator: "MediClinic Pro",
+  publisher: "MediClinic Pro",
+  manifest: "/manifest.webmanifest",
+  openGraph: {
+    title: "MediClinic Pro",
+    description: "Premium clinic operations platform for secure scheduling, patient intake, billing, payroll, and AI workflows.",
+    url: "/",
+    siteName: "MediClinic Pro",
+    type: "website"
+  },
+  twitter: {
+    card: "summary",
+    title: "MediClinic Pro",
+    description: "Enterprise AI-ready clinic management system for USA clinic workflows"
+  }
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+      <body suppressHydrationWarning>
+        <ThemeProviderWrapper>
+          {children}
+        </ThemeProviderWrapper>
+        <Toaster richColors position="top-right" />
+        <ToastListener />
+      </body>
+    </html>
+  );
+}

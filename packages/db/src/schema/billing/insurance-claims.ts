@@ -1,0 +1,3 @@
+export {
+  insuranceClaims
+} from "../schema";

@@ -1,0 +1,21 @@
+export type PatientRecord = {
+  id: string;
+  userId: string | null;
+  branchId: string;
+  mrn: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  sex: string;
+  phone: string;
+  email: string | null;
+  address: { line1: string; line2?: string; city: string; state: string; postalCode: string } | null;
+  emergencyContact: { name: string; phone: string; relationship: string } | null;
+  allergies: string;
+  medications: string;
+  insurance: { payer: string; memberId: string; groupId?: string } | null;
+  isActive: boolean;
+  consentOnFile: boolean;
+  createdAt: string;
+  updatedAt: string;
+};

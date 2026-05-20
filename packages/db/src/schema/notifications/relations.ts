@@ -1,0 +1,3 @@
+export {
+  notificationRelations
+} from "../schema";

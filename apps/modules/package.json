@@ -1,0 +1,10 @@
+{
+  "name": "@mediclinic/modules",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "sonner": "^1.7.1",
+    "react-hook-form": "^7.54.2",
+    "@hookform/resolvers": "^3.10.0"
+  }
+}

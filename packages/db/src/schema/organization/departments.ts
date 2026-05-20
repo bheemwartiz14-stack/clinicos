@@ -1,0 +1,3 @@
+export {
+  departments
+} from "../schema";

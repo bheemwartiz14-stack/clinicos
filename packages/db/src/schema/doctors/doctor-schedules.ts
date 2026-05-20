@@ -1,0 +1,3 @@
+export {
+  doctorSchedules
+} from "../schema";

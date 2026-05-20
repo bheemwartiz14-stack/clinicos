@@ -1,0 +1,3 @@
+export {
+  notificationPreferences
+} from "../schema";

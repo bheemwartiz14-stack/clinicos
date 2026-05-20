@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "paths": {
+      "@/*": ["./apps/web/*"],
+      "@mediclinic/db": ["./packages/db/src/index.ts"],
+      "@mediclinic/db/*": ["./packages/db/src/*"],
+      "@mediclinic/ui": ["./packages/ui/src/index.ts"],
+      "@mediclinic/ui/*": ["./packages/ui/src/*"],
+      "@mediclinic/rbac": ["./packages/rbac/src/index.ts"],
+      "@mediclinic/rbac/*": ["./packages/rbac/src/*"],
+      "@mediclinic/auth": ["./packages/auth/src/index.ts"],
+      "@mediclinic/auth/*": ["./packages/auth/src/*"],
+      "@modules/*": ["./apps/modules/*"]
+    }
+  },
+  "exclude": ["node_modules"]
+}

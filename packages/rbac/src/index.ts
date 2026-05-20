@@ -1,0 +1,119 @@
+export const roles = ["admin", "doctor", "nurse", "receptionist", "accountant", "analyst", "patient"] as const;
+export type Role = (typeof roles)[number];
+export const staffRoles = ["admin", "doctor", "nurse", "receptionist", "accountant", "analyst"] as const;
+export type StaffRole = (typeof staffRoles)[number];
+
+export const permissions = [
+  "dashboard.view",
+  "patients.view",
+  "patients.create",
+  "patients.edit",
+  "patients.delete",
+  "patients.update",
+  "patients.portal",
+  "patients.profile.view",
+  "patients.medical.view",
+  "patients.medical.manage",
+  "patients.appointments.view",
+  "patients.billing.view",
+  "patients.insurance.view",
+  "patients.insurance.manage",
+  "patients.documents.view",
+  "patients.documents.upload",
+  "patients.documents.delete",
+  "patients.notes.view",
+  "patients.notes.manage",
+  "patients.timeline.view",
+  "patients.ai.view",
+  "patients.ai.summary",
+  "patients.ai.followup",
+  "appointments.view",
+  "appointments.manage",
+  "integrations.view",
+  "integrations.manage",
+  "integrations.google_calendar.manage",
+  "integrations.google_meet.manage",
+  "doctors.view",
+  "doctors.manage",
+  "doctors.create",
+  "doctors.edit",
+  "doctors.delete",
+  "doctors.schedule.manage",
+  "doctors.leave.manage",
+  "doctors.slots.manage",
+  "doctors.settings.manage",
+  "doctors.self.manage",
+  "doctors.calendar.connect",
+  "doctors.calendar.disconnect",
+  "doctors.calendar.sync",
+  "doctors.meet.manage",
+  "doctors.availability.view",
+  "doctors.consultation_fee.view",
+  "billing.view",
+  "billing.manage",
+  "payroll.view",
+  "payroll.manage",
+  "reports.view",
+  "settings.profile",
+  "settings.manage",
+  "branches.manage",
+  "departments.manage",
+  "staff.manage",
+  "rbac.manage",
+  "ai.use"
+] as const;
+
+export type Permission = (typeof permissions)[number];
+
+export const rolePermissions: Record<Role, Permission[]> = {
+  admin: [...permissions, "doctors.manage"],
+  doctor: [
+    "dashboard.view", "patients.view", "patients.profile.view", "patients.medical.view",
+    "patients.medical.manage", "patients.appointments.view", "patients.documents.view",
+    "patients.documents.upload", "patients.notes.view", "patients.notes.manage",
+    "patients.timeline.view", "patients.ai.view", "patients.ai.summary", "patients.ai.followup",
+    "patients.create", "patients.update",
+    "appointments.view", "appointments.manage", "doctors.view", "doctors.self.manage",
+    "doctors.schedule.manage", "doctors.leave.manage", "doctors.slots.manage",
+    "doctors.settings.manage", "doctors.calendar.connect", "doctors.calendar.disconnect",
+    "doctors.calendar.sync", "doctors.meet.manage", "integrations.view",
+    "integrations.google_calendar.manage", "integrations.google_meet.manage",
+    "doctors.availability.view", "reports.view",
+    "settings.profile", "ai.use"
+  ],
+  nurse: [
+    "dashboard.view", "patients.view", "patients.profile.view", "patients.medical.view",
+    "patients.documents.view", "patients.notes.view", "patients.notes.manage",
+    "patients.update", "appointments.view",
+    "doctors.availability.view", "integrations.view", "settings.profile"
+  ],
+  receptionist: [
+    "dashboard.view", "patients.view", "patients.profile.view", "patients.create",
+    "patients.edit", "patients.update", "patients.appointments.view",
+    "patients.documents.view", "patients.documents.upload", "appointments.view",
+    "appointments.manage", "doctors.view", "doctors.availability.view",
+    "doctors.consultation_fee.view", "integrations.view", "billing.view", "settings.profile"
+  ],
+  accountant: [
+    "dashboard.view", "patients.view", "patients.profile.view", "patients.billing.view",
+    "patients.insurance.view", "billing.view", "billing.manage", "payroll.view",
+    "payroll.manage", "reports.view", "doctors.consultation_fee.view", "settings.profile"
+  ],
+  analyst: ["dashboard.view", "reports.view", "settings.profile"],
+  patient: ["patients.portal", "settings.profile"]
+};
+
+export function can(role: Role, permission: Permission): boolean {
+  return rolePermissions[role].includes(permission);
+}
+
+export function canAny(role: Role, requiredPermissions: Permission[]): boolean {
+  return requiredPermissions.some((permission) => can(role, permission));
+}
+
+export function filterByPermission<T extends { permission?: Permission; permissions?: Permission[] }>(role: Role, items: T[]): T[] {
+  return items.filter((item) => {
+    const requiredPermissions = item.permissions ?? (item.permission ? [item.permission] : []);
+    return requiredPermissions.length === 0 || canAny(role, requiredPermissions);
+  });
+}

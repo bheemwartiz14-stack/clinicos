@@ -1,0 +1,50 @@
+import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
+import { can } from "@mediclinic/rbac";
+import { getSession } from "@/lib/auth";
+import { buildGoogleAuthUrl } from "../utils/google-oauth";
+import { integrationService, resolveDoctorForIntegration } from "../services/integration.service";
+import type { IntegrationProvider } from "../types/integration.types";
+
+export async function connectIntegrationController(provider: IntegrationProvider) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!can(session.role, "integrations.manage") && session.role !== "doctor") {
+    return new Response("Forbidden", { status: 403 });
+  }
+
+  const doctor = await resolveDoctorForIntegration({ sessionUserId: session.userId, role: session.role, manage: true });
+  redirect(buildGoogleAuthUrl({ provider, doctorId: doctor.id, userId: session.userId }) as any);
+}
+
+export async function callbackIntegrationController(provider: IntegrationProvider, request: Request) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const { searchParams } = new URL(request.url);
+  const error = searchParams.get("error");
+  if (error) redirect(`/settings/integration?tab=${provider}&error=access_denied` as any);
+
+  const code = searchParams.get("code");
+  if (!code) redirect(`/settings/integration?tab=${provider}&error=missing_code` as any);
+
+  try {
+    await integrationService.completeGoogleOAuth(code, searchParams.get("state"), session.userId);
+  } catch (caught) {
+    console.error("Integration callback failed:", caught);
+    redirect(`/settings/integration?tab=${provider}&error=callback_failed` as any);
+  }
+  redirect(`/settings/integration?tab=${provider}&success=connected` as any);
+}
+
+export async function disconnectIntegrationController(provider: IntegrationProvider, request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!can(session.role, "integrations.manage") && session.role !== "doctor") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const doctor = await resolveDoctorForIntegration({ sessionUserId: session.userId, role: session.role, doctorId: body.doctorId, manage: true });
+  await integrationService.disconnect(doctor.id, provider);
+  return NextResponse.json({ success: true, message: "Integration disconnected." });
+}
