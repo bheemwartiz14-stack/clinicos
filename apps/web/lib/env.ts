@@ -7,15 +7,17 @@ import { z } from "zod";
 if (process.env.NODE_ENV !== "production") {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const cwd = /* turbopackIgnore: true */ process.cwd();
-  const envCandidates = [
-    path.join(cwd, ".env"),
-    path.join(cwd, "..", ".env"),
-    path.join(cwd, "..", "..", ".env"),
-    path.join(/* turbopackIgnore: true */ __dirname, ".env"),
-    path.join(/* turbopackIgnore: true */ __dirname, "..", ".env"),
-    path.join(/* turbopackIgnore: true */ __dirname, "..", "..", ".env"),
-    path.join(/* turbopackIgnore: true */ __dirname, "..", "..", "..", ".env")
+  const envFileNames = [".env", ".env.local", ".env.development", ".env.development.local"];
+  const envRoots = [
+    cwd,
+    path.join(cwd, ".."),
+    path.join(cwd, "..", ".."),
+    /* turbopackIgnore: true */ __dirname,
+    path.join(/* turbopackIgnore: true */ __dirname, ".."),
+    path.join(/* turbopackIgnore: true */ __dirname, "..", ".."),
+    path.join(/* turbopackIgnore: true */ __dirname, "..", "..", "..")
   ];
+  const envCandidates = envRoots.flatMap((root) => envFileNames.map((fileName) => path.join(root, fileName)));
 
   for (const envFile of envCandidates) {
     if (fs.existsSync(envFile)) {
@@ -29,6 +31,7 @@ export const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   DATABASE_URL: z.string().optional(),
   JWT_SECRET: z.string().optional(),
+  AUTH_SECRET: z.string().optional(),
   COOKIE_NAME: z.string().default("mediclinic_session"),
   OPENAI_API_KEY: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -63,4 +66,13 @@ export const envSchema = z.object({
   ACCOUNTANT_PASSWORD: z.string().trim().optional()
 });
 export type AppEnv = z.infer<typeof envSchema>;
-export const env: AppEnv = envSchema.parse(process.env);
+const parsedEnv = envSchema.parse(process.env);
+const resolvedJwtSecret =
+  parsedEnv.JWT_SECRET?.trim() ||
+  parsedEnv.AUTH_SECRET?.trim() ||
+  (parsedEnv.NODE_ENV === "production" ? undefined : "mediclinic-local-development-jwt-secret-change-before-production");
+
+export const env: AppEnv = {
+  ...parsedEnv,
+  JWT_SECRET: resolvedJwtSecret
+};

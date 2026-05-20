@@ -4,9 +4,11 @@ import { startTransition, useActionState, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, Lock, Mail } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { loginAction, type AuthActionState } from "../actions/auth.actions";
 import { loginSchema } from "@mediclinic/auth";
 
@@ -16,6 +18,7 @@ export function LoginForm() {
   const router = useRouter();
   const [state, action, isPending] = useActionState(loginAction, initialState);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -50,47 +53,63 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-4">
-      <label className="block text-xs font-medium text-[#1d2c43]">
-        Enter User name
+      <div className="space-y-2">
+        <Label htmlFor="identifier" className="text-xs text-slate-700">
+          Email or username
+        </Label>
         <span className="relative mt-2 block">
-          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9db0c8]" aria-hidden="true" />
+          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <Input
+            id="identifier"
             type="text"
             autoComplete="username"
+            placeholder="admin@example.com"
             aria-invalid={Boolean(errors.identifier)}
-            className="h-9 rounded-2xl border-[#d8e2ee] bg-white px-10 text-sm text-[#17243a] shadow-none placeholder:text-[#9db0c8] focus-visible:border-[#b9c8dc] focus-visible:ring-2 focus-visible:ring-[#dce8f5]"
+            className="h-10 rounded-md border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
             {...register("identifier")}
           />
         </span>
-        {errors.identifier?.message ? <span className="mt-1.5 block text-xs font-medium text-rose-500">{errors.identifier.message as any}</span> : null}
-      </label>
+        {errors.identifier?.message ? <p className="text-xs font-medium text-destructive">{errors.identifier.message as any}</p> : null}
+      </div>
 
-      <label className="block text-xs font-medium text-[#1d2c43]">
-        Password
+      <div className="space-y-2">
+        <Label htmlFor="password" className="text-xs text-slate-700">
+          Password
+        </Label>
         <span className="relative mt-2 block">
-          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9db0c8]" aria-hidden="true" />
+          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
           <Input
-            type="password"
+            id="password"
+            type={showPassword ? "text" : "password"}
             autoComplete="current-password"
+            placeholder="Enter your password"
             aria-invalid={Boolean(errors.password)}
-            className="h-9 rounded-2xl border-[#d8e2ee] bg-white px-10 pr-11 text-sm text-[#17243a] shadow-none placeholder:text-[#9db0c8] focus-visible:border-[#b9c8dc] focus-visible:ring-2 focus-visible:ring-[#dce8f5]"
+            className="h-10 rounded-md border-slate-200 bg-white pl-10 pr-11 text-sm text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
             {...register("password")}
           />
-          <Eye className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9db0c8]" aria-hidden="true" />
+          <button
+            type="button"
+            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            onClick={() => setShowPassword((current) => !current)}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+          </button>
         </span>
-        {errors.password?.message ? <span className="mt-1.5 block text-xs font-medium text-rose-500">{errors.password.message as any}</span> : null}
-      </label>
+        {errors.password?.message ? <p className="text-xs font-medium text-destructive">{errors.password.message as any}</p> : null}
+      </div>
 
       {errorMessage && (
-        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600">
-          {errorMessage}
-        </div>
+        <Alert variant="destructive" className="border-destructive/20 bg-destructive/5">
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+          <AlertDescription className="text-xs font-medium">{errorMessage}</AlertDescription>
+        </Alert>
       )}
 
       <Button
         type="submit"
         disabled={isPending}
-        className="mt-2 h-9 w-full rounded-2xl bg-[#02091a] text-xs font-semibold text-white shadow-[0_8px_16px_rgba(2,9,26,0.2)] hover:bg-[#111a2d]"
+        className="mt-2 h-10 w-full rounded-md bg-slate-950 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
       >
         {isPending ? "Signing in..." : "Continue"}
       </Button>

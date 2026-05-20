@@ -27,10 +27,13 @@ const routePermissions: Array<{ path: string; permission: Permission }> = [
 ];
 
 function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET;
+  const secret =
+    process.env.JWT_SECRET?.trim() ||
+    process.env.AUTH_SECRET?.trim() ||
+    (process.env.NODE_ENV === "production" ? undefined : "mediclinic-local-development-jwt-secret-change-before-production");
 
   if (!secret) {
-    throw new Error("JWT_SECRET is missing");
+    throw new Error("JWT_SECRET or AUTH_SECRET is missing");
   }
 
   return new TextEncoder().encode(secret);
@@ -97,6 +100,12 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|images|uploads).*)",
+    {
+      source: "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|images|uploads).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
   ],
 };

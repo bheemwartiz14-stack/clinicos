@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Toaster } from "sonner";
+import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup";
 import { ToastListener } from "@/components/toast-listener";
 import { ThemeProviderWrapper } from "@/components/theme-provider-wrapper";
 import "./globals.css";
@@ -35,6 +36,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProviderWrapper>
           {children}
         </ThemeProviderWrapper>
+        <ServiceWorkerCleanup />
         <Toaster richColors position="top-right" />
         <ToastListener />
       </body>

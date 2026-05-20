@@ -6,7 +6,19 @@ import { buildGoogleAuthUrl } from "../utils/google-oauth";
 import { integrationService, resolveDoctorForIntegration } from "../services/integration.service";
 import type { IntegrationProvider } from "../types/integration.types";
 
-export async function connectIntegrationController(provider: IntegrationProvider) {
+function requestOrigin(request: Request) {
+  const url = new URL(request.url);
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+
+  if (forwardedHost) {
+    return `${forwardedProto || url.protocol.replace(":", "")}://${forwardedHost}`;
+  }
+
+  return url.origin;
+}
+
+export async function connectIntegrationController(provider: IntegrationProvider, request: Request) {
   const session = await getSession();
   if (!session) redirect("/login");
   if (!can(session.role, "integrations.manage") && session.role !== "doctor") {
@@ -14,7 +26,7 @@ export async function connectIntegrationController(provider: IntegrationProvider
   }
 
   const doctor = await resolveDoctorForIntegration({ sessionUserId: session.userId, role: session.role, manage: true });
-  redirect(buildGoogleAuthUrl({ provider, doctorId: doctor.id, userId: session.userId }) as any);
+  redirect(buildGoogleAuthUrl({ provider, doctorId: doctor.id, userId: session.userId, origin: requestOrigin(request) }) as any);
 }
 
 export async function callbackIntegrationController(provider: IntegrationProvider, request: Request) {
@@ -28,7 +40,7 @@ export async function callbackIntegrationController(provider: IntegrationProvide
   if (!code) redirect(`/settings/integration?tab=${provider}&error=missing_code` as any);
 
   try {
-    await integrationService.completeGoogleOAuth(code, searchParams.get("state"), session.userId);
+    await integrationService.completeGoogleOAuth(code, searchParams.get("state"), session.userId, requestOrigin(request));
   } catch (caught) {
     console.error("Integration callback failed:", caught);
     redirect(`/settings/integration?tab=${provider}&error=callback_failed` as any);

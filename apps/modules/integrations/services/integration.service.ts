@@ -40,11 +40,11 @@ export const integrationService = {
     return getDoctorIntegration(doctorId, provider);
   },
 
-  async completeGoogleOAuth(code: string, state: string | null, sessionUserId: string) {
+  async completeGoogleOAuth(code: string, state: string | null, sessionUserId: string, origin?: string | null) {
     const parsedState = parseGoogleState(state);
     if (parsedState.userId !== sessionUserId) throw new Error("Invalid OAuth session.");
 
-    const tokens = await exchangeGoogleCode(parsedState.provider, code);
+    const tokens = await exchangeGoogleCode(parsedState.provider, code, origin);
     const email = await getGoogleAccountEmail(tokens.access_token);
     const existing = await getDoctorIntegration(parsedState.doctorId, parsedState.provider);
 

@@ -24,7 +24,24 @@ function normalizeGoogleScopes(scopes: string) {
     .join(" ");
 }
 
-export function googleRedirectUri(provider: IntegrationProvider) {
+function normalizeOrigin(origin?: string | null) {
+  if (!origin) return null;
+  try {
+    const url = new URL(origin);
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function googleRedirectUri(provider: IntegrationProvider, origin?: string | null) {
+  const baseUrl = normalizeOrigin(origin);
+  if (baseUrl) {
+    return provider === "google_calendar"
+      ? `${baseUrl}/api/integrations/google-calendar/callback`
+      : `${baseUrl}/api/integrations/google-meet/callback`;
+  }
+
   if (provider === "google_calendar") {
     return env.GOOGLE_CALENDAR_REDIRECT_URI
       || env.GOOGLE_REDIRECT_URI
@@ -38,13 +55,13 @@ export function googleScopes(provider: IntegrationProvider) {
   return normalizeGoogleScopes(env.GOOGLE_MEET_SCOPES || defaultMeetScopes);
 }
 
-export function buildGoogleAuthUrl(input: { provider: IntegrationProvider; doctorId: string; userId: string }) {
+export function buildGoogleAuthUrl(input: { provider: IntegrationProvider; doctorId: string; userId: string; origin?: string | null }) {
   if (!env.GOOGLE_CLIENT_ID) throw new Error("GOOGLE_CLIENT_ID is not configured.");
 
   const state = Buffer.from(JSON.stringify(input)).toString("base64url");
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.searchParams.set("client_id", env.GOOGLE_CLIENT_ID);
-  url.searchParams.set("redirect_uri", googleRedirectUri(input.provider));
+  url.searchParams.set("redirect_uri", googleRedirectUri(input.provider, input.origin));
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", googleScopes(input.provider));
   url.searchParams.set("access_type", "offline");
@@ -62,7 +79,7 @@ export function parseGoogleState(state: string | null): { provider: IntegrationP
   return { provider: parsed.provider, doctorId: parsed.doctorId, userId: parsed.userId };
 }
 
-export async function exchangeGoogleCode(provider: IntegrationProvider, code: string): Promise<GoogleOAuthTokens> {
+export async function exchangeGoogleCode(provider: IntegrationProvider, code: string, origin?: string | null): Promise<GoogleOAuthTokens> {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     throw new Error("Google OAuth is not configured.");
   }
@@ -74,7 +91,7 @@ export async function exchangeGoogleCode(provider: IntegrationProvider, code: st
       code,
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: googleRedirectUri(provider),
+      redirect_uri: googleRedirectUri(provider, origin),
       grant_type: "authorization_code"
     })
   });

@@ -1,0 +1,22 @@
+node_modules
+.next
+.turbo
+.vercel
+.git
+.env*
+*.log
+
+# large files
+*.zip
+*.tar
+*.tar.gz
+*.sql
+*.dump
+*.mp4
+*.mov
+*.mkv
+
+# local storage/uploads
+uploads
+storage
+public/uploads
