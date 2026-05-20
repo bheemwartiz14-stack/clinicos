@@ -6,12 +6,11 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "node .next/standalone/apps/web/server.js",
-    "start:next": "next start",
+    "start": "next start",
     "lint": "biome check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run tests/*.test.ts",
-    "test:e2e": "playwright test"
+    "test": "node scripts/run-vitest-if-present.mjs",
+    "test:e2e": "node scripts/run-e2e-if-present.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

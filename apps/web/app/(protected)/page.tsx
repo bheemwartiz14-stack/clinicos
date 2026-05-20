@@ -1,8 +1,5 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { can } from "@mediclinic/rbac";
-import { getSession } from "@/lib/auth";
 import { DashboardView } from "@modules/dashboard/views/dashboard-view";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -14,10 +11,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const session = await getSession();
-  if (!session) redirect("/login");
-  if (!can(session.role, "dashboard.view")) redirect("/403" as any);
-
   return (
     <Suspense fallback={<DashboardFallback />}>
       <DashboardView />
