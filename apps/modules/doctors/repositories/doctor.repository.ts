@@ -1,4 +1,4 @@
-import { count, eq, and, gte, lte, inArray, sql, desc } from "drizzle-orm";
+import { count, eq, and, gte, lte, inArray, sql, desc, lt, gt } from "drizzle-orm";
 import {
   appointments,
   branches,
@@ -647,6 +647,22 @@ export async function createCalendarBusyEvents(events: Array<{
       status: e.status as never
     })) as any
   );
+}
+
+export async function markSlotsCalendarBusy(doctorId: string, events: Array<{ startAt: Date; endAt: Date }>) {
+  for (const event of events) {
+    await db
+      .update(doctorAppointmentSlots)
+      .set({ status: "calendar_busy", updatedAt: new Date() } as any)
+      .where(and(
+        eq(doctorAppointmentSlots.doctorId, doctorId),
+        gte(doctorAppointmentSlots.slotDate, event.startAt.toISOString().slice(0, 10)),
+        lte(doctorAppointmentSlots.slotDate, event.endAt.toISOString().slice(0, 10)),
+        eq(doctorAppointmentSlots.status, "available"),
+        lt(sql`${doctorAppointmentSlots.slotDate}::text || ' ' || ${doctorAppointmentSlots.startTime}`, `${event.endAt.toISOString().slice(0, 10)} ${event.endAt.toTimeString().slice(0, 5)}`),
+        gt(sql`${doctorAppointmentSlots.slotDate}::text || ' ' || ${doctorAppointmentSlots.endTime}`, `${event.startAt.toISOString().slice(0, 10)} ${event.startAt.toTimeString().slice(0, 5)}`)
+      ));
+  }
 }
 
 export async function deleteCalendarBusyEvents(connectionId: string) {

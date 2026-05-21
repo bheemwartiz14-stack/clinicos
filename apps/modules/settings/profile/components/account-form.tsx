@@ -18,9 +18,9 @@ export function AccountForm({ profile }: { profile: SettingsProfile }) {
   }, [state]);
 
   return (
-    <form action={action} className="rounded-xl border border-white/70 bg-white/80 p-5 shadow-lg shadow-teal-950/5 backdrop-blur">
-      <h2 className="text-lg font-semibold text-slate-950">Account Settings</h2>
-      <p className="mt-1 text-sm text-slate-500">Manage account identifiers, visibility, and account status.</p>
+    <form action={action} className="rounded-xl border border-border bg-card/80 p-5 shadow-lg shadow-foreground/5 backdrop-blur">
+      <h2 className="text-lg font-semibold text-foreground">Account Settings</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Manage account identifiers, visibility, and account status.</p>
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <Field label="Username" name="username" defaultValue={profile.username} error={state.fieldErrors?.username?.[0]} />
         <Field label="Email" name="email" type="email" defaultValue={profile.email} error={state.fieldErrors?.email?.[0]} required />
@@ -31,7 +31,7 @@ export function AccountForm({ profile }: { profile: SettingsProfile }) {
         </SelectField>
         <Field label="Account status" name="accountStatusDisplay" defaultValue={profile.isActive ? "Active" : "Inactive"} />
       </div>
-      <button disabled={pending} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-900/20 transition hover:bg-teal-800 disabled:opacity-60">
+      <button disabled={pending} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition hover:bg-primary/90 disabled:opacity-60">
         <Save className="h-4 w-4" aria-hidden />
         {pending ? "Saving..." : "Save account settings"}
       </button>

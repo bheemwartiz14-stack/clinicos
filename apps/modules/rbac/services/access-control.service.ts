@@ -5,3 +5,7 @@ export function assertPermission(role: Role, permission: Permission) {
     throw new Error(`Role ${role} cannot perform ${permission}`);
   }
 }
+
+export function hasPermission(role: Role, permission: Permission) {
+  return can(role, permission);
+}

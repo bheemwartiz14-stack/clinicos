@@ -4,10 +4,10 @@ import type { IntegrationStatus } from "../types/integration.types";
 export function IntegrationStatusBadge({ status }: { status?: IntegrationStatus | null }) {
   const value = status ?? "disconnected";
   const styles = {
-    connected: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    disconnected: "bg-slate-50 text-slate-600 border-slate-200",
-    failed: "bg-rose-50 text-rose-700 border-rose-200",
-    expired: "bg-amber-50 text-amber-700 border-amber-200"
+    connected: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 dark:text-emerald-300",
+    disconnected: "bg-muted text-muted-foreground border-border",
+    failed: "bg-destructive/10 text-destructive border-destructive/20",
+    expired: "bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-300"
   }[value];
   const Icon = value === "connected" ? CheckCircle : value === "failed" ? AlertCircle : Clock;
 

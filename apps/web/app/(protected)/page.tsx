@@ -1,7 +1,11 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
+import { dashboardService } from "@modules/dashboard/services/dashboard.service";
 import { DashboardView } from "@modules/dashboard/views/dashboard-view";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -12,11 +16,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  await requirePagePermission("dashboard.view");
+  const session = await requirePagePermission("dashboard.view");
+  const dashboardData = await dashboardService.getDashboardData(session.branchId);
 
   return (
     <Suspense fallback={<DashboardFallback />}>
-      <DashboardView />
+      <DashboardView data={dashboardData} />
     </Suspense>
   );
 }

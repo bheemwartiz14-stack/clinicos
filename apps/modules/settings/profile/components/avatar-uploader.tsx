@@ -36,19 +36,19 @@ export function AvatarUploader({ name, defaultValue, error }: { name: string; de
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white/80 p-4">
+    <div className="rounded-xl border border-border bg-background/70 p-4">
       <input type="hidden" name="avatar" value={avatar} />
       <div className="flex items-center gap-4">
-        <div className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-teal-600 to-slate-900 text-lg font-bold text-white">
+        <div className="relative grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-primary to-foreground text-lg font-bold text-primary-foreground">
           {avatar ? <img src={avatar} alt="" className="h-full w-full object-cover" /> : fallback}
-          <div className="absolute bottom-1 right-1 grid h-7 w-7 place-items-center rounded-lg bg-white text-slate-700 shadow">
+          <div className="absolute bottom-1 right-1 grid h-7 w-7 place-items-center rounded-lg bg-background text-foreground shadow">
             <Camera className="h-4 w-4" aria-hidden />
           </div>
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Profile picture</p>
-          <p className="mt-1 text-xs text-slate-500">Upload a square JPG or PNG under 1 MB.</p>
-          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-teal-300 hover:text-teal-700">
+          <p className="text-sm font-semibold text-foreground">Profile picture</p>
+          <p className="mt-1 text-xs text-muted-foreground">Upload a square JPG or PNG under 1 MB.</p>
+          <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground transition hover:border-primary/40 hover:text-primary">
             <ImagePlus className="h-4 w-4" aria-hidden />
             Change avatar
             <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />

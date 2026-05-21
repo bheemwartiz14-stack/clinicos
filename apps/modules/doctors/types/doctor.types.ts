@@ -103,7 +103,7 @@ export type DoctorAppointmentSlot = {
   slotDate: string | Date;
   startTime: string;
   endTime: string;
-  status: "available" | "booked" | "blocked" | "lunch" | "leave";
+  status: "available" | "booked" | "blocked" | "lunch" | "leave" | "calendar_busy";
   appointmentId: string | null;
   isRecurring: boolean;
   createdAt: string | Date;

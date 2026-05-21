@@ -130,6 +130,7 @@ export const doctorCalendarService = {
           status: "busy",
         })),
       );
+      await doctorRepo.markSlotsCalendarBusy(doctorId, events);
     }
 
     await doctorRepo.updateCalendarConnection(connection.id, {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, KeyRound, Palette, Settings, UserRound } from "lucide-react";
+import { Bell, KeyRound, Palette, Settings, UserCog, UserRound } from "lucide-react";
 import type { SettingsOption, SettingsProfile, SessionRecord, LoginHistoryRecord } from "../types/settings.types";
 import { ProfileHeader } from "../components/profile-header";
 import { SettingsSidebar } from "../components/settings-sidebar";
@@ -21,6 +21,10 @@ const cards = [
   { label: "Account Settings", href: "/settings/account", icon: Settings, text: "Username, email, visibility, status, sessions, and login history." }
 ];
 
+const adminCards = [
+  { label: "Roles & Permissions", href: "/rbac/roles", icon: UserCog, text: "RBAC roles, permissions, route protection, and secure action access." }
+];
+
 function SettingsFrame({ profile, children }: { profile: SettingsProfile; children: React.ReactNode }) {
   return (
     <div className="grid gap-6">
@@ -37,13 +41,13 @@ export function SettingsDashboardView({ profile }: { profile: SettingsProfile })
   return (
     <SettingsFrame profile={profile}>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => (
-          <Link key={card.href} href={card.href as any} className="group rounded-xl border border-white/70 bg-white/70 p-5 shadow-lg shadow-teal-950/5 backdrop-blur transition hover:-translate-y-0.5 hover:border-teal-200 hover:bg-white">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-teal-50 text-teal-700 transition group-hover:bg-teal-700 group-hover:text-white">
+        {[...cards, ...(profile.role === "admin" ? adminCards : [])].map((card) => (
+          <Link key={card.href} href={card.href as any} className="group rounded-xl border border-border bg-card/80 p-5 shadow-lg shadow-foreground/5 backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-card">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-primary/10 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground">
               <card.icon className="h-5 w-5" aria-hidden />
             </div>
-            <h2 className="mt-5 text-lg font-semibold text-slate-950">{card.label}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">{card.text}</p>
+            <h2 className="mt-5 text-lg font-semibold text-foreground">{card.label}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{card.text}</p>
           </Link>
         ))}
       </div>
@@ -94,12 +98,12 @@ export function AccountSettingsView({ profile, sessions, loginHistory }: { profi
 export function PreferencesSettingsView({ profile }: { profile: SettingsProfile }) {
   return (
     <SettingsFrame profile={profile}>
-      <section className="rounded-xl border border-white/70 bg-white/80 p-5 shadow-lg shadow-teal-950/5 backdrop-blur">
-        <h2 className="text-lg font-semibold text-slate-950">Appearance Settings</h2>
-        <p className="mt-1 text-sm text-slate-500">Dashboard appearance controls are ready for theme, density, and accessibility preferences.</p>
+      <section className="rounded-xl border border-border bg-card/80 p-5 shadow-lg shadow-foreground/5 backdrop-blur">
+        <h2 className="text-lg font-semibold text-foreground">Appearance Settings</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Dashboard appearance controls are ready for theme, density, and accessibility preferences.</p>
         <div className="mt-5 grid gap-3 md:grid-cols-3">
           {["Comfortable density", "High contrast ready", "Healthcare workspace"].map((item) => (
-            <div key={item} className="rounded-lg border border-slate-200 bg-white/80 p-4 text-sm font-semibold text-slate-700">{item}</div>
+            <div key={item} className="rounded-lg border border-border bg-background/70 p-4 text-sm font-semibold text-foreground">{item}</div>
           ))}
         </div>
       </section>

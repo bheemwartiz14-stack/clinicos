@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { can } from "@mediclinic/rbac";
+import { can, canAny } from "@mediclinic/rbac";
 import { requirePagePermission } from "@/lib/auth";
 import { appointmentService } from "@modules/appointments/services/appointment.service";
 import { AppointmentsView } from "@modules/appointments/views/appointments-view";
@@ -21,7 +21,7 @@ export default async function AppointmentsPage() {
       queue={workspace.queue}
       patients={workspace.patients}
       doctors={workspace.doctors}
-      canManage={can(session.role, "appointments.manage")}
+      canManage={can(session.role, "appointments.manage") || canAny(session.role, ["appointments.create", "appointments.edit", "appointments.checkin", "appointments.complete"])}
     />
   );
 }

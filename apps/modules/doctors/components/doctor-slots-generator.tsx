@@ -11,7 +11,7 @@ interface SlotsGeneratorProps {
     slotDate: string | Date;
     startTime: string;
     endTime: string;
-    status: "available" | "booked" | "blocked" | "lunch" | "leave";
+    status: "available" | "booked" | "blocked" | "lunch" | "leave" | "calendar_busy";
   }>;
 }
 
@@ -28,6 +28,7 @@ function getStatusBadge(status: string) {
     case "blocked": return "bg-slate-100 text-slate-700";
     case "lunch": return "bg-amber-100 text-amber-700";
     case "leave": return "bg-red-100 text-red-700";
+    case "calendar_busy": return "bg-violet-100 text-violet-700";
     default: return "bg-slate-100 text-slate-700";
   }
 }

@@ -5,8 +5,8 @@ const defaultCalendarScopes = [
   "openid",
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/calendar.events.readonly"
+  "https://www.googleapis.com/auth/calendar",
+  "https://www.googleapis.com/auth/calendar.events"
 ].join(" ");
 
 const defaultMeetScopes = [
@@ -35,19 +35,16 @@ function normalizeOrigin(origin?: string | null) {
 }
 
 export function googleRedirectUri(provider: IntegrationProvider, origin?: string | null) {
-  const baseUrl = normalizeOrigin(origin);
-  if (baseUrl) {
-    return provider === "google_calendar"
-      ? `${baseUrl}/api/integrations/google-calendar/callback`
-      : `${baseUrl}/api/integrations/google-meet/callback`;
-  }
-
   if (provider === "google_calendar") {
     return env.GOOGLE_CALENDAR_REDIRECT_URI
       || env.GOOGLE_REDIRECT_URI
+      || (normalizeOrigin(origin) ? `${normalizeOrigin(origin)}/api/integrations/google-calendar/callback` : null)
       || `${env.NEXT_PUBLIC_APP_URL}/api/integrations/google-calendar/callback`;
   }
-  return env.GOOGLE_MEET_REDIRECT_URI || `${env.NEXT_PUBLIC_APP_URL}/api/integrations/google-meet/callback`;
+  return env.GOOGLE_MEET_REDIRECT_URI
+    || env.GOOGLE_REDIRECT_URI
+    || (normalizeOrigin(origin) ? `${normalizeOrigin(origin)}/api/integrations/google-meet/callback` : null)
+    || `${env.NEXT_PUBLIC_APP_URL}/api/integrations/google-meet/callback`;
 }
 
 export function googleScopes(provider: IntegrationProvider) {

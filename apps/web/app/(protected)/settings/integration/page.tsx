@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { can } from "@mediclinic/rbac";
-import { requirePagePermission } from "@/lib/auth";
+import { requirePageSession } from "@/lib/auth";
 import { doctorService } from "@modules/doctors/services/doctor.service";
 import { integrationService } from "@modules/integrations/services/integration.service";
 import { googleCalendarService } from "@modules/integrations/services/google-calendar.service";
@@ -14,11 +13,13 @@ type PageProps = {
 };
 
 export default async function IntegrationSettingsPage({ searchParams }: PageProps) {
-  const session = await requirePagePermission("integrations.view");
+  const session = await requirePageSession();
+  if (session.role !== "doctor") {
+    redirect("/settings");
+  }
 
   const params = searchParams ? await searchParams : {};
-  const doctorIdParam = typeof params.doctorId === "string" ? params.doctorId : null;
-  const doctor = await resolveVisibleDoctor(session.userId, session.role, session.branchId, doctorIdParam);
+  const doctor = await doctorService.getByUserId(session.userId);
   if (!doctor) redirect("/");
 
   const [googleCalendar, googleMeet] = await Promise.all([
@@ -45,17 +46,10 @@ export default async function IntegrationSettingsPage({ searchParams }: PageProp
         googleCalendar: serializeIntegration(googleCalendar),
         googleMeet: serializeIntegration(googleMeet),
         busyEventsCount: busyEvents.length,
-        canManage: can(session.role, "integrations.manage") || session.role === "doctor"
+        canManage: true
       }}
     />
   );
-}
-
-async function resolveVisibleDoctor(userId: string, role: string, branchId: string, doctorId: string | null) {
-  if (role === "doctor") return doctorService.getByUserId(userId);
-  if (doctorId) return doctorService.getById(doctorId);
-  const doctors = await doctorService.list({ branchId, isActive: true });
-  return doctors[0] ?? null;
 }
 
 function serializeIntegration(integration: any): DoctorIntegrationRecord | null {
@@ -77,7 +71,9 @@ function getStatusMessage(success: string | null, error: string | null) {
   const errors: Record<string, string> = {
     access_denied: "Google access was denied.",
     missing_code: "Google did not return an authorization code.",
-    callback_failed: "Could not complete Google integration. Please try again."
+    callback_failed: "Could not complete Google integration. Check the redirect URI and OAuth client settings.",
+    oauth_not_configured: "Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+    doctor_profile_missing: "A doctor profile is required before connecting Google Calendar or Meet."
   };
   return errors[error] ?? "Integration action failed.";
 }

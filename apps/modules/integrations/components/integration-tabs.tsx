@@ -15,15 +15,15 @@ export function IntegrationTabs({ state, initialTab }: { state: IntegrationSetti
   ], []);
 
   return (
-    <div className="rounded-2xl border bg-white/80 p-3 shadow-lg shadow-teal-950/5">
-      <div className="grid gap-2 rounded-xl bg-slate-100 p-1 md:inline-grid md:grid-cols-2">
+    <div className="rounded-2xl border border-border bg-card/80 p-3 shadow-lg shadow-foreground/5 backdrop-blur">
+      <div className="grid gap-2 rounded-xl bg-muted p-1 md:inline-grid md:grid-cols-2">
         {tabs.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
             className={`inline-flex h-10 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition ${
-              tab === item.id ? "bg-white text-teal-800 shadow-sm" : "text-slate-600 hover:text-slate-950"
+              tab === item.id ? "bg-background text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             <item.icon className="h-4 w-4" aria-hidden />

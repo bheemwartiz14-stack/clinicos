@@ -36,7 +36,7 @@ type AppointmentRecord = {
   doctorFirstName: string;
   doctorLastName: string;
   doctorSpecialization: string;
-  status: "scheduled" | "checked_in" | "in_room" | "completed" | "cancelled" | "no_show";
+  status: "scheduled" | "pending" | "confirmed" | "checked_in" | "in_room" | "in_consultation" | "completed" | "cancelled" | "no_show" | "rescheduled";
   consultationMode: "offline" | "online" | "hybrid";
   startsAt: string | Date;
   endsAt: string | Date;
@@ -77,11 +77,15 @@ const initialState: AppointmentActionState = { ok: false, message: "" };
 
 const statusMeta: Record<AppointmentRecord["status"], { label: string; className: string }> = {
   scheduled: { label: "Pending", className: "bg-amber-50 text-amber-700" },
+  pending: { label: "Pending", className: "bg-amber-50 text-amber-700" },
+  confirmed: { label: "Confirmed", className: "bg-teal-50 text-teal-700" },
   checked_in: { label: "Checked-in", className: "bg-sky-50 text-sky-700" },
-  in_room: { label: "Confirmed", className: "bg-teal-50 text-teal-700" },
+  in_room: { label: "In room", className: "bg-indigo-50 text-indigo-700" },
+  in_consultation: { label: "In consultation", className: "bg-indigo-50 text-indigo-700" },
   completed: { label: "Completed", className: "bg-emerald-50 text-emerald-700" },
   cancelled: { label: "Cancelled", className: "bg-rose-50 text-rose-700" },
-  no_show: { label: "No-show", className: "bg-slate-100 text-slate-700" }
+  no_show: { label: "No-show", className: "bg-slate-100 text-slate-700" },
+  rescheduled: { label: "Rescheduled", className: "bg-violet-50 text-violet-700" }
 };
 
 function name(first: string, last: string) {
@@ -154,7 +158,7 @@ function BookingForm({ patients, doctors, canManage }: { patients: Option[]; doc
   }, [state, setError]);
 
   const onSubmit = (data: any) => {
-    const formData = new FormData();
+      const formData = new FormData();
     Object.entries(data).forEach(([key, value]) => {
       if (value != null) {
         formData.append(key, String(value));
@@ -210,6 +214,7 @@ function BookingForm({ patients, doctors, canManage }: { patients: Option[]; doc
         </label>
       </div>
       <div className="mt-4 grid gap-4 md:grid-cols-4">
+        <input type="hidden" {...register("appointmentType")} value="consultation" />
         <label className="grid gap-2 text-sm">
           <span className="font-medium text-foreground">
             Start time <span className="text-red-500">*</span>
@@ -376,14 +381,12 @@ export function AppointmentsView({ appointments, queue, patients, doctors, canMa
           ))}
         </div>
       </div>
-
       <div className="grid gap-4 md:grid-cols-4">
         <div className="rounded-xl border bg-card p-4"><Clock3 className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-slate-500">Today</p><p className="text-2xl font-semibold">{todayCount}</p></div>
         <div className="rounded-xl border bg-card p-4"><UserCheck className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-slate-500">Checked-in</p><p className="text-2xl font-semibold">{checkedIn}</p></div>
         <div className="rounded-xl border bg-card p-4"><Video className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-slate-500">Online visits</p><p className="text-2xl font-semibold">{onlineVisits}</p></div>
         <div className="rounded-xl border bg-card p-4"><Sparkles className="mb-3 h-5 w-5 text-primary" /><p className="text-sm text-slate-500">AI risk flags</p><p className="text-2xl font-semibold">{noShowRisk}</p></div>
       </div>
-
       <BookingForm patients={patients} doctors={doctors} canManage={canManage} />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">

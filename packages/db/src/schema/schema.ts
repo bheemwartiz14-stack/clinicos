@@ -19,7 +19,7 @@ import {
 export const roleEnum = pgEnum("role", ["admin", "doctor", "nurse", "receptionist", "accountant", "analyst", "patient"]);
 export const branchStatusEnum = pgEnum("branch_status", ["active", "inactive", "maintenance"]);
 export const departmentStatusEnum = pgEnum("department_status", ["active", "inactive"]);
-export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "checked_in", "in_room", "completed", "cancelled", "no_show"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", "pending", "confirmed", "checked_in", "in_room", "in_consultation", "completed", "cancelled", "no_show", "rescheduled"]);
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "open", "paid", "void", "refunded"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp"]);
 export const payrollStatusEnum = pgEnum("payroll_status", ["draft", "approved", "paid"]);
@@ -30,6 +30,9 @@ export const integrationProviderEnum = pgEnum("integration_provider", ["google_c
 export const integrationStatusEnum = pgEnum("integration_status", ["connected", "disconnected", "failed", "expired"]);
 export const insuranceVerificationStatusEnum = pgEnum("insurance_verification_status", ["not_verified", "pending", "verified", "rejected", "expired"]);
 export const queuePriorityEnum = pgEnum("queue_priority", ["routine", "priority", "emergency"]);
+export const appointmentTypeEnum = pgEnum("appointment_type", ["consultation", "follow_up", "emergency", "walk_in"]);
+export const appointmentQueueStatusEnum = pgEnum("appointment_queue_status", ["waiting", "called", "in_consultation", "skipped", "completed"]);
+export const appointmentReminderStatusEnum = pgEnum("appointment_reminder_status", ["queued", "sent", "failed", "cancelled"]);
 export const documentTypeEnum = pgEnum("document_type", ["report", "prescription", "scan", "pdf", "image", "insurance", "other"]);
 export const paymentMethodEnum = pgEnum("payment_method", ["cash", "card", "upi", "stripe", "insurance"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "succeeded", "failed", "refunded", "partially_refunded"]);
@@ -597,25 +600,42 @@ export const doctorCalendarBusyEvents = pgTable("doctor_calendar_busy_events", {
 
 export const appointments = pgTable("appointments", {
   id: uuid("id").primaryKey().defaultRandom(),
+  appointmentNumber: varchar("appointment_number", { length: 64 }),
   branchId: uuid("branch_id").references(() => branches.id).notNull(),
+  departmentId: uuid("department_id").references(() => departments.id),
   patientId: uuid("patient_id").references(() => patients.id).notNull(),
   doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
+  slotId: uuid("slot_id"),
+  bookedByUserId: uuid("booked_by_user_id").references(() => users.id),
   status: appointmentStatusEnum("status").default("scheduled").notNull(),
   mode: appointmentModeEnum("mode").default("offline").notNull(),
   consultationMode: consultationModeEnum("consultation_mode").default("offline").notNull(),
+  appointmentType: appointmentTypeEnum("appointment_type").default("consultation").notNull(),
   locationType: locationTypeEnum("location_type").default("clinic").notNull(),
+  priority: queuePriorityEnum("priority").default("routine").notNull(),
   roomId: uuid("room_id"),
+  roomNumber: varchar("room_number", { length: 64 }),
+  location: text("location"),
+  appointmentDate: date("appointment_date"),
+  startTime: varchar("start_time", { length: 16 }),
+  endTime: varchar("end_time", { length: 16 }),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   reason: varchar("reason", { length: 255 }).notNull(),
+  visitReason: varchar("visit_reason", { length: 255 }),
+  symptoms: text("symptoms"),
   notes: text("notes"),
   insuranceId: uuid("insurance_id").references(() => patientInsurance.id),
   insuranceVerificationStatus: insuranceVerificationStatusEnum("insurance_verification_status").default("not_verified").notNull(),
   cptCodes: jsonb("cpt_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   icd10Codes: jsonb("icd10_codes").$type<string[]>().default(sql`'[]'::jsonb`).notNull(),
   queueToken: varchar("queue_token", { length: 32 }),
+  queueNumber: integer("queue_number"),
+  tokenNumber: varchar("token_number", { length: 32 }),
   queuePriority: queuePriorityEnum("queue_priority").default("routine").notNull(),
   checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   meetingProvider: varchar("meeting_provider", { length: 64 }),
   meetingUrl: text("meeting_url"),
   meetingEventId: varchar("meeting_event_id", { length: 255 }),
@@ -625,9 +645,150 @@ export const appointments = pgTable("appointments", {
   aiIntakeSummary: text("ai_intake_summary"),
   ...timestamps()
 }, (table) => ({
+  appointmentNumberUnique: uniqueIndex("appointments_number_unique").on(table.appointmentNumber),
   branchScheduleIdx: index("appointments_branch_schedule_idx").on(table.branchId, table.startsAt),
   doctorScheduleIdx: index("appointments_doctor_schedule_idx").on(table.doctorId, table.startsAt),
-  patientIdx: index("appointments_patient_idx").on(table.patientId)
+  patientIdx: index("appointments_patient_idx").on(table.patientId),
+  statusIdx: index("appointments_status_idx").on(table.branchId, table.status),
+  slotIdx: index("appointments_slot_idx").on(table.slotId)
+}));
+
+export const appointmentStatusHistory = pgTable("appointment_status_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  oldStatus: appointmentStatusEnum("old_status"),
+  newStatus: appointmentStatusEnum("new_status").notNull(),
+  changedByUserId: uuid("changed_by_user_id").references(() => users.id),
+  reason: text("reason"),
+  changedAt: timestamp("changed_at", { withTimezone: true }).defaultNow().notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentIdx: index("appointment_status_history_appointment_idx").on(table.appointmentId, table.changedAt),
+  changedByIdx: index("appointment_status_history_changed_by_idx").on(table.changedByUserId)
+}));
+
+export const appointmentQueueTokens = pgTable("appointment_queue_tokens", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  branchId: uuid("branch_id").references(() => branches.id).notNull(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  patientId: uuid("patient_id").references(() => patients.id).notNull(),
+  doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
+  tokenNumber: varchar("token_number", { length: 32 }).notNull(),
+  queuePosition: integer("queue_position").default(1).notNull(),
+  estimatedWaitMinutes: integer("estimated_wait_minutes").default(0).notNull(),
+  queueStatus: appointmentQueueStatusEnum("queue_status").default("waiting").notNull(),
+  priority: queuePriorityEnum("priority").default("routine").notNull(),
+  calledAt: timestamp("called_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  ...timestamps()
+}, (table) => ({
+  appointmentUnique: uniqueIndex("appointment_queue_tokens_appointment_unique").on(table.appointmentId),
+  branchIdx: index("appointment_queue_tokens_branch_idx").on(table.branchId, table.queueStatus, table.createdAt),
+  tokenIdx: index("appointment_queue_tokens_token_idx").on(table.branchId, table.tokenNumber)
+}));
+
+export const appointmentNotes = pgTable("appointment_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  authorUserId: uuid("author_user_id").references(() => users.id),
+  noteType: varchar("note_type", { length: 64 }).default("general").notNull(),
+  body: text("body").notNull(),
+  isPrivate: boolean("is_private").default(false).notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentIdx: index("appointment_notes_appointment_idx").on(table.appointmentId),
+  authorIdx: index("appointment_notes_author_idx").on(table.authorUserId)
+}));
+
+export const appointmentReschedules = pgTable("appointment_reschedules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  oldStartsAt: timestamp("old_starts_at", { withTimezone: true }).notNull(),
+  oldEndsAt: timestamp("old_ends_at", { withTimezone: true }).notNull(),
+  newStartsAt: timestamp("new_starts_at", { withTimezone: true }).notNull(),
+  newEndsAt: timestamp("new_ends_at", { withTimezone: true }).notNull(),
+  reason: text("reason"),
+  changedByUserId: uuid("changed_by_user_id").references(() => users.id),
+  notifyPatient: boolean("notify_patient").default(true).notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentIdx: index("appointment_reschedules_appointment_idx").on(table.appointmentId)
+}));
+
+export const appointmentCancellations = pgTable("appointment_cancellations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  reason: text("reason").notNull(),
+  cancelledByUserId: uuid("cancelled_by_user_id").references(() => users.id),
+  notifyPatient: boolean("notify_patient").default(true).notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentIdx: index("appointment_cancellations_appointment_idx").on(table.appointmentId)
+}));
+
+export const appointmentReminders = pgTable("appointment_reminders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  patientId: uuid("patient_id").references(() => patients.id).notNull(),
+  channel: notificationChannelEnum("channel").notNull(),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+  status: appointmentReminderStatusEnum("status").default("queued").notNull(),
+  providerMessageId: varchar("provider_message_id", { length: 255 }),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  ...timestamps()
+}, (table) => ({
+  appointmentIdx: index("appointment_reminders_appointment_idx").on(table.appointmentId),
+  scheduleIdx: index("appointment_reminders_schedule_idx").on(table.status, table.scheduledFor)
+}));
+
+export const appointmentAiPredictions = pgTable("appointment_ai_predictions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  noShowRiskScore: numeric("no_show_risk_score", { precision: 5, scale: 4 }).default("0").notNull(),
+  riskLevel: varchar("risk_level", { length: 32 }).default("low").notNull(),
+  recommendedReminderFrequency: varchar("recommended_reminder_frequency", { length: 64 }).default("standard").notNull(),
+  recommendedSlotAt: timestamp("recommended_slot_at", { withTimezone: true }),
+  signals: jsonb("signals").default(sql`'{}'::jsonb`).notNull(),
+  model: varchar("model", { length: 80 }).default("heuristic-v1").notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentUnique: uniqueIndex("appointment_ai_predictions_appointment_unique").on(table.appointmentId),
+  riskIdx: index("appointment_ai_predictions_risk_idx").on(table.riskLevel)
+}));
+
+export const appointmentCalendarEvents = pgTable("appointment_calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  doctorId: uuid("doctor_id").references(() => doctors.id, { onDelete: "cascade" }).notNull(),
+  integrationId: uuid("integration_id").references(() => doctorIntegrations.id, { onDelete: "set null" }),
+  provider: integrationProviderEnum("provider").default("google_calendar").notNull(),
+  providerEventId: varchar("provider_event_id", { length: 255 }).notNull(),
+  calendarId: varchar("calendar_id", { length: 255 }).default("primary").notNull(),
+  eventUrl: text("event_url"),
+  syncedAt: timestamp("synced_at", { withTimezone: true }),
+  syncStatus: varchar("sync_status", { length: 32 }).default("pending").notNull(),
+  syncError: text("sync_error"),
+  ...timestamps()
+}, (table) => ({
+  appointmentUnique: uniqueIndex("appointment_calendar_events_appointment_unique").on(table.appointmentId),
+  doctorIdx: index("appointment_calendar_events_doctor_idx").on(table.doctorId)
+}));
+
+export const appointmentMeetSessions = pgTable("appointment_meet_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "cascade" }).notNull(),
+  doctorId: uuid("doctor_id").references(() => doctors.id, { onDelete: "cascade" }).notNull(),
+  provider: integrationProviderEnum("provider").default("google_meet").notNull(),
+  meetingUrl: text("meeting_url").notNull(),
+  meetingCode: varchar("meeting_code", { length: 120 }),
+  providerEventId: varchar("provider_event_id", { length: 255 }),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  status: varchar("status", { length: 32 }).default("active").notNull(),
+  ...timestamps()
+}, (table) => ({
+  appointmentUnique: uniqueIndex("appointment_meet_sessions_appointment_unique").on(table.appointmentId),
+  doctorIdx: index("appointment_meet_sessions_doctor_idx").on(table.doctorId)
 }));
 
 export const doctorMeetEvents = pgTable("doctor_meet_events", {

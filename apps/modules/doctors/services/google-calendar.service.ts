@@ -2,14 +2,19 @@ import type { GoogleCalendarTokens, GoogleCalendarEvent } from "../types/doctor.
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || `${process.env.NEXT_PUBLIC_APP_URL}/api/doctor-calendar/google/callback`;
+const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_DOCTOR_CALENDAR_REDIRECT_URI || process.env.GOOGLE_REDIRECT_URI || `${APP_URL}/api/doctor-calendar/google/callback`;
 
 export const GOOGLE_SCOPES = [
-  "https://www.googleapis.com/auth/calendar",
-  "https://www.googleapis.com/auth/calendar.events"
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  "https://www.googleapis.com/auth/calendar.events.readonly"
 ].join(" ");
 
 export function getGoogleAuthUrl(state: string): string {
+  if (!GOOGLE_CLIENT_ID) throw new Error("GOOGLE_CLIENT_ID is not configured.");
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID || "",
     redirect_uri: GOOGLE_REDIRECT_URI,
