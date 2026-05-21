@@ -25,7 +25,7 @@ const doctorItems: NavItem[] = [
   { label: "Integrations", href: "/settings/integration", icon: Link2 }
 ];
 const adminItems: NavItem[] = [
-  { label: "Roles & Permissions", href: "/rbac/roles", icon: UserCog }
+  
 ];
 export function SettingsSidebar({ role }: { role: Role }) {
   const pathname = usePathname();

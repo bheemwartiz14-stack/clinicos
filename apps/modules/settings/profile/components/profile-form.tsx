@@ -131,7 +131,6 @@ function DoctorPracticeTabs({ profile }: { profile: SettingsProfile }) {
 export function ProfileForm({ profile, branches, departments }: { profile: SettingsProfile; branches: SettingsOption[]; departments: SettingsOption[] }) {
   const [state, action, pending] = useActionState(updateProfileAction, initialState);
   const isDoctor = profile.role === "doctor";
-
   useEffect(() => {
     if (!state.message) return;
     settingsToast(state.ok ? "success" : "error", state.message);

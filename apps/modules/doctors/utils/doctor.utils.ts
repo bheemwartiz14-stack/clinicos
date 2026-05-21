@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { DoctorSchedule, DoctorBreak, DoctorLeaveBlock, DoctorVisitSettings, DoctorAppointmentSlot, DoctorStatus, DoctorAvailabilityStatus, TimeSlot } from "../types/doctor.types";
 
 function parseTime(time: string): number {

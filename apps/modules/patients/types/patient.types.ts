@@ -1,84 +1,47 @@
+import type { PatientBloodGroup, PatientGender, PatientMaritalStatus } from "../schemas/patient.schema";
+
 export type PatientRecord = {
   id: string;
   userId: string | null;
   branchId: string;
   branchName: string | null;
   mrn: string;
+  patientCode: string;
   firstName: string;
   lastName: string;
-  fullName: string | null;
-  dateOfBirth: Date | string;
-  sex: string;
-  gender: string | null;
-  phone: string;
+  fullName: string;
   email: string | null;
-  bloodGroup: string | null;
-  maritalStatus: string | null;
-  occupation: string | null;
-  preferredLanguage: string;
-  profilePhotoUrl: string | null;
-  isActive: boolean;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-};
-
-export type PatientWithDetails = PatientRecord & {
-  address: {
-    line1: string;
-    line2?: string;
-    city: string;
-    state: string;
-    postalCode: string;
-  } | null;
-  emergencyContact: {
-    name: string;
-    phone: string;
-    relationship: string;
-  } | null;
+  phone: string;
+  dateOfBirth: string;
+  gender: PatientGender | null;
+  bloodGroup: PatientBloodGroup;
+  maritalStatus: PatientMaritalStatus | null;
+  address: { line1: string; line2?: string; city: string; state: string; postalCode: string } | string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
   allergies: string;
-  medications: string;
-  insurance: {
-    payer: string;
-    memberId: string;
-    groupId?: string;
-  } | null;
+  chronicDiseases: string;
+  currentMedications: string;
+  notes: string;
+  isActive: boolean;
+  appointmentCount: number;
+  upcomingAppointmentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
-export type PatientFilterInput = {
-  branchId?: string;
+export type PatientDetails = PatientRecord & {
+  lastAppointmentAt: Date | null;
+};
+
+export type PatientFormDefaults = Partial<PatientRecord>;
+
+export type PatientSearchFilter = {
   search?: string;
+};
+
+export type PatientWithDetails = PatientDetails;
+export type PatientFilterInput = PatientSearchFilter & {
+  branchId?: string;
   isActive?: boolean;
-};
-
-export type PatientNote = {
-  id: string;
-  patientId: string;
-  noteType: string;
-  content: string;
-  createdByUserId: string;
-  createdByName: string | null;
-  createdAt: string;
-};
-
-export type PatientDocument = {
-  id: string;
-  patientId: string;
-  documentType: string;
-  fileName: string;
-  fileUrl: string;
-  uploadedByUserId: string;
-  uploadedByName: string | null;
-  createdAt: string;
-};
-
-export type PatientTimelineEvent = {
-  id: string;
-  patientId: string;
-  eventType: string;
-  title: string;
-  description: string | null;
-  metadata: Record<string, unknown>;
-  createdByUserId: string;
-  createdByName: string | null;
-  createdAt: string;
 };

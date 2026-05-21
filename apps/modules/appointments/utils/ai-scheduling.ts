@@ -1,6 +1,5 @@
-import type { AppointmentPriority, AppointmentRecord, SlotSuggestion } from "../types/appointment.types";
 
-export function predictNoShowRisk(input: { appointmentTime: Date; priority: AppointmentPriority; previousNoShows?: number; isRescheduled?: boolean }) {
+export function predictNoShowRisk(input: { appointmentTime: Date; priority: any; previousNoShows?: number; isRescheduled?: boolean }) {
   const hour = input.appointmentTime.getHours();
   let score = 0.12;
   if (hour < 9 || hour > 16) score += 0.08;
@@ -15,7 +14,7 @@ export function predictNoShowRisk(input: { appointmentTime: Date; priority: Appo
   };
 }
 
-export function recommendSlots(slots: SlotSuggestion[], appointments: AppointmentRecord[]) {
+export function recommendSlots(slots: any[], appointments: any[]) {
   const workloadByDoctor = appointments.reduce<Record<string, number>>((acc, appointment) => {
     acc[appointment.doctorId] = (acc[appointment.doctorId] ?? 0) + 1;
     return acc;

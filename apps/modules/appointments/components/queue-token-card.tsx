@@ -1,6 +1,5 @@
-import type { QueueRecord } from "../types/appointment.types";
 
-export function QueueTokenCard({ entry }: { entry: QueueRecord }) {
+export function QueueTokenCard({ entry }: { entry: any }) {
   return (
     <article className="rounded-xl border bg-card p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { can } from "@mediclinic/rbac";

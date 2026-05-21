@@ -1,109 +1,82 @@
-import * as doctorRepo from "../repositories/doctor.repository";
-import type {
-  DoctorProfile,
-  DoctorWithDetails,
-  DoctorSchedule,
-  DoctorBreak,
-  DoctorLeaveBlock,
-  DoctorVisitSettings,
-  DoctorAppointmentSlot,
-  DoctorFilterInput
-} from "../types/doctor.types";
+import { hashPassword } from "@mediclinic/auth";
+import * as doctorRepository from "../repositories/doctor.repository";
+import { doctorCreateSchema, doctorUpdateSchema, type DoctorCreateInput, type DoctorUpdateInput } from "../schemas/doctor.schema";
+import { buildDoctorSlots } from "../helpers/slot-generation.helper";
+import type { DoctorRecord, DoctorSchedule } from "../types/doctor.types";
+
+function nextDateKeys(days: number) {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() + index);
+    return date.toISOString().slice(0, 10);
+  });
+}
+
+export async function listDoctorsForAdmin() {
+  return doctorRepository.getDoctors();
+}
+
+export async function getDoctorDetailsForAdmin(id: string) {
+  return doctorRepository.getDoctorDetails(id);
+}
+
+export async function getDoctorFormOptions() {
+  return doctorRepository.getDoctorFormOptions();
+}
+
+export async function createDoctorFromForm(input: DoctorCreateInput, createdBy: string) {
+  const parsed = doctorCreateSchema.parse(input);
+  const passwordHash = await hashPassword(parsed.password);
+  const result = await doctorRepository.createDoctorWithUserAndSchedule({ ...parsed, createdBy, passwordHash });
+  await generateSlotsForDoctor(result.doctor.id);
+  return result.doctor;
+}
+
+export async function updateDoctorFromForm(input: DoctorUpdateInput, updatedBy: string) {
+  const parsed = doctorUpdateSchema.parse(input);
+  const passwordHash = parsed.password ? await hashPassword(parsed.password) : undefined;
+  const result = await doctorRepository.updateDoctorWithSchedule({ ...parsed, updatedBy, passwordHash });
+  await generateSlotsForDoctor(parsed.id);
+  return result.doctor;
+}
+
+export async function deleteDoctorFromForm(id: string) {
+  return doctorRepository.deleteDoctor(id);
+}
+
+export async function toggleDoctorStatusFromForm(id: string) {
+  const doctor = await doctorRepository.toggleDoctorStatus(id);
+  await generateSlotsForDoctor(id);
+  return doctor;
+}
+
+export async function generateSlotsForDoctor(doctorId: string) {
+  const doctor = await doctorRepository.getDoctorById(doctorId);
+  if (!doctor) throw new Error("Doctor not found.");
+  const schedules = await doctorRepository.getDoctorSchedules(doctorId);
+  return generateSlotsForDoctorRecord(doctor, schedules);
+}
+
+async function generateSlotsForDoctorRecord(doctor: DoctorRecord, schedules: DoctorSchedule[]) {
+  const existingSlotKeys = await doctorRepository.listExistingSlotKeys(doctor.id, nextDateKeys(30));
+  const slots = buildDoctorSlots({ doctor, schedules, existingSlotKeys, days: 30 });
+  return doctorRepository.createDoctorSlots(slots);
+}
 
 export const doctorService = {
-  async list(filter?: DoctorFilterInput) {
-    return doctorRepo.listDoctors(filter);
-  },
-
-  async listWithCounts() {
-    return doctorRepo.listDoctorsWithCounts();
-  },
-
-  async getById(id: string) {
-    return doctorRepo.getDoctorById(id);
-  },
-
-  async getWithDetails(id: string) {
-    return doctorRepo.getDoctorWithDetails(id);
-  },
-
-  async getByUserId(userId: string) {
-    return doctorRepo.getDoctorByUserId(userId);
-  },
-
-  async create(data: Parameters<typeof doctorRepo.createDoctor>[0]) {
-    return doctorRepo.createDoctor(data);
-  },
-
-  async update(id: string, data: Parameters<typeof doctorRepo.updateDoctor>[1]) {
-    return doctorRepo.updateDoctor(id, data);
-  },
-
-  async delete(id: string) {
-    return doctorRepo.deleteDoctor(id);
-  },
-
-  async getSchedules(doctorId: string): Promise<DoctorSchedule[]> {
-    return doctorRepo.getDoctorSchedules(doctorId);
-  },
-
-  async updateSchedules(doctorId: string, schedules: Parameters<typeof doctorRepo.upsertDoctorSchedules>[1]) {
-    return doctorRepo.upsertDoctorSchedules(doctorId, schedules);
-  },
-
-  async getBreaks(doctorId: string): Promise<DoctorBreak[]> {
-    return doctorRepo.getDoctorBreaks(doctorId);
-  },
-
-  async updateBreaks(doctorId: string, breaks: Parameters<typeof doctorRepo.upsertDoctorBreaks>[1]) {
-    return doctorRepo.upsertDoctorBreaks(doctorId, breaks);
-  },
-
-  async getLeaveBlocks(doctorId: string): Promise<DoctorLeaveBlock[]> {
-    return doctorRepo.getDoctorLeaveBlocks(doctorId);
-  },
-
-  async createLeaveBlock(data: Parameters<typeof doctorRepo.createDoctorLeaveBlock>[0]) {
-    return doctorRepo.createDoctorLeaveBlock(data);
-  },
-
-  async updateLeaveBlock(id: string, data: Parameters<typeof doctorRepo.updateDoctorLeaveBlock>[1]) {
-    return doctorRepo.updateDoctorLeaveBlock(id, data);
-  },
-
-  async deleteLeaveBlock(id: string) {
-    return doctorRepo.deleteDoctorLeaveBlock(id);
-  },
-
-  async getVisitSettings(doctorId: string): Promise<DoctorVisitSettings | null> {
-    return doctorRepo.getDoctorVisitSettings(doctorId);
-  },
-
-  async updateVisitSettings(doctorId: string, data: Parameters<typeof doctorRepo.updateDoctorVisitSettings>[1]) {
-    return doctorRepo.updateDoctorVisitSettings(doctorId, data);
-  },
-
-  async getSlots(doctorId: string, date: Date): Promise<DoctorAppointmentSlot[]> {
-    return doctorRepo.getDoctorSlots(doctorId, date);
-  },
-
-  async getSlotsInRange(doctorId: string, startDate: Date, endDate: Date): Promise<DoctorAppointmentSlot[]> {
-    return doctorRepo.getDoctorSlotsInRange(doctorId, startDate, endDate);
-  },
-
-  async deleteSlotsInRange(doctorId: string, startDate: Date, endDate: Date) {
-    return doctorRepo.deleteDoctorSlotsInRange(doctorId, startDate, endDate);
-  },
-
-  async createSlots(slots: Parameters<typeof doctorRepo.createDoctorSlots>[0]) {
-    return doctorRepo.createDoctorSlots(slots);
-  },
-
-  async getActiveByBranch(branchId: string) {
-    return doctorRepo.getActiveDoctorsByBranch(branchId);
-  },
-
-  async getAppointmentCount(doctorId: string) {
-    return doctorRepo.getDoctorAppointmentCount(doctorId);
-  }
+  list: listDoctorsForAdmin,
+  listDoctorsForAdmin,
+  getById: doctorRepository.getDoctorById,
+  getDoctorDetailsForAdmin,
+  getWithDetails: getDoctorDetailsForAdmin,
+  getByUserId: doctorRepository.getDoctorByUserId,
+  getDoctorFormOptions,
+  createDoctorFromForm,
+  updateDoctorFromForm,
+  deleteDoctorFromForm,
+  toggleDoctorStatusFromForm,
+  generateSlotsForDoctor,
+  getSchedules: doctorRepository.getDoctorSchedules,
+  getSlots: doctorRepository.getDoctorSlots,
+  getDoctorConsultationSettings: doctorRepository.getDoctorConsultationSettings
 };

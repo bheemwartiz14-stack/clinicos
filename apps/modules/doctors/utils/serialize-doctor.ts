@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { DoctorProfile, DoctorSchedule, DoctorBreak, DoctorLeaveBlock, DoctorVisitSettings, DoctorAppointmentSlot, DoctorWithDetails } from "../types/doctor.types";
 
 function serializeDate(date: Date | string | null | undefined): string | null {

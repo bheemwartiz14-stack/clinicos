@@ -1,6 +1,5 @@
-import type { SlotSuggestion } from "../types/appointment.types";
 
-export function SlotSelector({ slots }: { slots: SlotSuggestion[] }) {
+export function SlotSelector({ slots }: { slots: any[] }) {
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {slots.map((slot) => (

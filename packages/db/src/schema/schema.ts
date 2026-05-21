@@ -23,6 +23,8 @@ export const appointmentStatusEnum = pgEnum("appointment_status", ["scheduled", 
 export const invoiceStatusEnum = pgEnum("invoice_status", ["draft", "open", "paid", "void", "refunded"]);
 export const notificationChannelEnum = pgEnum("notification_channel", ["email", "sms", "whatsapp"]);
 export const payrollStatusEnum = pgEnum("payroll_status", ["draft", "approved", "paid"]);
+export const doctorSlotStatusEnum = pgEnum("doctor_slot_status", ["available", "booked", "blocked", "cancelled"]);
+export const doctorDayOfWeekEnum = pgEnum("doctor_day_of_week", ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]);
 export const appointmentModeEnum = pgEnum("appointment_mode", ["offline", "online", "hybrid"]);
 export const consultationModeEnum = pgEnum("consultation_mode", ["offline", "online", "hybrid"]);
 export const locationTypeEnum = pgEnum("location_type", ["clinic", "online"]);
@@ -39,6 +41,9 @@ export const paymentStatusEnum = pgEnum("payment_status", ["pending", "succeeded
 export const refundStatusEnum = pgEnum("refund_status", ["pending", "succeeded", "failed"]);
 export const claimStatusEnum = pgEnum("claim_status", ["draft", "ready", "submitted", "accepted", "rejected", "paid", "denied"]);
 export const aiRecommendationStatusEnum = pgEnum("ai_recommendation_status", ["pending", "accepted", "dismissed", "expired"]);
+export const patientGenderEnum = pgEnum("patient_gender", ["male", "female", "transgender", "non_binary", "prefer_not_to_say", "other"]);
+export const patientBloodGroupEnum = pgEnum("patient_blood_group", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "unknown"]);
+export const patientMaritalStatusEnum = pgEnum("patient_marital_status", ["single", "married", "divorced", "widowed", "separated"]);
 export const timestamps = () => ({
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull().$onUpdate(() => new Date())
@@ -193,25 +198,30 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
 export const patients = pgTable("patients", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").references(() => users.id),
+  patientCode: varchar("patient_code", { length: 32 }),
   branchId: uuid("branch_id").references(() => branches.id).notNull(),
   mrn: varchar("mrn", { length: 64 }).notNull(),
   firstName: varchar("first_name", { length: 120 }).notNull(),
   lastName: varchar("last_name", { length: 120 }).notNull(),
   fullName: varchar("full_name", { length: 260 }),
   dateOfBirth: date("date_of_birth").notNull(),
-  sex: varchar("sex", { length: 32 }).notNull(),
-  gender: varchar("gender", { length: 32 }),
+  gender: patientGenderEnum("gender").notNull(),
   phone: varchar("phone", { length: 32 }).notNull(),
   email: varchar("email", { length: 255 }),
-  bloodGroup: varchar("blood_group", { length: 16 }),
-  maritalStatus: varchar("marital_status", { length: 32 }),
+  bloodGroup: patientBloodGroupEnum("bloodGroup").notNull(),
+  maritalStatus: patientMaritalStatusEnum("maritalStatus").notNull(),
   occupation: varchar("occupation", { length: 120 }),
   preferredLanguage: varchar("preferred_language", { length: 80 }).default("English").notNull(),
   profilePhotoUrl: text("profile_photo_url"),
   address: jsonb("address").$type<{ line1: string; line2?: string; city: string; state: string; postalCode: string }>(),
   emergencyContact: jsonb("emergency_contact").$type<{ name: string; phone: string; relationship: string }>(),
+  emergencyContactName: varchar("emergency_contact_name", { length: 160 }),
+  emergencyContactPhone: varchar("emergency_contact_phone", { length: 32 }),
   allergies: text("allergies").default("").notNull(),
+  chronicDiseases: text("chronic_diseases").default("").notNull(),
   medications: text("medications").default("").notNull(),
+  currentMedications: text("current_medications").default("").notNull(),
+  notes: text("notes").default("").notNull(),
   insurance: jsonb("insurance").$type<{ payer: string; memberId: string; groupId?: string }>(),
   isActive: boolean("is_active").default(true).notNull(),
   consentOnFile: boolean("consent_on_file").default(false).notNull(),
@@ -222,7 +232,10 @@ export const patients = pgTable("patients", {
   ...timestamps()
 }, (table) => ({
   userUnique: uniqueIndex("patients_user_unique").on(table.userId),
+  patientCodeUnique: uniqueIndex("patients_patient_code_unique").on(table.patientCode),
   mrnUnique: uniqueIndex("patients_branch_mrn_unique").on(table.branchId, table.mrn),
+  phoneUnique: uniqueIndex("patients_phone_unique").on(table.phone),
+  emailUnique: uniqueIndex("patients_email_unique").on(table.email),
   nameIdx: index("patients_name_idx").on(table.lastName, table.firstName),
   branchIdx: index("patients_branch_idx").on(table.branchId)
 }));
@@ -430,6 +443,8 @@ export const doctors = pgTable("doctors", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   branchId: uuid("branch_id").references(() => branches.id).notNull(),
   departmentId: uuid("department_id").references(() => departments.id),
+  specialtyId: uuid("specialty_id").references(() => departments.id),
+  displayName: varchar("display_name", { length: 160 }),
   firstName: varchar("first_name", { length: 120 }).notNull(),
   lastName: varchar("last_name", { length: 120 }).notNull(),
   email: varchar("email", { length: 255 }).notNull(),
@@ -446,6 +461,7 @@ export const doctors = pgTable("doctors", {
   consultationFee: numeric("consultation_fee", { precision: 12, scale: 2 }).default("0").notNull(),
   bio: text("bio"),
   isActive: boolean("is_active").default(true).notNull(),
+  isAvailable: boolean("is_available").default(true).notNull(),
   visitDurationMinutes: integer("visit_duration_minutes").default(20).notNull(),
   ...timestamps()
 }, (table) => ({
@@ -458,9 +474,13 @@ export const doctorSchedules = pgTable("doctor_schedules", {
   id: uuid("id").primaryKey().defaultRandom(),
   doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
   dayOfWeek: integer("day_of_week").notNull(),
+  dayName: doctorDayOfWeekEnum("day_name"),
   isAvailable: boolean("is_available").default(true).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
   startTime: varchar("start_time", { length: 16 }).notNull(),
   endTime: varchar("end_time", { length: 16 }).notNull(),
+  slotDuration: integer("slot_duration").default(20).notNull(),
+  createdBy: uuid("created_by").references(() => users.id),
   ...timestamps()
 }, (table) => ({
   doctorDayIdx: index("doctor_schedules_doctor_day_idx").on(table.doctorId, table.dayOfWeek)
@@ -509,6 +529,21 @@ export const doctorVisitSettings = pgTable("doctor_visit_settings", {
   ...timestamps()
 }, (table) => ({
   doctorIdx: index("doctor_visit_settings_doctor_idx").on(table.doctorId)
+}));
+
+export const doctorConsultationSettings = pgTable("doctor_consultation_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doctorId: uuid("doctor_id").references(() => doctors.id, { onDelete: "cascade" }).notNull().unique(),
+  consultationFee: numeric("consultation_fee", { precision: 12, scale: 2 }).default("0").notNull(),
+  followUpFee: numeric("follow_up_fee", { precision: 12, scale: 2 }).default("0").notNull(),
+  followUpValidityDays: integer("follow_up_validity_days").default(7).notNull(),
+  defaultSlotDuration: integer("default_slot_duration").default(20).notNull(),
+  allowOnlineConsultation: boolean("allow_online_consultation").default(false).notNull(),
+  onlineConsultationFee: numeric("online_consultation_fee", { precision: 12, scale: 2 }).default("0").notNull(),
+  notes: text("notes"),
+  ...timestamps()
+}, (table) => ({
+  doctorIdx: index("doctor_consultation_settings_doctor_idx").on(table.doctorId)
 }));
 
 export const calendarProviderEnum = pgEnum("calendar_provider", ["google", "outlook", "ical"]);
@@ -601,16 +636,20 @@ export const doctorCalendarBusyEvents = pgTable("doctor_calendar_busy_events", {
 export const appointments = pgTable("appointments", {
   id: uuid("id").primaryKey().defaultRandom(),
   appointmentNumber: varchar("appointment_number", { length: 64 }),
+  bookingNumber: varchar("booking_number", { length: 64 }),
   branchId: uuid("branch_id").references(() => branches.id).notNull(),
   departmentId: uuid("department_id").references(() => departments.id),
   patientId: uuid("patient_id").references(() => patients.id).notNull(),
   doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
   slotId: uuid("slot_id"),
   bookedByUserId: uuid("booked_by_user_id").references(() => users.id),
+  createdBy: uuid("created_by").references(() => users.id),
+  updatedBy: uuid("updated_by").references(() => users.id),
   status: appointmentStatusEnum("status").default("scheduled").notNull(),
   mode: appointmentModeEnum("mode").default("offline").notNull(),
   consultationMode: consultationModeEnum("consultation_mode").default("offline").notNull(),
   appointmentType: appointmentTypeEnum("appointment_type").default("consultation").notNull(),
+  type: varchar("type", { length: 32 }).default("in_clinic").notNull(),
   locationType: locationTypeEnum("location_type").default("clinic").notNull(),
   priority: queuePriorityEnum("priority").default("routine").notNull(),
   roomId: uuid("room_id"),
@@ -619,9 +658,11 @@ export const appointments = pgTable("appointments", {
   appointmentDate: date("appointment_date"),
   startTime: varchar("start_time", { length: 16 }),
   endTime: varchar("end_time", { length: 16 }),
+  durationMinutes: integer("duration_minutes").default(30).notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   reason: varchar("reason", { length: 255 }).notNull(),
+  reasonForVisit: varchar("reason_for_visit", { length: 255 }),
   visitReason: varchar("visit_reason", { length: 255 }),
   symptoms: text("symptoms"),
   notes: text("notes"),
@@ -636,6 +677,7 @@ export const appointments = pgTable("appointments", {
   checkedInAt: timestamp("checked_in_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  cancelledReason: text("cancelled_reason"),
   meetingProvider: varchar("meeting_provider", { length: 64 }),
   meetingUrl: text("meeting_url"),
   meetingEventId: varchar("meeting_event_id", { length: 255 }),
@@ -646,6 +688,7 @@ export const appointments = pgTable("appointments", {
   ...timestamps()
 }, (table) => ({
   appointmentNumberUnique: uniqueIndex("appointments_number_unique").on(table.appointmentNumber),
+  bookingNumberUnique: uniqueIndex("appointments_booking_number_unique").on(table.bookingNumber),
   branchScheduleIdx: index("appointments_branch_schedule_idx").on(table.branchId, table.startsAt),
   doctorScheduleIdx: index("appointments_doctor_schedule_idx").on(table.doctorId, table.startsAt),
   patientIdx: index("appointments_patient_idx").on(table.patientId),
@@ -834,16 +877,18 @@ export const doctorCalendarSyncLogs = pgTable("doctor_calendar_sync_logs", {
 export const doctorAppointmentSlots = pgTable("doctor_appointment_slots", {
   id: uuid("id").primaryKey().defaultRandom(),
   doctorId: uuid("doctor_id").references(() => doctors.id).notNull(),
+  scheduleId: uuid("schedule_id").references(() => doctorSchedules.id, { onDelete: "set null" }),
   slotDate: date("slot_date").notNull(),
   startTime: varchar("start_time", { length: 16 }).notNull(),
   endTime: varchar("end_time", { length: 16 }).notNull(),
-  status: varchar("status", { length: 32 }).default("available").notNull(),
+  status: doctorSlotStatusEnum("status").default("available").notNull(),
   appointmentId: uuid("appointment_id").references(() => appointments.id),
   isRecurring: boolean("is_recurring").default(false).notNull(),
   ...timestamps()
 }, (table) => ({
   doctorDateIdx: index("doctor_appointment_slots_doctor_date_idx").on(table.doctorId, table.slotDate),
-  statusIdx: index("doctor_appointment_slots_status_idx").on(table.status)
+  statusIdx: index("doctor_appointment_slots_status_idx").on(table.status),
+  uniqueSlot: uniqueIndex("doctor_appointment_slots_unique_slot").on(table.doctorId, table.slotDate, table.startTime, table.endTime)
 }));
 
 export const appointmentQueueEntries = pgTable("appointment_queue_entries", {
@@ -1280,12 +1325,17 @@ export const doctorRelations = relations(doctors, ({ one, many }) => ({
     fields: [doctors.departmentId],
     references: [departments.id]
   }),
+  specialty: one(departments, {
+    fields: [doctors.specialtyId],
+    references: [departments.id]
+  }),
   appointments: many(appointments),
   queueEntries: many(appointmentQueueEntries),
   schedules: many(doctorSchedules),
   breaks: many(doctorBreaks),
   leaveBlocks: many(doctorLeaveBlocks),
   visitSettings: one(doctorVisitSettings),
+  consultationSettings: one(doctorConsultationSettings),
   appointmentSlots: many(doctorAppointmentSlots),
   calendarConnections: many(doctorCalendarConnections),
   integrations: many(doctorIntegrations),
@@ -1299,6 +1349,10 @@ export const doctorScheduleRelations = relations(doctorSchedules, ({ one }) => (
   doctor: one(doctors, {
     fields: [doctorSchedules.doctorId],
     references: [doctors.id]
+  }),
+  creator: one(users, {
+    fields: [doctorSchedules.createdBy],
+    references: [users.id]
   })
 }));
 
@@ -1323,10 +1377,21 @@ export const doctorVisitSettingRelations = relations(doctorVisitSettings, ({ one
   })
 }));
 
+export const doctorConsultationSettingRelations = relations(doctorConsultationSettings, ({ one }) => ({
+  doctor: one(doctors, {
+    fields: [doctorConsultationSettings.doctorId],
+    references: [doctors.id]
+  })
+}));
+
 export const doctorAppointmentSlotRelations = relations(doctorAppointmentSlots, ({ one }) => ({
   doctor: one(doctors, {
     fields: [doctorAppointmentSlots.doctorId],
     references: [doctors.id]
+  }),
+  schedule: one(doctorSchedules, {
+    fields: [doctorAppointmentSlots.scheduleId],
+    references: [doctorSchedules.id]
   }),
   appointment: one(appointments, {
     fields: [doctorAppointmentSlots.appointmentId],
@@ -1413,6 +1478,14 @@ export const appointmentRelations = relations(appointments, ({ one, many }) => (
   doctor: one(doctors, {
     fields: [appointments.doctorId],
     references: [doctors.id]
+  }),
+  createdByUser: one(users, {
+    fields: [appointments.createdBy],
+    references: [users.id]
+  }),
+  updatedByUser: one(users, {
+    fields: [appointments.updatedBy],
+    references: [users.id]
   }),
   insurance: one(patientInsurance, {
     fields: [appointments.insuranceId],

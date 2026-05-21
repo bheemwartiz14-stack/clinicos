@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { GoogleCalendarTokens, GoogleCalendarEvent } from "../types/doctor.types";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;

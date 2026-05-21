@@ -1,418 +1,145 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
-import { can, type Permission, type Role } from "@mediclinic/rbac";
-import { getSession } from "../../../web/lib/auth";
+import { z } from "zod";
+import { requirePermission } from "../../../web/lib/auth";
 import { doctorService } from "../services/doctor.service";
-import { generateAppointmentSlots, getDoctorAvailabilityStatus } from "../utils/doctor.utils";
-import {
-  doctorCreateSchema,
-  doctorUpdateSchema,
-  weeklyScheduleSchema,
-  breakUpdateSchema,
-  visitSettingsSchema,
-  leaveBlockCreateSchema,
-  leaveBlockUpdateSchema,
-  slotGenerationSchema
-} from "../validations/doctor.validation";
-import { serializeDoctor, serializeDoctorWithDetails } from "../utils/serialize-doctor";
-import { db } from "@mediclinic/db";
-import { eq, and, gte, lte } from "drizzle-orm";
-import { doctorAppointmentSlots, doctorLeaveBlocks } from "@mediclinic/db";
+import { doctorCreateSchema, doctorDaysOfWeek, doctorUpdateSchema, type DoctorCreateInput, type DoctorUpdateInput } from "../schemas/doctor.schema";
 
 export type DoctorActionState = {
   ok: boolean;
-  message?: string;
+  message: string;
   fieldErrors?: Record<string, string[] | undefined>;
 };
 
-async function checkPermission(permission: Permission) {
-  const session = await getSession();
-  if (!session || !can(session.role, permission)) {
-    throw new Error(`Permission denied: ${permission}`);
-  }
-  return session;
+function value(formData: FormData, key: string) {
+  const raw = formData.get(key);
+  return typeof raw === "string" ? raw : "";
 }
 
-async function checkDoctorSelfPermission(doctorId: string) {
-  const session = await getSession();
-  if (!session) throw new Error("Unauthorized");
-  
-  if (can(session.role, "doctors.edit") || can(session.role, "doctors.self.manage")) {
-    if (session.role === "doctor" && session.userId) {
-      const doctor = await doctorService.getByUserId(session.userId);
-      if (!doctor || doctor.id !== doctorId) {
-        throw new Error("You can only manage your own profile");
-      }
-    }
-  } else {
-    throw new Error(`Permission denied`);
-  }
-  
-  return session;
+function checked(formData: FormData, key: string) {
+  return value(formData, key) === "true" || value(formData, key) === "on";
 }
 
-export async function createDoctorAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  try {
-    await checkPermission("doctors.create");
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const parsed = doctorCreateSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.join(".");
-      if (!fieldErrors[path]) fieldErrors[path] = [];
-      fieldErrors[path].push(issue.message);
-    }
-    return { ok: false, message: "Validation failed", fieldErrors };
-  }
-
-  try {
-    await doctorService.create(parsed.data);
-    return { ok: true, message: "Doctor created successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to create doctor" };
-  }
+function optionalSelect(formData: FormData, key: string) {
+  const selected = value(formData, key);
+  return selected && selected !== "none" ? selected : null;
 }
 
-export async function updateDoctorAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const id = formData.get("id") as string;
-  if (!id) {
-    return { ok: false, message: "Doctor ID is required" };
-  }
-
-  try {
-    await checkDoctorSelfPermission(id);
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const parsed = doctorUpdateSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const issue of parsed.error.issues) {
-      const path = issue.path.join(".");
-      if (!fieldErrors[path]) fieldErrors[path] = [];
-      fieldErrors[path].push(issue.message);
-    }
-    return { ok: false, message: "Validation failed", fieldErrors };
-  }
-
-  try {
-    await doctorService.update(id, parsed.data);
-    return { ok: true, message: "Doctor updated successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to update doctor" };
-  }
+function schedulesPayload(formData: FormData) {
+  return doctorDaysOfWeek.map((day) => ({
+    dayOfWeek: day,
+    isActive: checked(formData, `schedule.${day}.isActive`),
+    startTime: value(formData, `schedule.${day}.startTime`) || "09:00",
+    endTime: value(formData, `schedule.${day}.endTime`) || "17:00",
+    slotDuration: Number(value(formData, `schedule.${day}.slotDuration`) || value(formData, "defaultSlotDuration") || 20)
+  }));
 }
 
-export async function deleteDoctorAction(id: string): Promise<DoctorActionState> {
-  try {
-    await checkPermission("doctors.delete");
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
+function payload(formData: FormData) {
+  const consultationFee = Number(value(formData, "consultationFee") || 0);
+  const defaultSlotDuration = Number(value(formData, "defaultSlotDuration") || 20);
 
-  try {
-    await doctorService.delete(id);
-    return { ok: true, message: "Doctor deleted successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to delete doctor" };
-  }
+  return {
+    branchId: value(formData, "branchId"),
+    departmentId: optionalSelect(formData, "departmentId"),
+    specialtyId: optionalSelect(formData, "specialtyId"),
+    displayName: value(formData, "displayName"),
+    phone: value(formData, "phone") || null,
+    email: value(formData, "email"),
+    qualification: value(formData, "qualification") || null,
+    experienceYears: Number(value(formData, "experienceYears") || 0),
+    licenseNumber: value(formData, "licenseNumber"),
+    bio: value(formData, "bio") || null,
+    isActive: checked(formData, "isActive"),
+    isAvailable: checked(formData, "isAvailable"),
+    password: value(formData, "password"),
+    consultationSettings: {
+      consultationFee,
+      followUpFee: Number(value(formData, "followUpFee") || consultationFee),
+      followUpValidityDays: Number(value(formData, "followUpValidityDays") || 7),
+      defaultSlotDuration,
+      allowOnlineConsultation: checked(formData, "allowOnlineConsultation"),
+      onlineConsultationFee: Number(value(formData, "onlineConsultationFee") || consultationFee),
+      notes: value(formData, "notes") || null
+    },
+    schedules: schedulesPayload(formData)
+  };
 }
 
-export async function updateScheduleAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const doctorId = formData.get("doctorId") as string;
-  if (!doctorId) {
-    return { ok: false, message: "Doctor ID is required" };
+function failure(error: unknown): DoctorActionState {
+  if (error instanceof z.ZodError) {
+    return {
+      ok: false,
+      message: "Please fix the highlighted doctor details.",
+      fieldErrors: error.flatten().fieldErrors
+    };
   }
+
+  return {
+    ok: false,
+    message: error instanceof Error ? error.message : "Doctor action failed."
+  };
+}
+
+export async function createDoctorAction(formData: FormData): Promise<DoctorActionState> {
+  const session = await requirePermission("doctors.create");
 
   try {
-    await checkDoctorSelfPermission(doctorId);
+    const parsed: DoctorCreateInput = doctorCreateSchema.parse(payload(formData));
+    await doctorService.createDoctorFromForm(parsed, session.userId);
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
+    return failure(error);
   }
 
-  const schedules = [];
-  for (let day = 0; day < 7; day++) {
-    schedules.push({
-      dayOfWeek: day,
-      isAvailable: formData.get(`isAvailable_${day}`) === "true",
-      startTime: formData.get(`startTime_${day}`) as string || "09:00",
-      endTime: formData.get(`endTime_${day}`) as string || "17:00"
+  revalidatePath("/doctors");
+  redirect("/doctors" as Route);
+}
+
+export async function updateDoctorAction(formData: FormData): Promise<DoctorActionState> {
+  const session = await requirePermission("doctors.edit");
+
+  try {
+    const parsed: DoctorUpdateInput = doctorUpdateSchema.parse({
+      id: value(formData, "id"),
+      ...payload(formData)
     });
-  }
-
-  const parsed = weeklyScheduleSchema.safeParse({ doctorId, schedules });
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid schedule" };
-  }
-
-  try {
-    await doctorService.updateSchedules(doctorId, parsed.data.schedules);
-    return { ok: true, message: "Schedule updated successfully" };
+    await doctorService.updateDoctorFromForm(parsed, session.userId);
+    revalidatePath("/doctors");
+    revalidatePath(`/doctors/${parsed.id}`);
+    redirect(`/doctors/${parsed.id}` as Route);
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to update schedule" };
+    return failure(error);
   }
 }
 
-export async function updateBreaksAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const doctorId = formData.get("doctorId") as string;
-  if (!doctorId) {
-    return { ok: false, message: "Doctor ID is required" };
-  }
+export async function deleteDoctorAction(formData: FormData): Promise<DoctorActionState> {
+  await requirePermission("doctors.delete");
+  const id = value(formData, "id");
+  if (!id) return { ok: false, message: "Doctor ID is required." };
 
   try {
-    await checkDoctorSelfPermission(doctorId);
+    await doctorService.deleteDoctorFromForm(id);
+    revalidatePath("/doctors");
+    redirect("/doctors" as Route);
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const breaks: Array<{
-    id?: string;
-    breakType: string;
-    breakName: string | null;
-    startTime: string;
-    endTime: string;
-    isEnabled: boolean;
-  }> = [];
-
-  const breakTypes = ["lunch", "break"];
-  for (const breakType of breakTypes) {
-    const isEnabled = formData.get(`breakEnabled_${breakType}`) === "true";
-    if (isEnabled) {
-      breaks.push({
-        breakType,
-        breakName: breakType === "lunch" ? "Lunch Break" : "Short Break",
-        startTime: formData.get(`breakStart_${breakType}`) as string || "12:00",
-        endTime: formData.get(`breakEnd_${breakType}`) as string || "13:00",
-        isEnabled: true
-      });
-    }
-  }
-
-  const parsed = breakUpdateSchema.safeParse({ doctorId, breaks });
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid break data" };
-  }
-
-  try {
-    const breaks = parsed.data.breaks.map((b) => ({
-      ...b,
-      breakName: b.breakName ?? null
-    }));
-    await doctorService.updateBreaks(doctorId, breaks);
-    return { ok: true, message: "Breaks updated successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to update breaks" };
+    return failure(error);
   }
 }
 
-export async function updateVisitSettingsAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const doctorId = formData.get("doctorId") as string;
-  const regenerateSlots = formData.get("regenerateSlots") === "true";
-  if (!doctorId) {
-    return { ok: false, message: "Doctor ID is required" };
-  }
+export async function toggleDoctorStatusAction(formData: FormData): Promise<DoctorActionState> {
+  await requirePermission("doctors.manage");
+  const id = value(formData, "id");
+  if (!id) return { ok: false, message: "Doctor ID is required." };
 
   try {
-    await checkDoctorSelfPermission(doctorId);
+    await doctorService.toggleDoctorStatusFromForm(id);
+    revalidatePath("/doctors");
+    revalidatePath(`/doctors/${id}`);
+    return { ok: true, message: "Doctor status updated." };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const parsed = visitSettingsSchema.safeParse({
-    doctorId,
-    visitDurationMinutes: Number(formData.get("visitDurationMinutes")),
-    bufferTimeMinutes: Number(formData.get("bufferTimeMinutes")),
-    maxPatientsPerDay: Number(formData.get("maxPatientsPerDay")),
-    autoGenerateSlots: formData.get("autoGenerateSlots") === "true",
-    allowOnlineConsultation: formData.get("allowOnlineConsultation") === "true"
-  });
-
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid settings" };
-  }
-
-  try {
-    await doctorService.updateVisitSettings(doctorId, parsed.data);
-
-    if (regenerateSlots) {
-      const [schedules, breaks, leaveBlocks, visitSettings, existingSlots] = await Promise.all([
-        doctorService.getSchedules(doctorId),
-        doctorService.getBreaks(doctorId),
-        doctorService.getLeaveBlocks(doctorId),
-        doctorService.getVisitSettings(doctorId),
-        doctorService.getSlotsInRange(doctorId, new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
-      ]);
-
-      let slotsCount = 0;
-      if (visitSettings) {
-        await doctorService.deleteSlotsInRange(doctorId, new Date(), new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
-        
-        const newSlots = generateAppointmentSlots(
-          doctorId,
-          new Date(),
-          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          schedules,
-          breaks,
-          leaveBlocks,
-          visitSettings,
-          existingSlots
-        );
-
-        if (newSlots.length > 0) {
-          await doctorService.createSlots(newSlots);
-          slotsCount = newSlots.length;
-        }
-      }
-
-      return { ok: true, message: `Settings updated and ${slotsCount} slots regenerated successfully` };
-    }
-
-    return { ok: true, message: "Settings updated successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to update settings" };
-  }
-}
-
-export async function createLeaveBlockAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const doctorId = formData.get("doctorId") as string;
-  if (!doctorId) {
-    return { ok: false, message: "Doctor ID is required" };
-  }
-
-  try {
-    await checkDoctorSelfPermission(doctorId);
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const parsed = leaveBlockCreateSchema.safeParse({
-    doctorId,
-    leaveType: formData.get("leaveType"),
-    fromDate: formData.get("fromDate"),
-    toDate: formData.get("toDate"),
-    startTime: formData.get("startTime") || null,
-    endTime: formData.get("endTime") || null,
-    reason: formData.get("reason") || null
-  });
-
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid leave data" };
-  }
-
-  try {
-    await doctorService.createLeaveBlock(parsed.data);
-    return { ok: true, message: "Leave request created successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to create leave request" };
-  }
-}
-
-export async function updateLeaveBlockAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const id = formData.get("id") as string;
-  const status = formData.get("status") as string;
-
-  if (!id) {
-    return { ok: false, message: "Leave ID is required" };
-  }
-
-  try {
-    const session = await checkPermission("doctors.leave.manage");
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  try {
-    await doctorService.updateLeaveBlock(id, { status });
-    return { ok: true, message: "Leave status updated successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to update leave status" };
-  }
-}
-
-export async function deleteLeaveBlockAction(id: string): Promise<DoctorActionState> {
-  try {
-    await doctorService.deleteLeaveBlock(id);
-    return { ok: true, message: "Leave request deleted successfully" };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to delete leave request" };
-  }
-}
-
-export async function generateSlotsAction(_state: DoctorActionState, formData: FormData): Promise<DoctorActionState> {
-  const doctorId = formData.get("doctorId") as string;
-  if (!doctorId) {
-    return { ok: false, message: "Doctor ID is required" };
-  }
-
-  try {
-    await checkDoctorSelfPermission(doctorId);
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Permission denied" };
-  }
-
-  const parsed = slotGenerationSchema.safeParse({
-    doctorId,
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate")
-  });
-
-  if (!parsed.success) {
-    return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid date range" };
-  }
-
-  try {
-    const [schedules, breaks, leaveBlocks, visitSettings, existingSlots] = await Promise.all([
-      doctorService.getSchedules(doctorId),
-      doctorService.getBreaks(doctorId),
-      doctorService.getLeaveBlocks(doctorId),
-      doctorService.getVisitSettings(doctorId),
-      doctorService.getSlotsInRange(doctorId, parsed.data.startDate, parsed.data.endDate)
-    ]);
-
-    if (!visitSettings) {
-      return { ok: false, message: "Visit settings not configured" };
-    }
-
-    const newSlots = generateAppointmentSlots(
-      doctorId,
-      parsed.data.startDate,
-      parsed.data.endDate,
-      schedules,
-      breaks,
-      leaveBlocks,
-      visitSettings,
-      existingSlots
-    );
-
-    if (newSlots.length > 0) {
-      await doctorService.createSlots(newSlots);
-    }
-
-    return { ok: true, message: `Generated ${newSlots.length} slots successfully` };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Failed to generate slots" };
-  }
-}
-
-export async function getDoctorAvailabilityAction(doctorId: string) {
-  try {
-    const [schedules, breaks, leaveBlocks, visitSettings, slots] = await Promise.all([
-      doctorService.getSchedules(doctorId),
-      doctorService.getBreaks(doctorId),
-      doctorService.getLeaveBlocks(doctorId),
-      doctorService.getVisitSettings(doctorId),
-      doctorService.getSlots(doctorId, new Date())
-    ]);
-
-    return getDoctorAvailabilityStatus(schedules, breaks, leaveBlocks, visitSettings, slots);
-  } catch (error) {
-    return { status: "offline" as const, label: "Unknown", color: "text-gray-500" };
+    return failure(error);
   }
 }

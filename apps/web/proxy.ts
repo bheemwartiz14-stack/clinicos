@@ -4,6 +4,7 @@ import { can, type Permission, type Role } from "@mediclinic/rbac";
 import { env } from "./lib/env";
 
 const publicRoutes = ["/login", "/forgot-password", "/reset-password", "/403"];
+const authRoutes = ["/login", "/forgot-password", "/reset-password"];
 
 const routePermissions: Array<{ path: string; permission: Permission }> = [
   { path: "/settings/login-history", permission: "settings.profile" },
@@ -49,6 +50,12 @@ function isPublic(pathname: string) {
   );
 }
 
+function isAuthRoute(pathname: string) {
+  return authRoutes.some(
+    (route) => pathname === route || pathname.startsWith(`${route}/`)
+  );
+}
+
 function matchPermission(pathname: string) {
   if (pathname === "/") {
     return routePermissions.find((route) => route.path === "/");
@@ -76,7 +83,7 @@ export async function proxy(request: NextRequest) {
 
     const role = payload.role as Role | undefined;
 
-    if (publicRoute) {
+    if (isAuthRoute(pathname)) {
       return redirect(request, "/");
     }
 

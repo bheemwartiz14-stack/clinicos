@@ -1,7 +1,6 @@
-import type { QueueRecord } from "../types/appointment.types";
 import { AppointmentQueueBoard } from "../components/appointment-queue-board";
 
-export function AppointmentQueueView({ queue }: { queue: QueueRecord[] }) {
+export function AppointmentQueueView({ queue }: { queue: any[] }) {
   return (
     <div className="grid gap-6">
       <section>

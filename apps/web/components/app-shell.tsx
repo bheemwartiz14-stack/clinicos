@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   Bell,
   CalendarDays,
-  CircleHelp,
   History,
   Link2,
   LogOut,
@@ -51,16 +50,92 @@ type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  permission: Permission;
+  permission?: Permission;
+  permissions?: Permission[];
+  children?: NavItem[];
 };
-
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/", icon: Activity, permission: "dashboard.view" },
-  { label: "Staff Management", href: "/settings/staff-manage", icon: UserCog, permission: "staff.manage" },
-  { label: "Doctor", href: "/doctors", icon: Stethoscope, permission: "doctors.view" },
-  { label: "Appointments", href: "/appointments", icon: CalendarDays, permission: "appointments.view" },
-  { label: "Settings", href: "/settings", icon: Settings, permission: "settings.profile" },
-  { label: "RBAC", href: "/rbac/roles", icon: Shield, permission: "rbac.manage" }
+  {
+    label: "Dashboard",
+    href: "/",
+    icon: Activity,
+    permission: "dashboard.view",
+  },
+  {
+    label: "Doctors",
+    href: "/doctors",
+    icon: Stethoscope,
+    permissions: ["doctors.view", "doctors.create"],
+    children: [
+      {
+        label: "All Doctors",
+        href: "/doctors",
+        icon: Stethoscope,
+        permission: "doctors.view",
+      }
+    ],
+  },
+  {
+    label: "Patients",
+    href: "/patients",
+    icon: UserRound,
+    permissions: ["patients.view", "patients.create"],
+    children: [
+      {
+        label: "All Patients",
+        href: "/patients",
+        icon: UserRound,
+        permission: "patients.view",
+      },
+    ],
+  },
+  {
+    label: "Appointments",
+    href: "/appointments",
+    icon: CalendarDays,
+    permission: "appointments.view",
+    children: [
+      {
+        label: "Calendar",
+        href: "/appointments",
+        icon: CalendarDays,
+        permission: "appointments.view",
+      },
+    ],
+  },
+  // Settings Section
+  {
+    label: "Settings",
+    icon: Settings,
+    href: "/settings",
+    permission: "settings.profile",
+    children: [
+      {
+        label: "Branch Management",
+        href: "/settings/branches",
+        icon: UserCog,
+        permission: "staff.manage",
+      },
+      {
+        label: "department Management",
+        href: "/settings/departments",
+        icon: UserCog,
+        permission: "staff.manage",
+      },
+      {
+        label: "RBAC",
+        href: "/rbac/roles",
+        icon: Shield,
+        permission: "rbac.manage",
+      },
+      {
+        label: "Staff Management",
+        href: "/settings/staff-manage",
+        icon: UserCog,
+        permission: "staff.manage",
+      },
+    ],
+  },
 ];
 
 type ShellUser = {
@@ -68,17 +143,21 @@ type ShellUser = {
   branchName?: string | null;
 };
 
-const userMenuItems = [
-  { label: "My Profile", href: "/settings/profile", icon: UserRound },
-  { label: "Account Settings", href: "/settings/account", icon: Settings },
-  { label: "Security", href: "/settings/security", icon: Shield },
-  { label: "Roles & Permissions", href: "/rbac/roles", icon: UserCog, adminOnly: true },
-  { label: "Notifications", href: "/settings/notifications", icon: Bell },
-  { label: "Integrations", href: "/settings/integration", icon: Link2, doctorOnly: true },
-  { label: "Appearance", href: "/settings/preferences", icon: Palette },
-  { label: "Login History", href: "/settings/login-history", icon: History },
-  { label: "Help & Support", href: "/help", icon: CircleHelp }
-];
+const userMenuItems: Array<{
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  doctorOnly?: boolean;
+  adminOnly?: boolean;
+}> = [
+    { label: "My Profile", href: "/settings/profile", icon: UserRound },
+    { label: "Account Settings", href: "/settings/account", icon: Settings },
+    { label: "Security", href: "/settings/security", icon: Shield },
+    { label: "Notifications", href: "/settings/notifications", icon: Bell },
+    { label: "Integrations", href: "/settings/integration", icon: Link2, doctorOnly: true },
+    { label: "Appearance", href: "/settings/preferences", icon: Palette },
+    { label: "Login History", href: "/settings/login-history", icon: History },
+  ];
 
 function initials(name: string) {
   return name
@@ -102,28 +181,86 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function SidebarNav({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
+function SidebarNav({
+  items,
+  pathname,
+  onNavigate,
+}: {
+  items: NavItem[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   return (
     <nav className="mt-7" aria-label="Primary">
-      <p className="px-2 text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/55">Main Menu</p>
+      <p className="px-2 text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/55">
+        Main Menu
+      </p>
+
       <div className="mt-4 space-y-2">
         {items.map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
-            <Link
-              key={item.label}
-              href={item.href as any}
-              prefetch={false}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex h-9 items-center gap-3 rounded-md px-2.5 text-xs font-semibold text-sidebar-foreground/75 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                active && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+            <div key={item.label}>
+              {/* Parent Menu */}
+              <Link
+                href={item.href as any}
+                prefetch={false}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-9 items-center gap-3 rounded-md px-2.5 text-xs font-semibold text-sidebar-foreground/75 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  active &&
+                  "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                )}
+              >
+                <item.icon
+                  className="h-3.5 w-3.5 shrink-0"
+                  aria-hidden
+                />
+
+                <span className="min-w-0 flex-1 truncate">
+                  {item.label}
+                </span>
+              </Link>
+
+              {/* Children */}
+              {item.children && item.children.length > 0 && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-sidebar-border pl-3">
+                  {item.children.map((child) => {
+                    const childActive = isActivePath(
+                      pathname,
+                      child.href
+                    );
+
+                    return (
+                      <Link
+                        key={child.label}
+                        href={child.href as any}
+                        prefetch={false}
+                        onClick={onNavigate}
+                        aria-current={
+                          childActive ? "page" : undefined
+                        }
+                        className={cn(
+                          "flex h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          childActive &&
+                          "bg-sidebar-primary text-sidebar-primary-foreground"
+                        )}
+                      >
+                        <child.icon
+                          className="h-3 w-3 shrink-0"
+                          aria-hidden
+                        />
+
+                        <span className="truncate">
+                          {child.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-            >
-              <item.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            </Link>
+            </div>
           );
         })}
       </div>
@@ -136,6 +273,10 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const visibleNavItems = filterByPermission(session.role, navItems);
+  const visibleNavItemsWithChildren = visibleNavItems.map((item) => ({
+    ...item,
+    children: item.children ? filterByPermission(session.role, item.children) : undefined,
+  }));
   const userInitials = initials(session.name) || "SA";
   const displayRole = roleLabel(session.role);
   const currentItem = visibleNavItems.find((item) => isActivePath(pathname, item.href));
@@ -152,7 +293,7 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
             <p className="truncate text-[11px] leading-tight text-sidebar-foreground/55">{shellUser?.branchName ?? "Clinic workspace"}</p>
           </div>
         </div>
-        <SidebarNav items={visibleNavItems} pathname={pathname} />
+        <SidebarNav items={visibleNavItemsWithChildren} pathname={pathname} />
         <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent p-2">
           <div className="grid h-8 w-8 place-items-center rounded-full bg-sidebar-foreground text-xs font-semibold text-sidebar">
             {userInitials}
@@ -259,7 +400,7 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
                 <X className="h-4 w-4" aria-hidden />
               </Button>
             </div>
-            <SidebarNav items={visibleNavItems} pathname={pathname} onNavigate={() => setMobileNavOpen(false)} />
+            <SidebarNav items={visibleNavItemsWithChildren} pathname={pathname} onNavigate={() => setMobileNavOpen(false)} />
           </aside>
         </div>
       ) : null}

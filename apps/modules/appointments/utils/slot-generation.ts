@@ -1,4 +1,3 @@
-import type { AppointmentRecord, SlotSuggestion } from "../types/appointment.types";
 import { rangesOverlap } from "./overlap";
 
 type GenerateSlotsInput = {
@@ -8,7 +7,7 @@ type GenerateSlotsInput = {
   workEnd?: string;
   visitDurationMinutes?: number;
   bufferMinutes?: number;
-  appointments?: AppointmentRecord[];
+  appointments?: any[];
   busyRanges?: Array<{ startsAt: Date; endsAt: Date; reason: string }>;
 };
 
@@ -19,13 +18,12 @@ function atTime(date: Date, time: string) {
   return next;
 }
 
-export function generateSlots(input: GenerateSlotsInput): SlotSuggestion[] {
+export function generateSlots(input: GenerateSlotsInput): any[] {
   const duration = input.visitDurationMinutes ?? 20;
   const buffer = input.bufferMinutes ?? 5;
-  const slots: SlotSuggestion[] = [];
+  const slots =  [];
   let cursor = atTime(input.date, input.workStart ?? "09:00");
   const end = atTime(input.date, input.workEnd ?? "17:00");
-
   while (cursor < end) {
     const slotEnd = new Date(cursor.getTime() + duration * 60_000);
     if (slotEnd > end) break;

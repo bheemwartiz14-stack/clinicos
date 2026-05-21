@@ -1,363 +1,273 @@
-import { and, asc, count, desc, eq, gt, gte, lt, lte, ne, notInArray, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
-import {
-  appointmentAiPredictions,
-  appointmentCalendarEvents,
-  appointmentCancellations,
-  appointmentMeetSessions,
-  appointmentNotes,
-  appointmentQueueEntries,
-  appointmentQueueTokens,
-  appointments,
-  appointmentReschedules,
-  appointmentStatusHistory,
-  doctors,
-  patients,
-  users
-} from "@mediclinic/db";
-import type { AppointmentCreateInput } from "../validations/appointment.validation";
+import { and, asc, eq, gt, ilike, inArray, lt, ne, notInArray, or, sql } from "drizzle-orm";
+import { appointments, branches, db, doctors, patients, users } from "@mediclinic/db";
+import type {
+  AppointmentCancelInput,
+  AppointmentFormInput,
+  AppointmentStatus,
+  AppointmentStatusUpdateInput,
+  AppointmentType,
+  AppointmentUpdateInput,
+  QuickPatientCreateInput
+} from "../schemas/appointment.schema";
 
-export type AppointmentStatus = "scheduled" | "pending" | "confirmed" | "checked_in" | "in_room" | "in_consultation" | "completed" | "cancelled" | "no_show" | "rescheduled";
-
-export async function listUpcomingAppointments(branchId: string) {
-  return db
-    .select()
-    .from(appointments)
-    .where(eq(appointments.branchId, branchId))
-    .orderBy(asc(appointments.startsAt))
-    .limit(75);
+function dateTime(date: string, time: string) {
+  return new Date(`${date}T${time}:00`);
 }
 
-export async function listAppointmentWorkspace(branchId: string, range?: { from?: Date; to?: Date }) {
-  const conditions = [eq(appointments.branchId, branchId)];
-  if (range?.from) conditions.push(gte(appointments.startsAt, range.from));
-  if (range?.to) conditions.push(lte(appointments.startsAt, range.to));
+function endTime(startTime: string, durationMinutes: number) {
+  const start = dateTime("2000-01-01", startTime);
+  return new Date(start.getTime() + durationMinutes * 60_000).toTimeString().slice(0, 5);
+}
 
+function appointmentTypeFor(type: AppointmentType) {
+  if (type === "follow_up") return "follow_up";
+  if (type === "emergency") return "emergency";
+  return "consultation";
+}
+
+function modeFor(type: AppointmentType) {
+  return type === "online" ? "online" : "offline";
+}
+
+export async function getAppointmentsByDate(branchId: string, selectedDate: string) {
   return db
     .select({
       id: appointments.id,
-      branchId: appointments.branchId,
+      bookingNumber: sql<string>`coalesce(${appointments.bookingNumber}, ${appointments.appointmentNumber}, '')`,
       patientId: appointments.patientId,
-      patientFirstName: patients.firstName,
-      patientLastName: patients.lastName,
-      patientMrn: patients.mrn,
+      patientName: sql<string>`coalesce(${patients.fullName}, ${patients.firstName} || ' ' || ${patients.lastName})`,
+      patientMeta: sql<string>`coalesce(${patients.phone}, '')`,
       patientPhone: patients.phone,
       doctorId: appointments.doctorId,
-      doctorFirstName: doctors.firstName,
-      doctorLastName: doctors.lastName,
-      doctorSpecialization: doctors.specialization,
+      doctorName: sql<string>`coalesce(${doctors.displayName}, ${doctors.firstName} || ' ' || ${doctors.lastName})`,
+      doctorSpecialty: sql<string>`coalesce((select name from departments specialty where specialty.id = ${doctors.specialtyId}), ${doctors.specialization}, 'General Physician')`,
+      appointmentDate: appointments.appointmentDate,
+      startTime: appointments.startTime,
+      endTime: appointments.endTime,
+      durationMinutes: appointments.durationMinutes,
+      type: appointments.type,
       status: appointments.status,
-      mode: appointments.mode,
-      consultationMode: appointments.consultationMode,
-      locationType: appointments.locationType,
-      startsAt: appointments.startsAt,
-      endsAt: appointments.endsAt,
-      reason: appointments.reason,
+      reasonForVisit: sql<string>`coalesce(${appointments.reasonForVisit}, ${appointments.reason})`,
       notes: appointments.notes,
-      queueToken: appointments.queueToken,
-      queuePriority: appointments.queuePriority,
-      checkedInAt: appointments.checkedInAt,
-      googleCalendarEventId: appointments.googleCalendarEventId,
-      googleMeetLink: appointments.googleMeetLink,
+      createdByName: users.name,
+      cancelledReason: appointments.cancelledReason,
       meetingUrl: appointments.meetingUrl,
-      aiIntakeSummary: appointments.aiIntakeSummary,
-      createdAt: appointments.createdAt,
-      updatedAt: appointments.updatedAt
+      googleMeetLink: appointments.googleMeetLink
     })
     .from(appointments)
     .innerJoin(patients, eq(patients.id, appointments.patientId))
     .innerJoin(doctors, eq(doctors.id, appointments.doctorId))
-    .where(and(...conditions))
-    .orderBy(asc(appointments.startsAt))
-    .limit(200);
+    .leftJoin(users, eq(users.id, appointments.createdBy))
+    .where(and(eq(appointments.branchId, branchId), eq(appointments.appointmentDate, selectedDate)))
+    .orderBy(asc(appointments.startTime));
 }
 
-export async function getAppointmentDetail(branchId: string, appointmentId: string) {
-  const [appointment] = await listAppointmentWorkspace(branchId).then((items) => items.filter((item) => item.id === appointmentId));
-  if (!appointment) return null;
-  const [timeline, notes, prediction] = await Promise.all([
-    db
-      .select()
-      .from(appointmentStatusHistory)
-      .where(eq(appointmentStatusHistory.appointmentId, appointmentId))
-      .orderBy(desc(appointmentStatusHistory.changedAt)),
-    db
-      .select()
-      .from(appointmentNotes)
-      .where(eq(appointmentNotes.appointmentId, appointmentId))
-      .orderBy(desc(appointmentNotes.createdAt)),
-    db
-      .select()
-      .from(appointmentAiPredictions)
-      .where(eq(appointmentAiPredictions.appointmentId, appointmentId))
-      .limit(1)
-  ]);
-  return { appointment, timeline, notes, prediction: prediction[0] ?? null };
-}
-
-export async function listQueueEntries(branchId: string) {
-  return db
-    .select({
-      id: appointmentQueueEntries.id,
-      token: appointmentQueueEntries.token,
-      priority: appointmentQueueEntries.priority,
-      status: appointmentQueueEntries.status,
-      checkedInAt: appointmentQueueEntries.checkedInAt,
-      calledAt: appointmentQueueEntries.calledAt,
-      completedAt: appointmentQueueEntries.completedAt,
-      appointmentId: appointmentQueueEntries.appointmentId,
-      patientFirstName: patients.firstName,
-      patientLastName: patients.lastName,
-      doctorFirstName: doctors.firstName,
-      doctorLastName: doctors.lastName
-    })
-    .from(appointmentQueueEntries)
-    .innerJoin(patients, eq(patients.id, appointmentQueueEntries.patientId))
-    .innerJoin(doctors, eq(doctors.id, appointmentQueueEntries.doctorId))
-    .where(eq(appointmentQueueEntries.branchId, branchId))
-    .orderBy(asc(appointmentQueueEntries.checkedInAt))
-    .limit(75);
-}
-
-export async function listBookingPatients(branchId: string) {
-  return db
-    .select({
-      id: patients.id,
-      label: sql<string>`${patients.firstName} || ' ' || ${patients.lastName} || ' (' || ${patients.mrn} || ')'`
-    })
-    .from(patients)
-    .where(eq(patients.branchId, branchId))
-    .orderBy(asc(patients.lastName), asc(patients.firstName))
-    .limit(100);
-}
-
-export async function listBookingDoctors(branchId: string) {
-  return db
-    .select({
-      id: doctors.id,
-      label: sql<string>`${doctors.firstName} || ' ' || ${doctors.lastName} || ' - ' || ${doctors.specialization}`,
-      visitDurationMinutes: doctors.visitDurationMinutes
-    })
-    .from(doctors)
-    .innerJoin(users, eq(users.id, doctors.userId))
-    .where(and(eq(doctors.branchId, branchId), eq(users.isActive, true)))
-    .orderBy(asc(doctors.lastName), asc(doctors.firstName))
-    .limit(100);
-}
-
-export async function createAppointment(branchId: string, input: AppointmentCreateInput) {
-  const startsAt = new Date(input.startsAt);
-  const endsAt = new Date(input.endsAt);
-  const appointmentNumber = `APT-${Date.now().toString(36).toUpperCase()}`;
+export async function getAppointmentById(branchId: string, id: string) {
   const [appointment] = await db
-    .insert(appointments)
-    .values({
-      appointmentNumber,
-      branchId,
-      patientId: input.patientId,
-      doctorId: input.doctorId,
-      appointmentType: input.appointmentType,
-      priority: input.queuePriority,
-      mode: input.mode,
-      consultationMode: input.consultationMode,
-      locationType: input.locationType,
-      roomId: input.roomId ?? null,
-      roomNumber: input.roomNumber ?? null,
-      location: input.location ?? null,
-      appointmentDate: startsAt.toISOString().slice(0, 10),
-      startTime: startsAt.toTimeString().slice(0, 5),
-      endTime: endsAt.toTimeString().slice(0, 5),
-      startsAt,
-      endsAt,
-      reason: input.reason,
-      visitReason: input.reason,
-      symptoms: input.symptoms ?? null,
-      notes: input.notes,
-      insuranceId: input.insuranceId ?? null,
-      insuranceVerificationStatus: input.insuranceVerificationStatus,
-      cptCodes: input.cptCodes,
-      icd10Codes: input.icd10Codes,
-      queuePriority: input.queuePriority
-    } as any)
-    .returning();
-
-  return appointment;
-}
-
-export async function findOverlappingAppointment(branchId: string, doctorId: string, startsAt: Date, endsAt: Date, exceptAppointmentId?: string) {
-  const conditions = [
-    eq(appointments.branchId, branchId),
-    eq(appointments.doctorId, doctorId),
-    lt(appointments.startsAt, endsAt),
-    gt(appointments.endsAt, startsAt),
-    notInArray(appointments.status, ["cancelled", "no_show", "rescheduled"] as AppointmentStatus[])
-  ];
-  if (exceptAppointmentId) conditions.push(ne(appointments.id, exceptAppointmentId));
-  const [appointment] = await db.select({ id: appointments.id }).from(appointments).where(and(...conditions)).limit(1);
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.branchId, branchId), eq(appointments.id, id)))
+    .limit(1);
   return appointment ?? null;
 }
 
-export async function checkInAppointment(branchId: string, appointmentId: string, priority: "routine" | "priority" | "emergency" = "routine") {
-  const token = `Q${Date.now().toString().slice(-5)}`;
-  const [queueCount] = await db.select({ total: count() }).from(appointmentQueueEntries).where(eq(appointmentQueueEntries.branchId, branchId));
-  const queuePosition = (queueCount?.total ?? 0) + 1;
+export async function createAppointment(branchId: string, input: AppointmentFormInput & { bookingNumber: string; userId: string }) {
+  const startsAt = dateTime(input.appointmentDate, input.startTime);
+  const end = endTime(input.startTime, input.durationMinutes);
+  const endsAt = dateTime(input.appointmentDate, end);
+  const mode = modeFor(input.type);
   const [appointment] = await db
-    .update(appointments)
-    .set({
-      status: "checked_in",
-      checkedInAt: new Date(),
-      queueToken: token,
-      tokenNumber: token,
-      queuePriority: priority,
-      priority,
-      updatedAt: new Date()
-    } as any)
-    .where(eq(appointments.id, appointmentId))
-    .returning();
-
-  if (!appointment) {
-    throw new Error("Appointment not found.");
-  }
-
-  const [entry] = await db
-    .insert(appointmentQueueEntries)
+    .insert(appointments)
     .values({
+      bookingNumber: input.bookingNumber,
+      appointmentNumber: input.bookingNumber,
       branchId,
-      appointmentId,
-      patientId: appointment.patientId,
-      doctorId: appointment.doctorId,
-      token,
-      priority,
-      status: "waiting"
-    } as any)
-    .onConflictDoNothing()
-    .returning();
-
-  await db.insert(appointmentQueueTokens).values({
-    branchId,
-    appointmentId,
-    patientId: appointment.patientId,
-    doctorId: appointment.doctorId,
-    tokenNumber: token,
-    queuePosition,
-    estimatedWaitMinutes: Math.max(0, (queuePosition - 1) * 15),
-    queueStatus: "waiting",
-    priority
-  } as any).onConflictDoNothing();
-
-  return entry ?? null;
-}
-
-export async function updateAppointmentStatus(branchId: string, appointmentId: string, status: AppointmentStatus, options?: { changedByUserId?: string; reason?: string }) {
-  const [current] = await db.select({ status: appointments.status }).from(appointments).where(and(eq(appointments.id, appointmentId), eq(appointments.branchId, branchId))).limit(1);
-  if (!current) throw new Error("Appointment not found.");
-  const patch: Record<string, unknown> = { status, updatedAt: new Date() };
-  if (status === "checked_in") patch.checkedInAt = new Date();
-  if (status === "completed") patch.completedAt = new Date();
-  if (status === "cancelled") patch.cancelledAt = new Date();
-
-  const [appointment] = await db
-    .update(appointments)
-    .set(patch as any)
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.branchId, branchId)))
-    .returning();
-
-  if (!appointment) throw new Error("Appointment not found.");
-  await db.insert(appointmentStatusHistory).values({
-    appointmentId,
-    oldStatus: current.status,
-    newStatus: status,
-    changedByUserId: options?.changedByUserId ?? null,
-    reason: options?.reason ?? null
-  } as any);
-  return appointment;
-}
-
-export async function rescheduleAppointment(branchId: string, appointmentId: string, startsAt: Date, endsAt: Date, options?: { changedByUserId?: string; reason?: string; notifyPatient?: boolean }) {
-  const [current] = await db.select().from(appointments).where(and(eq(appointments.id, appointmentId), eq(appointments.branchId, branchId))).limit(1);
-  if (!current) throw new Error("Appointment not found.");
-  const [appointment] = await db
-    .update(appointments)
-    .set({
+      patientId: input.patientId,
+      doctorId: input.doctorId,
+      bookedByUserId: input.userId,
+      createdBy: input.userId,
+      updatedBy: input.userId,
+      status: input.status,
+      type: input.type,
+      appointmentType: appointmentTypeFor(input.type),
+      mode,
+      consultationMode: mode,
+      locationType: mode === "online" ? "online" : "clinic",
+      appointmentDate: input.appointmentDate,
+      startTime: input.startTime,
+      endTime: end,
+      durationMinutes: input.durationMinutes,
       startsAt,
       endsAt,
-      appointmentDate: startsAt.toISOString().slice(0, 10),
-      startTime: startsAt.toTimeString().slice(0, 5),
-      endTime: endsAt.toTimeString().slice(0, 5),
-      status: "rescheduled",
-      updatedAt: new Date()
-    } as any)
-    .where(and(eq(appointments.id, appointmentId), eq(appointments.branchId, branchId)))
+      reason: input.reasonForVisit,
+      reasonForVisit: input.reasonForVisit,
+      visitReason: input.reasonForVisit,
+      notes: input.notes
+    })
     .returning();
-
-  if (!appointment) throw new Error("Appointment not found.");
-  await db.insert(appointmentReschedules).values({
-    appointmentId,
-    oldStartsAt: current.startsAt,
-    oldEndsAt: current.endsAt,
-    newStartsAt: startsAt,
-    newEndsAt: endsAt,
-    reason: options?.reason ?? "Schedule change",
-    changedByUserId: options?.changedByUserId ?? null,
-    notifyPatient: options?.notifyPatient ?? true
-  } as any);
   return appointment;
 }
 
-export async function cancelAppointment(branchId: string, appointmentId: string, input: { reason: string; cancelledByUserId?: string; notifyPatient?: boolean }) {
-  const appointment = await updateAppointmentStatus(branchId, appointmentId, "cancelled", { changedByUserId: input.cancelledByUserId, reason: input.reason });
-  await db.insert(appointmentCancellations).values({
-    appointmentId,
-    reason: input.reason,
-    cancelledByUserId: input.cancelledByUserId ?? null,
-    notifyPatient: input.notifyPatient ?? true
-  } as any);
-  return appointment;
-}
-
-export async function updateQueueStatus(appointmentId: string, queueStatus: "waiting" | "called" | "in_consultation" | "skipped" | "completed") {
-  const patch: Record<string, unknown> = { queueStatus, updatedAt: new Date() };
-  if (queueStatus === "called") patch.calledAt = new Date();
-  if (queueStatus === "completed") patch.completedAt = new Date();
-  await db.update(appointmentQueueTokens).set(patch as any).where(eq(appointmentQueueTokens.appointmentId, appointmentId));
-  await db.update(appointmentQueueEntries).set({ status: queueStatus, updatedAt: new Date() } as any).where(eq(appointmentQueueEntries.appointmentId, appointmentId));
-}
-
-export async function saveAiPrediction(appointmentId: string, data: { score: number; level: string; recommendedReminderFrequency: string; signals?: Record<string, unknown> }) {
-  await db.insert(appointmentAiPredictions).values({
-    appointmentId,
-    noShowRiskScore: String(data.score),
-    riskLevel: data.level,
-    recommendedReminderFrequency: data.recommendedReminderFrequency,
-    signals: data.signals ?? {}
-  } as any).onConflictDoNothing();
-}
-
-export async function saveCalendarEvent(input: { appointmentId: string; doctorId: string; providerEventId: string; eventUrl?: string | null }) {
-  await db.insert(appointmentCalendarEvents).values({
-    appointmentId: input.appointmentId,
-    doctorId: input.doctorId,
-    providerEventId: input.providerEventId,
-    eventUrl: input.eventUrl ?? null,
-    syncedAt: new Date(),
-    syncStatus: "synced"
-  } as any).onConflictDoNothing();
-}
-
-export async function saveMeetSession(input: { appointmentId: string; doctorId: string; meetingUrl: string; providerEventId?: string | null; startsAt: Date; endsAt: Date }) {
-  await db.insert(appointmentMeetSessions).values(input as any).onConflictDoNothing();
-}
-
-export async function attachGoogleCalendarEvent(appointmentId: string, data: { eventId: string; meetLink?: string | null }) {
+export async function updateAppointment(branchId: string, input: AppointmentUpdateInput & { userId: string }) {
+  const end = endTime(input.startTime, input.durationMinutes);
+  const mode = modeFor(input.type);
   const [appointment] = await db
     .update(appointments)
     .set({
-      googleCalendarEventId: data.eventId,
-      googleMeetLink: data.meetLink ?? null,
+      patientId: input.patientId,
+      doctorId: input.doctorId,
+      status: input.status,
+      type: input.type,
+      appointmentType: appointmentTypeFor(input.type),
+      mode,
+      consultationMode: mode,
+      locationType: mode === "online" ? "online" : "clinic",
+      appointmentDate: input.appointmentDate,
+      startTime: input.startTime,
+      endTime: end,
+      durationMinutes: input.durationMinutes,
+      startsAt: dateTime(input.appointmentDate, input.startTime),
+      endsAt: dateTime(input.appointmentDate, end),
+      reason: input.reasonForVisit,
+      reasonForVisit: input.reasonForVisit,
+      visitReason: input.reasonForVisit,
+      notes: input.notes,
+      updatedBy: input.userId,
       updatedAt: new Date()
-    } as any)
-    .where(eq(appointments.id, appointmentId))
+    })
+    .where(and(eq(appointments.branchId, branchId), eq(appointments.id, input.id)))
     .returning();
-
   return appointment;
+}
+
+export async function cancelAppointment(branchId: string, input: AppointmentCancelInput & { userId: string }) {
+  const [appointment] = await db
+    .update(appointments)
+    .set({
+      status: "cancelled",
+      cancelledReason: input.cancelledReason,
+      cancelledAt: new Date(),
+      updatedBy: input.userId,
+      updatedAt: new Date()
+    })
+    .where(and(eq(appointments.branchId, branchId), eq(appointments.id, input.id)))
+    .returning();
+  return appointment;
+}
+
+export async function updateAppointmentStatus(branchId: string, input: AppointmentStatusUpdateInput & { userId: string }) {
+  const patch: {
+    status: AppointmentStatus;
+    updatedBy: string;
+    updatedAt: Date;
+    checkedInAt?: Date;
+    completedAt?: Date;
+    cancelledAt?: Date;
+  } = { status: input.status, updatedBy: input.userId, updatedAt: new Date() };
+  if (input.status === "checked_in") patch.checkedInAt = new Date();
+  if (input.status === "completed") patch.completedAt = new Date();
+  if (input.status === "cancelled") patch.cancelledAt = new Date();
+
+  const [appointment] = await db
+    .update(appointments)
+    .set(patch)
+    .where(and(eq(appointments.branchId, branchId), eq(appointments.id, input.id)))
+    .returning();
+  return appointment;
+}
+
+export async function checkAppointmentConflict(params: {
+  branchId: string;
+  patientId: string;
+  doctorId: string;
+  startsAt: Date;
+  endsAt: Date;
+  excludeAppointmentId?: string;
+}) {
+  const conditions = [
+    eq(appointments.branchId, params.branchId),
+    lt(appointments.startsAt, params.endsAt),
+    gt(appointments.endsAt, params.startsAt),
+    notInArray(appointments.status, ["cancelled", "no_show", "completed"])
+  ];
+  if (params.excludeAppointmentId) conditions.push(ne(appointments.id, params.excludeAppointmentId));
+
+  const [doctorConflict] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(and(...conditions, eq(appointments.doctorId, params.doctorId), inArray(appointments.status, ["confirmed", "checked_in"])))
+    .limit(1);
+
+  const [patientConflict] = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .where(and(...conditions, eq(appointments.patientId, params.patientId), inArray(appointments.status, ["confirmed", "checked_in"])))
+    .limit(1);
+
+  return { doctorConflict: doctorConflict ?? null, patientConflict: patientConflict ?? null };
+}
+
+export async function getActiveDoctorsForBooking(branchId: string) {
+  return db
+    .select({
+      id: doctors.id,
+      displayName: sql<string>`coalesce(${doctors.displayName}, ${doctors.firstName} || ' ' || ${doctors.lastName})`,
+      specialty: sql<string>`coalesce((select name from departments specialty where specialty.id = ${doctors.specialtyId}), ${doctors.specialization}, 'General Physician')`,
+      defaultDuration: doctors.visitDurationMinutes
+    })
+    .from(doctors)
+    .innerJoin(users, eq(users.id, doctors.userId))
+    .where(and(eq(doctors.branchId, branchId), eq(doctors.isActive, true), eq(doctors.isAvailable, true), eq(users.isActive, true)))
+    .orderBy(asc(doctors.displayName), asc(doctors.firstName));
+}
+
+export async function getPatientsForBooking(branchId: string, search?: string) {
+  const conditions = [eq(patients.branchId, branchId), eq(patients.isActive, true)];
+  if (search) {
+    conditions.push(or(ilike(patients.fullName, `%${search}%`), ilike(patients.phone, `%${search}%`), ilike(patients.email, `%${search}%`)) as typeof conditions[number]);
+  }
+  return db
+    .select({
+      id: patients.id,
+      fullName: sql<string>`coalesce(${patients.fullName}, ${patients.firstName} || ' ' || ${patients.lastName})`,
+      phone: patients.phone,
+      email: patients.email,
+      mrn: patients.mrn
+    })
+    .from(patients)
+    .where(and(...conditions))
+    .orderBy(asc(patients.fullName), asc(patients.firstName))
+    .limit(200);
+}
+
+export async function quickCreatePatient(branchId: string, input: QuickPatientCreateInput & { createdByUserId: string }) {
+  const names = input.fullName.trim().split(/\s+/);
+  const firstName = names[0] ?? input.fullName;
+  const lastName = names.slice(1).join(" ") || "Patient";
+  const [branchPatients] = await db.select({ total: sql<number>`count(*)::int` }).from(patients).where(eq(patients.branchId, branchId));
+  const mrn = `PT-${String((branchPatients?.total ?? 0) + 1).padStart(5, "0")}`;
+  const [patient] = await db
+    .insert(patients)
+    .values({
+      branchId,
+      mrn,
+      firstName,
+      lastName,
+      fullName: input.fullName,
+      email: input.email,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
+      bloodGroup: input.bloodGroup,
+      maritalStatus: input.maritalStatus,
+      phone: input.phone,
+      createdByUserId: input.createdByUserId,
+      updatedByUserId: input.createdByUserId
+    })
+    .returning();
+  return patient;
+}
+
+export async function getBranchById(branchId: string) {
+  const [branch] = await db.select().from(branches).where(eq(branches.id, branchId)).limit(1);
+  return branch ?? null;
 }

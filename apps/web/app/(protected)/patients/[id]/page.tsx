@@ -1,25 +1,29 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { can } from "@mediclinic/rbac";
 import { requirePagePermission } from "@/lib/auth";
-import { patientService } from "@modules/patients/services/patient.service";
-import { PatientDetailView } from "@modules/patients/views/patients-view";
+import { patientController } from "@modules/patients/controllers/patient.controller";
+import { PatientDetailsView } from "@modules/patients/views/patient-details-view";
 
-type Props = {
-  params: Promise<{ id: string }>;
-};
+type Props = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const patient = await patientService.getById(id);
   return {
-    title: patient ? `Patient ${patient.fullName ?? patient.firstName} | MediClinic Pro` : "Patient Not Found"
+    title: `Patient ${id} | MediClinic Pro`,
+    description: "View patient profile and appointment summary."
   };
 }
 
-export default async function PatientDetailPage({ params }: Props) {
-  await requirePagePermission("patients.profile.view");
+export default async function PatientDetailsPage({ params }: Props) {
+  const session = await requirePagePermission("patients.view");
   const { id } = await params;
-  const patient = await patientService.getById(id);
-  if (!patient) notFound();
-  return <PatientDetailView patient={patient} />;
+  const patient = await patientController.detailsForAdmin(session.branchId, id);
+  return (
+    <PatientDetailsView
+      patient={patient}
+      canEdit={can(session.role, "patients.edit")}
+      canDelete={can(session.role, "patients.delete")}
+      canManage={can(session.role, "patients.manage")}
+    />
+  );
 }

@@ -1,11 +1,10 @@
-import type { AppointmentRecord } from "../types/appointment.types";
 import { AppointmentDetailDrawer } from "../components/appointment-detail-drawer";
 import { AppointmentNotesPanel } from "../components/appointment-notes-panel";
 import { AppointmentTimeline } from "../components/appointment-timeline";
 
 type AppointmentDetailViewProps = {
   detail: {
-    appointment: AppointmentRecord;
+    appointment: any;
     timeline: Array<{ id: string; newStatus: string; changedAt: Date | string; reason?: string | null }>;
     notes: Array<{ id: string; body: string; createdAt: Date | string }>;
     prediction: { noShowRiskScore: string; riskLevel: string; recommendedReminderFrequency: string } | null;

@@ -1,62 +1,56 @@
-export type AppointmentStatus = "scheduled" | "pending" | "confirmed" | "checked_in" | "in_room" | "in_consultation" | "completed" | "cancelled" | "no_show" | "rescheduled";
-export type ConsultationMode = "offline" | "online" | "hybrid";
-export type AppointmentType = "consultation" | "follow_up" | "emergency" | "walk_in";
-export type AppointmentPriority = "routine" | "priority" | "emergency";
-export type QueueStatus = "waiting" | "called" | "in_consultation" | "skipped" | "completed";
-export type SlotStatus = "available" | "booked" | "blocked" | "lunch" | "leave" | "calendar_busy" | "emergency_reserved";
+import type { AppointmentStatus, AppointmentType } from "../schemas/appointment.schema";
 
-export type AppointmentRecord = {
+export type AppointmentDoctorOption = {
   id: string;
+  displayName: string;
+  specialty: string;
+  initials: string;
+  defaultDuration: number;
+};
+
+export type AppointmentPatientOption = {
+  id: string;
+  label: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+};
+
+export type CalendarAppointment = {
+  id: string;
+  bookingNumber: string;
   patientId: string;
-  patientFirstName: string;
-  patientLastName: string;
-  patientMrn: string;
+  patientName: string;
+  patientMeta: string;
+  patientPhone: string;
   doctorId: string;
-  doctorFirstName: string;
-  doctorLastName: string;
-  doctorSpecialization: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  type: AppointmentType;
   status: AppointmentStatus;
-  consultationMode: ConsultationMode;
-  startsAt: string | Date;
-  endsAt: string | Date;
-  reason: string;
+  reasonForVisit: string;
   notes: string | null;
-  queueToken: string | null;
-  queuePriority: AppointmentPriority;
-  checkedInAt: string | Date | null;
-  googleCalendarEventId: string | null;
-  googleMeetLink: string | null;
+  createdByName: string | null;
+  cancelledReason: string | null;
   meetingUrl: string | null;
-  aiIntakeSummary: string | null;
+  googleMeetLink: string | null;
 };
 
-export type QueueRecord = {
-  id: string;
-  token: string;
-  priority: AppointmentPriority;
-  status: string;
-  checkedInAt: string | Date;
-  patientFirstName: string;
-  patientLastName: string;
-  doctorFirstName: string;
-  doctorLastName: string;
+export type TimeSlot = {
+  value: string;
+  label: string;
 };
 
-export type AppointmentOption = { id: string; label: string; visitDurationMinutes?: number | null };
-
-export type SlotSuggestion = {
-  startsAt: Date;
-  endsAt: Date;
-  status: SlotStatus;
-  doctorId: string;
-  reason: string;
-  score: number;
-};
-
-export type AppointmentWorkspace = {
-  appointments: AppointmentRecord[];
-  queue: QueueRecord[];
-  patients: AppointmentOption[];
-  doctors: AppointmentOption[];
-  suggestions: SlotSuggestion[];
+export type AppointmentsCalendarData = {
+  selectedDate: string;
+  doctors: AppointmentDoctorOption[];
+  patients: AppointmentPatientOption[];
+  appointments: CalendarAppointment[];
+  timeSlots: TimeSlot[];
+  statusOptions: Array<{ value: AppointmentStatus; label: string }>;
+  typeOptions: Array<{ value: AppointmentType; label: string }>;
 };

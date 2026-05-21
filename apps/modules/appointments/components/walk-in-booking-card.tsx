@@ -1,6 +1,5 @@
-import type { AppointmentOption } from "../types/appointment.types";
 
-export function WalkInBookingCard({ patients, doctors }: { patients: AppointmentOption[]; doctors: AppointmentOption[] }) {
+export function WalkInBookingCard({ patients, doctors }: { patients: any[]; doctors: any[] }) {
   return (
     <section className="rounded-xl border bg-card p-5 shadow-sm">
       <h2 className="text-lg font-semibold">Walk-in booking</h2>

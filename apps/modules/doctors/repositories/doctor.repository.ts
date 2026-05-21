@@ -1,49 +1,73 @@
-import { count, eq, and, gte, lte, inArray, sql, desc, lt, gt } from "drizzle-orm";
+import { and, asc, count, eq, gte, inArray, ne, sql } from "drizzle-orm";
 import {
-  appointments,
   branches,
   db,
   departments,
-  doctors,
   doctorAppointmentSlots,
-  doctorBreaks,
-  doctorLeaveBlocks,
+  doctorConsultationSettings,
   doctorSchedules,
-  doctorVisitSettings,
-  doctorCalendarConnections,
-  doctorCalendarBusyEvents,
-  doctorCalendarSyncLogs,
+  doctors,
   users
 } from "@mediclinic/db";
-import type {
-  DoctorProfile,
-  DoctorSchedule,
-  DoctorBreak,
-  DoctorLeaveBlock,
-  DoctorVisitSettings,
-  DoctorAppointmentSlot,
-  DoctorWithDetails,
-  DoctorFilterInput
-} from "../types/doctor.types";
+import type { Db } from "@mediclinic/db";
+import type { DoctorConsultationSettingsInput, DoctorCreateInput, DoctorScheduleInput, DoctorUpdateInput } from "../schemas/doctor.schema";
+import { doctorDaysOfWeek } from "../schemas/doctor.schema";
+import type { DoctorSlotInsert } from "../types/doctor.types";
+import { buildDoctorSlots } from "../helpers/slot-generation.helper";
 
-export async function listDoctors(filter?: DoctorFilterInput) {
-  const conditions = [];
+type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+type Executor = typeof db | Tx;
 
-  if (filter?.branchId) {
-    conditions.push(eq(doctors.branchId, filter.branchId));
-  }
-  if (filter?.departmentId) {
-    conditions.push(eq(doctors.departmentId, filter.departmentId));
-  }
-  if (filter?.isActive !== undefined) {
-    conditions.push(eq(users.isActive, filter.isActive));
-  }
-  if (filter?.search) {
-    conditions.push(
-      sql`(${users.name} ILIKE ${`%${filter.search}%`} OR ${doctors.email} ILIKE ${`%${filter.search}%`} OR ${doctors.specialization} ILIKE ${`%${filter.search}%`})`
-    );
-  }
+const dayIndexByName = new Map(doctorDaysOfWeek.map((day, index) => [day, index]));
+const dayNameByIndex = new Map(doctorDaysOfWeek.map((day, index) => [index, day]));
 
+function firstLastName(displayName: string) {
+  const parts = displayName.trim().split(/\s+/);
+  return {
+    firstName: parts[0] ?? "Doctor",
+    lastName: parts.slice(1).join(" ") || "User"
+  };
+}
+
+function normalizeDoctorRow<T extends { displayName: string | null; firstName: string; lastName: string; specialtyName?: string | null; consultationFee: string }>(row: T) {
+  return {
+    ...row,
+    displayName: row.displayName ?? `${row.firstName} ${row.lastName}`.trim(),
+    specialtyName: row.specialtyName ?? null
+  };
+}
+
+function normalizeSchedule(row: typeof doctorSchedules.$inferSelect) {
+  const dayIndex = row.dayOfWeek;
+  return {
+    id: row.id,
+    doctorId: row.doctorId,
+    dayOfWeek: row.dayName ?? dayNameByIndex.get(dayIndex) ?? "monday",
+    dayIndex,
+    startTime: row.startTime,
+    endTime: row.endTime,
+    slotDuration: row.slotDuration,
+    isActive: row.isActive && row.isAvailable,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+export async function getDoctorFormOptions() {
+  const [branchRows, departmentRows] = await Promise.all([
+    db.select({ id: branches.id, name: branches.name }).from(branches).orderBy(asc(branches.name)),
+    db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.status, "active")).orderBy(asc(departments.name))
+  ]);
+
+  return {
+    branches: branchRows,
+    departments: departmentRows,
+    specialties: departmentRows
+  };
+}
+
+export async function getDoctors() {
   const rows = await db
     .select({
       id: doctors.id,
@@ -52,36 +76,43 @@ export async function listDoctors(filter?: DoctorFilterInput) {
       branchName: branches.name,
       departmentId: doctors.departmentId,
       departmentName: departments.name,
-      name: users.name,
+      specialtyId: doctors.specialtyId,
+      specialtyName: sql<string | null>`(select name from departments specialty where specialty.id = ${doctors.specialtyId})`,
+      displayName: doctors.displayName,
       firstName: doctors.firstName,
       lastName: doctors.lastName,
-      email: doctors.email,
       phone: doctors.phone,
-      gender: doctors.gender,
-      dateOfBirth: doctors.dateOfBirth,
-      specialization: doctors.specialization,
+      email: doctors.email,
       qualification: doctors.qualification,
       experienceYears: doctors.experienceYears,
       licenseNumber: doctors.licenseNumber,
-      npi: doctors.npi,
-      consultationFee: doctors.consultationFee,
       bio: doctors.bio,
-      isActive: users.isActive,
-      visitDurationMinutes: doctors.visitDurationMinutes,
+      consultationFee: doctors.consultationFee,
+      isActive: doctors.isActive,
+      isAvailable: doctors.isAvailable,
       createdAt: doctors.createdAt,
       updatedAt: doctors.updatedAt
     })
     .from(doctors)
-    .innerJoin(users, eq(users.id, doctors.userId))
     .leftJoin(branches, eq(branches.id, doctors.branchId))
     .leftJoin(departments, eq(departments.id, doctors.departmentId))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(users.name);
+    .orderBy(asc(doctors.displayName), asc(doctors.firstName));
 
-  return rows;
+  return Promise.all(rows.map(async (row) => {
+    const [totalSlots, bookedSlots] = await Promise.all([
+      db.select({ total: count() }).from(doctorAppointmentSlots).where(eq(doctorAppointmentSlots.doctorId, row.id)),
+      db.select({ total: count() }).from(doctorAppointmentSlots).where(and(eq(doctorAppointmentSlots.doctorId, row.id), eq(doctorAppointmentSlots.status, "booked")))
+    ]);
+
+    return {
+      ...normalizeDoctorRow(row),
+      slotCount: totalSlots[0]?.total ?? 0,
+      bookedSlotCount: bookedSlots[0]?.total ?? 0
+    };
+  }));
 }
 
-export async function getDoctorById(id: string): Promise<DoctorProfile | null> {
+export async function getDoctorById(id: string) {
   const [row] = await db
     .select({
       id: doctors.id,
@@ -90,618 +121,304 @@ export async function getDoctorById(id: string): Promise<DoctorProfile | null> {
       branchName: branches.name,
       departmentId: doctors.departmentId,
       departmentName: departments.name,
-      name: users.name,
+      specialtyId: doctors.specialtyId,
+      specialtyName: sql<string | null>`(select name from departments specialty where specialty.id = ${doctors.specialtyId})`,
+      displayName: doctors.displayName,
       firstName: doctors.firstName,
       lastName: doctors.lastName,
-      email: doctors.email,
       phone: doctors.phone,
-      gender: doctors.gender,
-      dateOfBirth: doctors.dateOfBirth,
-      specialization: doctors.specialization,
+      email: doctors.email,
       qualification: doctors.qualification,
       experienceYears: doctors.experienceYears,
       licenseNumber: doctors.licenseNumber,
-      npi: doctors.npi,
-      consultationFee: doctors.consultationFee,
       bio: doctors.bio,
-      isActive: users.isActive,
-      visitDurationMinutes: doctors.visitDurationMinutes,
+      consultationFee: doctors.consultationFee,
+      isActive: doctors.isActive,
+      isAvailable: doctors.isAvailable,
       createdAt: doctors.createdAt,
       updatedAt: doctors.updatedAt
     })
     .from(doctors)
-    .innerJoin(users, eq(users.id, doctors.userId))
     .leftJoin(branches, eq(branches.id, doctors.branchId))
     .leftJoin(departments, eq(departments.id, doctors.departmentId))
     .where(eq(doctors.id, id))
     .limit(1);
 
-  return row || null;
-}
-
-export async function getDoctorWithDetails(id: string): Promise<DoctorWithDetails | null> {
-  const doctor = await getDoctorById(id);
-  if (!doctor) return null;
-
-  const [schedules, breaks, leaveBlocks, visitSettings] = await Promise.all([
-    getDoctorSchedules(id),
-    getDoctorBreaks(id),
-    getDoctorLeaveBlocks(id),
-    getDoctorVisitSettings(id)
+  if (!row) return null;
+  const [slotCountRows, bookedCountRows] = await Promise.all([
+    db.select({ total: count() }).from(doctorAppointmentSlots).where(eq(doctorAppointmentSlots.doctorId, id)),
+    db.select({ total: count() }).from(doctorAppointmentSlots).where(and(eq(doctorAppointmentSlots.doctorId, id), eq(doctorAppointmentSlots.status, "booked")))
   ]);
 
   return {
-    ...doctor,
-    schedules,
-    breaks,
-    leaveBlocks,
-    visitSettings
+    ...normalizeDoctorRow(row),
+    slotCount: slotCountRows[0]?.total ?? 0,
+    bookedSlotCount: bookedCountRows[0]?.total ?? 0
   };
 }
 
-export async function getDoctorByUserId(userId: string): Promise<DoctorProfile | null> {
-  const [row] = await db
+export async function getDoctorByUserId(userId: string) {
+  const [row] = await db.select().from(doctors).where(eq(doctors.userId, userId)).limit(1);
+  return row ?? null;
+}
+
+export async function getDoctorSchedules(doctorId: string) {
+  const rows = await db.select().from(doctorSchedules).where(eq(doctorSchedules.doctorId, doctorId)).orderBy(asc(doctorSchedules.dayOfWeek), asc(doctorSchedules.startTime));
+  return rows.map(normalizeSchedule);
+}
+
+export async function upsertDoctorSchedules(doctorId: string, schedules: DoctorScheduleInput[], createdBy: string | null, executor: Executor = db) {
+  await executor.delete(doctorSchedules).where(eq(doctorSchedules.doctorId, doctorId));
+  if (schedules.length === 0) return [];
+
+  const inserted = await executor
+    .insert(doctorSchedules)
+    .values(schedules.map((schedule) => ({
+      doctorId,
+      dayOfWeek: dayIndexByName.get(schedule.dayOfWeek) ?? 0,
+      dayName: schedule.dayOfWeek,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      slotDuration: schedule.slotDuration,
+      isActive: schedule.isActive,
+      isAvailable: schedule.isActive,
+      createdBy
+    })))
+    .returning();
+
+  return inserted.map(normalizeSchedule);
+}
+
+export async function getDoctorSlots(doctorId: string, startDate?: string, endDate?: string) {
+  const conditions = [eq(doctorAppointmentSlots.doctorId, doctorId)];
+  if (startDate) conditions.push(gte(doctorAppointmentSlots.slotDate, startDate));
+  if (endDate) conditions.push(sql`${doctorAppointmentSlots.slotDate} <= ${endDate}`);
+
+  return db
     .select({
-      id: doctors.id,
-      userId: doctors.userId,
-      branchId: doctors.branchId,
-      branchName: branches.name,
-      departmentId: doctors.departmentId,
-      departmentName: departments.name,
-      name: users.name,
-      firstName: doctors.firstName,
-      lastName: doctors.lastName,
-      email: doctors.email,
-      phone: doctors.phone,
-      gender: doctors.gender,
-      dateOfBirth: doctors.dateOfBirth,
-      specialization: doctors.specialization,
-      qualification: doctors.qualification,
-      experienceYears: doctors.experienceYears,
-      licenseNumber: doctors.licenseNumber,
-      npi: doctors.npi,
-      consultationFee: doctors.consultationFee,
-      bio: doctors.bio,
-      isActive: users.isActive,
-      visitDurationMinutes: doctors.visitDurationMinutes,
-      createdAt: doctors.createdAt,
-      updatedAt: doctors.updatedAt
+      id: doctorAppointmentSlots.id,
+      doctorId: doctorAppointmentSlots.doctorId,
+      scheduleId: doctorAppointmentSlots.scheduleId,
+      slotDate: doctorAppointmentSlots.slotDate,
+      startTime: doctorAppointmentSlots.startTime,
+      endTime: doctorAppointmentSlots.endTime,
+      status: doctorAppointmentSlots.status,
+      appointmentId: doctorAppointmentSlots.appointmentId,
+      createdAt: doctorAppointmentSlots.createdAt,
+      updatedAt: doctorAppointmentSlots.updatedAt
     })
-    .from(doctors)
-    .innerJoin(users, eq(users.id, doctors.userId))
-    .leftJoin(branches, eq(branches.id, doctors.branchId))
-    .leftJoin(departments, eq(departments.id, doctors.departmentId))
-    .where(eq(doctors.userId, userId))
-    .limit(1);
-
-  return row || null;
+    .from(doctorAppointmentSlots)
+    .where(and(...conditions))
+    .orderBy(asc(doctorAppointmentSlots.slotDate), asc(doctorAppointmentSlots.startTime));
 }
 
-export async function createDoctor(data: {
-  userId: string;
-  branchId: string;
-  departmentId?: string | null;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string | null;
-  gender?: string | null;
-  dateOfBirth?: Date | null;
-  specialization: string;
-  qualification?: string | null;
-  experienceYears?: number;
-  npi?: string | null;
-  licenseNumber: string;
-  consultationFee: number;
-  bio?: string | null;
-  isActive?: boolean;
-  visitDurationMinutes?: number;
-}) {
-  const [doctor] = await db
-    .insert(doctors)
+export async function createDoctorSlots(slots: DoctorSlotInsert[], executor: Executor = db) {
+  if (slots.length === 0) return [];
+  return executor.insert(doctorAppointmentSlots).values(slots).onConflictDoNothing().returning();
+}
+
+export async function deleteFutureAvailableSlots(doctorId: string, fromDate: string, executor: Executor = db) {
+  return executor.delete(doctorAppointmentSlots).where(and(
+    eq(doctorAppointmentSlots.doctorId, doctorId),
+    gte(doctorAppointmentSlots.slotDate, fromDate),
+    eq(doctorAppointmentSlots.status, "available")
+  ));
+}
+
+export async function getDoctorConsultationSettings(doctorId: string) {
+  const [settings] = await db.select().from(doctorConsultationSettings).where(eq(doctorConsultationSettings.doctorId, doctorId)).limit(1);
+  return settings ?? null;
+}
+
+export async function upsertDoctorConsultationSettings(doctorId: string, input: DoctorConsultationSettingsInput, executor: Executor = db) {
+  const [settings] = await executor
+    .insert(doctorConsultationSettings)
     .values({
-      userId: data.userId as never,
-      branchId: data.branchId as never,
-      departmentId: data.departmentId as never,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      phone: data.phone as never,
-      gender: data.gender as never,
-      dateOfBirth: data.dateOfBirth as never,
-      specialization: data.specialization,
-      qualification: data.qualification as never,
-      experienceYears: data.experienceYears ?? 0,
-      npi: data.npi as never,
-      licenseNumber: data.licenseNumber,
-      consultationFee: data.consultationFee,
-      bio: data.bio as never,
-      isActive: data.isActive ?? true,
-      visitDurationMinutes: data.visitDurationMinutes ?? 20
-    } as any)
-    .returning();
-
-  await db.insert(doctorVisitSettings).values({
-    doctorId: doctor.id,
-    visitDurationMinutes: data.visitDurationMinutes ?? 20,
-    bufferTimeMinutes: 5,
-    maxPatientsPerDay: 20,
-    autoGenerateSlots: true,
-    allowOnlineConsultation: false
-  });
-
-  return doctor;
-}
-
-export async function updateDoctor(id: string, data: Partial<{
-  branchId: string;
-  departmentId: string | null;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string | null;
-  gender: string | null;
-  dateOfBirth: Date | null;
-  specialization: string;
-  qualification: string | null;
-  experienceYears: number;
-  npi: string | null;
-  licenseNumber: string;
-  consultationFee: number;
-  bio: string | null;
-  isActive: boolean;
-  visitDurationMinutes: number;
-}>) {
-  const [doctor] = await db
-    .update(doctors)
-    .set(data as any)
-    .where(eq(doctors.id, id))
-    .returning();
-
-  return doctor;
-}
-
-export async function deleteDoctor(id: string) {
-  await db.delete(doctors).where(eq(doctors.id, id));
-}
-
-export async function getDoctorSchedules(doctorId: string): Promise<DoctorSchedule[]> {
-  return db
-    .select()
-    .from(doctorSchedules)
-    .where(eq(doctorSchedules.doctorId, doctorId))
-    .orderBy(doctorSchedules.dayOfWeek) as Promise<DoctorSchedule[]>;
-}
-
-export async function upsertDoctorSchedules(doctorId: string, schedules: Array<{
-  dayOfWeek: number;
-  isAvailable: boolean;
-  startTime: string;
-  endTime: string;
-}>) {
-  await db.delete(doctorSchedules).where(eq(doctorSchedules.doctorId, doctorId));
-
-  if (schedules.length > 0) {
-    await db.insert(doctorSchedules).values(
-      schedules.map((s) => ({
-        doctorId,
-        dayOfWeek: s.dayOfWeek,
-        isAvailable: s.isAvailable,
-        startTime: s.startTime,
-        endTime: s.endTime
-      }))
-    );
-  }
-}
-
-export async function getDoctorBreaks(doctorId: string): Promise<DoctorBreak[]> {
-  return db
-    .select()
-    .from(doctorBreaks)
-    .where(eq(doctorBreaks.doctorId, doctorId)) as Promise<DoctorBreak[]>;
-}
-
-export async function upsertDoctorBreaks(doctorId: string, breaks: Array<{
-  id?: string;
-  breakType: string;
-  breakName: string | null;
-  startTime: string;
-  endTime: string;
-  isEnabled: boolean;
-}>) {
-  await db.delete(doctorBreaks).where(eq(doctorBreaks.doctorId, doctorId));
-
-  if (breaks.length > 0) {
-    await db.insert(doctorBreaks).values(
-      breaks.map((b) => ({
-        doctorId,
-        breakType: b.breakType,
-        breakName: b.breakName,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        isEnabled: b.isEnabled
-      }))
-    );
-  }
-}
-
-export async function getDoctorLeaveBlocks(doctorId: string): Promise<DoctorLeaveBlock[]> {
-  return db
-    .select()
-    .from(doctorLeaveBlocks)
-    .where(eq(doctorLeaveBlocks.doctorId, doctorId))
-    .orderBy(desc(doctorLeaveBlocks.fromDate)) as Promise<DoctorLeaveBlock[]>;
-}
-
-export async function createDoctorLeaveBlock(data: {
-  doctorId: string;
-  leaveType: string;
-  fromDate: Date;
-  toDate: Date;
-  startTime?: string | null;
-  endTime?: string | null;
-  reason?: string | null;
-}) {
-  const [leave] = await db
-    .insert(doctorLeaveBlocks)
-    .values({
-      doctorId: data.doctorId as never,
-      leaveType: data.leaveType as never,
-      fromDate: data.fromDate as never,
-      toDate: data.toDate as never,
-      startTime: data.startTime as never,
-      endTime: data.endTime as never,
-      reason: data.reason as never,
-      status: "pending"
-    } as any)
-    .returning();
-
-  return leave;
-}
-
-export async function updateDoctorLeaveBlock(id: string, data: Partial<{
-  leaveType: string;
-  fromDate: Date;
-  toDate: Date;
-  startTime: string | null;
-  endTime: string | null;
-  reason: string | null;
-  status: string;
-}>) {
-  const [leave] = await db
-    .update(doctorLeaveBlocks)
-    .set(data as any)
-    .where(eq(doctorLeaveBlocks.id, id))
-    .returning();
-
-  return leave;
-}
-
-export async function deleteDoctorLeaveBlock(id: string) {
-  await db.delete(doctorLeaveBlocks).where(eq(doctorLeaveBlocks.id, id));
-}
-
-export async function getDoctorVisitSettings(doctorId: string): Promise<DoctorVisitSettings | null> {
-  const [settings] = await db
-    .select()
-    .from(doctorVisitSettings)
-    .where(eq(doctorVisitSettings.doctorId, doctorId))
-    .limit(1);
-
-  return settings || null;
-}
-
-export async function updateDoctorVisitSettings(doctorId: string, data: Partial<{
-  visitDurationMinutes: number;
-  bufferTimeMinutes: number;
-  maxPatientsPerDay: number;
-  autoGenerateSlots: boolean;
-  allowOnlineConsultation: boolean;
-  calendarSyncEnabled: boolean;
-  calendarAccessToken: string;
-  calendarRefreshToken: string;
-  calendarTokenExpiry: Date;
-}>) {
-  const [settings] = await db
-    .update(doctorVisitSettings)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(doctorVisitSettings.doctorId, doctorId))
+      doctorId,
+      consultationFee: String(input.consultationFee),
+      followUpFee: String(input.followUpFee),
+      followUpValidityDays: input.followUpValidityDays,
+      defaultSlotDuration: input.defaultSlotDuration,
+      allowOnlineConsultation: input.allowOnlineConsultation,
+      onlineConsultationFee: String(input.onlineConsultationFee),
+      notes: input.notes
+    })
+    .onConflictDoUpdate({
+      target: doctorConsultationSettings.doctorId,
+      set: {
+        consultationFee: String(input.consultationFee),
+        followUpFee: String(input.followUpFee),
+        followUpValidityDays: input.followUpValidityDays,
+        defaultSlotDuration: input.defaultSlotDuration,
+        allowOnlineConsultation: input.allowOnlineConsultation,
+        onlineConsultationFee: String(input.onlineConsultationFee),
+        notes: input.notes,
+        updatedAt: new Date()
+      }
+    })
     .returning();
 
   return settings;
 }
 
-export async function getDoctorSlots(doctorId: string, date: Date): Promise<DoctorAppointmentSlot[]> {
-  const dateStr = date.toISOString().split("T")[0];
-  return db
-    .select()
-    .from(doctorAppointmentSlots)
-    .where(and(eq(doctorAppointmentSlots.doctorId, doctorId), eq(doctorAppointmentSlots.slotDate, dateStr)))
-    .orderBy(doctorAppointmentSlots.startTime) as Promise<DoctorAppointmentSlot[]>;
+export async function createDoctorWithUserAndSchedule(input: DoctorCreateInput & { createdBy: string; passwordHash: string }) {
+  return db.transaction(async (tx) => {
+    const [user] = await tx.insert(users).values({
+      branchId: input.branchId,
+      departmentId: input.departmentId,
+      role: "doctor",
+      name: input.displayName,
+      email: input.email,
+      username: input.email.split("@")[0],
+      phone: input.phone,
+      isActive: input.isActive,
+      passwordHash: input.passwordHash
+    }).returning();
+
+    if (!user) throw new Error("Unable to create doctor user account.");
+    const names = firstLastName(input.displayName);
+    const [doctor] = await tx.insert(doctors).values({
+      userId: user.id,
+      branchId: input.branchId,
+      departmentId: input.departmentId,
+      specialtyId: input.specialtyId,
+      displayName: input.displayName,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      email: input.email,
+      phone: input.phone,
+      specialization: "General Medicine",
+      qualification: input.qualification,
+      experienceYears: input.experienceYears,
+      licenseNumber: input.licenseNumber,
+      bio: input.bio,
+      consultationFee: String(input.consultationSettings.consultationFee),
+      isActive: input.isActive,
+      isAvailable: input.isAvailable,
+      visitDurationMinutes: input.consultationSettings.defaultSlotDuration
+    }).returning();
+
+    if (!doctor) throw new Error("Unable to create doctor profile.");
+    await upsertDoctorConsultationSettings(doctor.id, input.consultationSettings, tx);
+    const schedules = await upsertDoctorSchedules(doctor.id, input.schedules, input.createdBy, tx);
+    const slotDoctor = {
+      ...doctor,
+      branchName: null,
+      departmentName: null,
+      specialtyName: null,
+      displayName: doctor.displayName ?? `${doctor.firstName} ${doctor.lastName}`.trim(),
+      slotCount: 0,
+      bookedSlotCount: 0
+    };
+    const slots = buildDoctorSlots({ doctor: slotDoctor, schedules, existingSlotKeys: new Set(), days: 30 });
+    await createDoctorSlots(slots, tx);
+    return { doctor, schedules };
+  });
 }
 
-export async function getDoctorSlotsInRange(doctorId: string, startDate: Date, endDate: Date): Promise<DoctorAppointmentSlot[]> {
-  return db
-    .select()
-    .from(doctorAppointmentSlots)
-    .where(and(
-      eq(doctorAppointmentSlots.doctorId, doctorId),
-      gte(doctorAppointmentSlots.slotDate, startDate.toISOString().split("T")[0]),
-      lte(doctorAppointmentSlots.slotDate, endDate.toISOString().split("T")[0])
-    ))
-    .orderBy(doctorAppointmentSlots.slotDate, doctorAppointmentSlots.startTime) as Promise<DoctorAppointmentSlot[]>;
+export async function updateDoctorWithSchedule(input: DoctorUpdateInput & { updatedBy: string; passwordHash?: string }) {
+  return db.transaction(async (tx) => {
+    const existing = await tx.select().from(doctors).where(eq(doctors.id, input.id)).limit(1);
+    if (!existing[0]) throw new Error("Doctor not found.");
+
+    const names = firstLastName(input.displayName);
+    const [doctor] = await tx.update(doctors).set({
+      branchId: input.branchId,
+      departmentId: input.departmentId,
+      specialtyId: input.specialtyId,
+      displayName: input.displayName,
+      firstName: names.firstName,
+      lastName: names.lastName,
+      email: input.email,
+      phone: input.phone,
+      qualification: input.qualification,
+      experienceYears: input.experienceYears,
+      licenseNumber: input.licenseNumber,
+      bio: input.bio,
+      consultationFee: String(input.consultationSettings.consultationFee),
+      isActive: input.isActive,
+      isAvailable: input.isAvailable,
+      visitDurationMinutes: input.consultationSettings.defaultSlotDuration,
+      updatedAt: new Date()
+    }).where(eq(doctors.id, input.id)).returning();
+
+    await tx.update(users).set({
+      branchId: input.branchId,
+      departmentId: input.departmentId,
+      name: input.displayName,
+      email: input.email,
+      phone: input.phone,
+      isActive: input.isActive,
+      updatedAt: new Date(),
+      ...(input.passwordHash ? { passwordHash: input.passwordHash } : {})
+    }).where(eq(users.id, existing[0].userId));
+
+    await upsertDoctorConsultationSettings(input.id, input.consultationSettings, tx);
+    const schedules = await upsertDoctorSchedules(input.id, input.schedules, input.updatedBy, tx);
+    const today = new Date().toISOString().slice(0, 10);
+    await deleteFutureAvailableSlots(input.id, today, tx);
+    const existingKeys = new Set<string>();
+    const slotDoctor = {
+      ...doctor,
+      branchName: null,
+      departmentName: null,
+      specialtyName: null,
+      displayName: doctor.displayName ?? `${doctor.firstName} ${doctor.lastName}`.trim(),
+      slotCount: 0,
+      bookedSlotCount: 0
+    };
+    const slots = buildDoctorSlots({ doctor: slotDoctor, schedules, existingSlotKeys: existingKeys, days: 30 });
+    await createDoctorSlots(slots, tx);
+    return { doctor, schedules };
+  });
 }
 
-export async function deleteDoctorSlotsInRange(doctorId: string, startDate: Date, endDate: Date) {
-  await db
-    .delete(doctorAppointmentSlots)
-    .where(and(
-      eq(doctorAppointmentSlots.doctorId, doctorId),
-      gte(doctorAppointmentSlots.slotDate, startDate.toISOString().split("T")[0]),
-      lte(doctorAppointmentSlots.slotDate, endDate.toISOString().split("T")[0]),
-      eq(doctorAppointmentSlots.status, "available")
-    ));
+export async function deleteDoctor(id: string) {
+  return db.transaction(async (tx) => {
+    const [doctor] = await tx.select().from(doctors).where(eq(doctors.id, id)).limit(1);
+    if (!doctor) throw new Error("Doctor not found.");
+
+    await tx.delete(doctorAppointmentSlots).where(and(eq(doctorAppointmentSlots.doctorId, id), ne(doctorAppointmentSlots.status, "booked")));
+    await tx.delete(doctorSchedules).where(eq(doctorSchedules.doctorId, id));
+    await tx.delete(doctorConsultationSettings).where(eq(doctorConsultationSettings.doctorId, id));
+    await tx.update(doctors).set({ isActive: false, isAvailable: false, updatedAt: new Date() }).where(eq(doctors.id, id));
+    await tx.update(users).set({ isActive: false, updatedAt: new Date() }).where(eq(users.id, doctor.userId));
+    return doctor;
+  });
 }
 
-export async function createDoctorSlots(slots: Array<{
-  doctorId: string;
-  slotDate: Date;
-  startTime: string;
-  endTime: string;
-  status: string;
-  appointmentId?: string;
-}>) {
-  if (slots.length === 0) return;
-  
-  await db.insert(doctorAppointmentSlots).values(
-    slots.map((s) => ({
-      doctorId: s.doctorId as never,
-      slotDate: s.slotDate.toISOString().split("T")[0] as never,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      status: s.status as never,
-      appointmentId: s.appointmentId as never
-    })) as any
-  );
+export async function toggleDoctorStatus(id: string) {
+  return db.transaction(async (tx) => {
+    const [doctor] = await tx.select().from(doctors).where(eq(doctors.id, id)).limit(1);
+    if (!doctor) throw new Error("Doctor not found.");
+    const nextActive = !doctor.isActive;
+    const [updated] = await tx.update(doctors).set({ isActive: nextActive, isAvailable: nextActive ? doctor.isAvailable : false, updatedAt: new Date() }).where(eq(doctors.id, id)).returning();
+    await tx.update(users).set({ isActive: nextActive, updatedAt: new Date() }).where(eq(users.id, doctor.userId));
+    return updated;
+  });
 }
 
-export async function getActiveDoctorsByBranch(branchId: string) {
-  return db
-    .select({
-      id: doctors.id,
-      firstName: doctors.firstName,
-      lastName: doctors.lastName,
-      email: doctors.email,
-      specialization: doctors.specialization
-    })
-    .from(doctors)
-    .innerJoin(users, and(eq(users.id, doctors.userId), eq(users.isActive, true)))
-    .where(eq(doctors.branchId, branchId))
-    .orderBy(doctors.lastName);
+export async function getDoctorDetails(id: string) {
+  const doctor = await getDoctorById(id);
+  if (!doctor) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const [schedules, consultationSettings, slots] = await Promise.all([
+    getDoctorSchedules(id),
+    getDoctorConsultationSettings(id),
+    getDoctorSlots(id, today)
+  ]);
+  return { ...doctor, schedules, consultationSettings, slots };
 }
 
-export async function getDoctorAppointmentCount(doctorId: string): Promise<number> {
-  const [result] = await db
-    .select({ total: count() })
-    .from(appointments)
-    .where(eq(appointments.doctorId, doctorId));
-  return result?.total ?? 0;
-}
-
-export async function getDoctorByEmail(email: string) {
-  const [doctor] = await db
-    .select()
-    .from(doctors)
-    .where(eq(doctors.email, email.toLowerCase()))
-    .limit(1);
-  return doctor || null;
-}
-
-async function appointmentCount(doctorId: string) {
-  const [result] = await db.select({ total: count() }).from(appointments).where(eq(appointments.doctorId, doctorId));
-  return result?.total ?? 0;
-}
-
-export async function listDoctorsWithCounts() {
+export async function listExistingSlotKeys(doctorId: string, dates: string[]) {
+  if (dates.length === 0) return new Set<string>();
   const rows = await db
     .select({
-      id: doctors.id,
-      userId: doctors.userId,
-      branchId: doctors.branchId,
-      branchName: branches.name,
-      departmentId: doctors.departmentId,
-      departmentName: departments.name,
-      name: users.name,
-      email: doctors.email,
-      phone: doctors.phone,
-      isActive: users.isActive,
-      specialty: doctors.specialization,
-      licenseNumber: doctors.licenseNumber,
-      npi: doctors.npi,
-      experienceYears: doctors.experienceYears,
-      consultationFee: doctors.consultationFee,
-      visitDurationMinutes: doctors.visitDurationMinutes,
-      updatedAt: doctors.updatedAt
+      slotDate: doctorAppointmentSlots.slotDate,
+      startTime: doctorAppointmentSlots.startTime,
+      endTime: doctorAppointmentSlots.endTime
     })
-    .from(doctors)
-    .innerJoin(users, eq(users.id, doctors.userId))
-    .leftJoin(branches, eq(branches.id, doctors.branchId))
-    .leftJoin(departments, eq(departments.id, doctors.departmentId))
-    .where(eq(users.role, "doctor"))
-    .orderBy(users.name);
-
-  return Promise.all(
-    rows.map(async (doctor) => ({
-      ...doctor,
-      appointmentCount: await appointmentCount(doctor.id)
-    }))
-  );
-}
-
-export async function getDoctorCalendarConnection(doctorId: string) {
-  const [connection] = await db
-    .select()
-    .from(doctorCalendarConnections)
-    .where(eq(doctorCalendarConnections.doctorId, doctorId))
-    .limit(1);
-  return connection || null;
-}
-
-export async function createCalendarConnection(data: {
-  doctorId: string;
-  userId: string;
-  provider: string;
-  providerAccountEmail: string;
-  accessToken: string;
-  refreshToken: string;
-  tokenType: string;
-  scope: string;
-  expiryDate: Date;
-  calendarId: string;
-  isConnected: boolean;
-  syncStatus: string;
-  syncError: string | null;
-}) {
-  const [connection] = await db
-    .insert(doctorCalendarConnections)
-    .values({
-      doctorId: data.doctorId as never,
-      userId: data.userId as never,
-      provider: data.provider as never,
-      providerAccountEmail: data.providerAccountEmail,
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      tokenType: data.tokenType,
-      scope: data.scope,
-      expiryDate: data.expiryDate,
-      calendarId: data.calendarId,
-      isConnected: data.isConnected,
-      syncStatus: data.syncStatus as never,
-      syncError: data.syncError
-    } as any)
-    .returning();
-  return connection;
-}
-
-export async function updateCalendarConnection(id: string, data: Partial<{
-  provider: string;
-  providerAccountEmail: string;
-  accessToken: string;
-  refreshToken: string | undefined;
-  tokenType: string;
-  scope: string;
-  expiryDate: Date;
-  calendarId: string;
-  isConnected: boolean;
-  syncStatus: string;
-  lastSyncedAt: Date;
-  syncError: string | null;
-}>) {
-  const [connection] = await db
-    .update(doctorCalendarConnections)
-    .set({ ...data, updatedAt: new Date() } as any)
-    .where(eq(doctorCalendarConnections.id, id))
-    .returning();
-  return connection;
-}
-
-export async function deleteCalendarConnection(doctorId: string) {
-  await db.delete(doctorCalendarConnections).where(eq(doctorCalendarConnections.doctorId, doctorId));
-}
-
-export async function getCalendarBusyEvents(doctorId: string, startDate: Date, endDate: Date) {
-  return db
-    .select()
-    .from(doctorCalendarBusyEvents)
-    .where(and(
-      eq(doctorCalendarBusyEvents.doctorId, doctorId),
-      gte(doctorCalendarBusyEvents.startAt, startDate),
-      lte(doctorCalendarBusyEvents.endAt, endDate),
-      eq(doctorCalendarBusyEvents.status, "busy")
-    ))
-    .orderBy(doctorCalendarBusyEvents.startAt) as Promise<any[]>;
-}
-
-export async function createCalendarBusyEvents(events: Array<{
-  doctorId: string;
-  connectionId: string;
-  providerEventId: string;
-  calendarId: string;
-  title: string | null;
-  startAt: Date;
-  endAt: Date;
-  isAllDay: boolean;
-  status: string;
-}>) {
-  if (events.length === 0) return;
-  await db.insert(doctorCalendarBusyEvents).values(
-    events.map(e => ({
-      doctorId: e.doctorId as never,
-      connectionId: e.connectionId as never,
-      providerEventId: e.providerEventId,
-      calendarId: e.calendarId,
-      title: e.title,
-      startAt: e.startAt as never,
-      endAt: e.endAt as never,
-      isAllDay: e.isAllDay,
-      status: e.status as never
-    })) as any
-  );
-}
-
-export async function markSlotsCalendarBusy(doctorId: string, events: Array<{ startAt: Date; endAt: Date }>) {
-  for (const event of events) {
-    await db
-      .update(doctorAppointmentSlots)
-      .set({ status: "calendar_busy", updatedAt: new Date() } as any)
-      .where(and(
-        eq(doctorAppointmentSlots.doctorId, doctorId),
-        gte(doctorAppointmentSlots.slotDate, event.startAt.toISOString().slice(0, 10)),
-        lte(doctorAppointmentSlots.slotDate, event.endAt.toISOString().slice(0, 10)),
-        eq(doctorAppointmentSlots.status, "available"),
-        lt(sql`${doctorAppointmentSlots.slotDate}::text || ' ' || ${doctorAppointmentSlots.startTime}`, `${event.endAt.toISOString().slice(0, 10)} ${event.endAt.toTimeString().slice(0, 5)}`),
-        gt(sql`${doctorAppointmentSlots.slotDate}::text || ' ' || ${doctorAppointmentSlots.endTime}`, `${event.startAt.toISOString().slice(0, 10)} ${event.startAt.toTimeString().slice(0, 5)}`)
-      ));
-  }
-}
-
-export async function deleteCalendarBusyEvents(connectionId: string) {
-  await db.delete(doctorCalendarBusyEvents).where(eq(doctorCalendarBusyEvents.connectionId, connectionId));
-}
-
-export async function createCalendarSyncLog(data: {
-  doctorId: string;
-  connectionId: string;
-  syncType: string;
-  status: string;
-  message?: string | null;
-  startedAt: Date;
-  completedAt?: Date | null;
-}) {
-  const [log] = await db
-    .insert(doctorCalendarSyncLogs)
-    .values({
-      doctorId: data.doctorId as never,
-      connectionId: data.connectionId as never,
-      syncType: data.syncType as never,
-      status: data.status as never,
-      message: data.message,
-      startedAt: data.startedAt as never,
-      completedAt: data.completedAt as never
-    } as any)
-    .returning();
-  return log;
-}
-
-export async function updateCalendarSyncLog(id: string, data: {
-  status: string;
-  message?: string | null;
-  completedAt: Date;
-}) {
-  const [log] = await db
-    .update(doctorCalendarSyncLogs)
-    .set(data as any)
-    .where(eq(doctorCalendarSyncLogs.id, id))
-    .returning();
-  return log;
+    .from(doctorAppointmentSlots)
+    .where(and(eq(doctorAppointmentSlots.doctorId, doctorId), inArray(doctorAppointmentSlots.slotDate, dates)));
+  return new Set(rows.map((slot) => `${slot.slotDate}|${slot.startTime}|${slot.endTime}`));
 }

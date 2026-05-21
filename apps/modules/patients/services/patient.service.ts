@@ -1,60 +1,65 @@
-import { db } from "@mediclinic/db";
-import { eq, and, like, or } from "drizzle-orm";
-import { patients, patientNotes, patientDocuments, patientTimelines, branches } from "@mediclinic/db";
-import type { PatientRecord, PatientWithDetails, PatientFilterInput } from "../types/patient.types";
+import { patientFormSchema, patientUpdateSchema, type PatientFormInput, type PatientUpdateInput } from "../schemas/patient.schema";
+import * as patientRepository from "../repositories/patient.repository";
+
+async function assertUniquePatient(branchId: string, input: PatientFormInput | PatientUpdateInput, currentPatientId?: string) {
+  const patientCode = input.patientCode;
+  if (patientCode) {
+    const existing = await patientRepository.getPatientByCode(branchId, patientCode);
+    if (existing && existing.id !== currentPatientId) throw new Error("Patient code already exists.");
+  }
+
+  const phoneMatch = await patientRepository.getPatientByPhone(branchId, input.phone);
+  if (phoneMatch && phoneMatch.id !== currentPatientId) throw new Error("Phone number already exists.");
+
+  if (input.email) {
+    const emailMatch = await patientRepository.getPatientByEmail(branchId, input.email);
+    if (emailMatch && emailMatch.id !== currentPatientId) throw new Error("Email already exists.");
+  }
+}
+
+export async function listPatientsForAdmin(branchId: string, filter?: { search?: string }) {
+  return patientRepository.getPatients(branchId, filter);
+}
+
+export async function getPatientDetailsForAdmin(branchId: string, id: string) {
+  return patientRepository.getPatientById(branchId, id);
+}
+
+export async function getPatientById(id: string) {
+  return patientRepository.getPatientByIdAnyBranch(id);
+}
+
+export async function createPatientFromForm(branchId: string, userId: string, input: PatientFormInput) {
+  const parsed = patientFormSchema.parse(input);
+  const patientCode = parsed.patientCode || await patientRepository.generateUniquePatientCode(branchId);
+  await assertUniquePatient(branchId, { ...parsed, patientCode });
+  return patientRepository.createPatient(branchId, { ...parsed, patientCode, userId });
+}
+
+export async function updatePatientFromForm(branchId: string, userId: string, input: PatientUpdateInput) {
+  const parsed = patientUpdateSchema.parse(input);
+  await assertUniquePatient(branchId, parsed, parsed.id);
+  return patientRepository.updatePatient(branchId, { ...parsed, userId });
+}
+
+export async function deletePatientFromForm(branchId: string, id: string) {
+  if (await patientRepository.checkPatientHasAppointments(id)) {
+    throw new Error("Patient cannot be deleted because appointments exist.");
+  }
+  return patientRepository.deletePatient(branchId, id);
+}
+
+export async function togglePatientStatusFromForm(branchId: string, id: string) {
+  return patientRepository.togglePatientStatus(branchId, id);
+}
 
 export const patientService = {
-  async list(filter?: PatientFilterInput): Promise<PatientRecord[]> {
-    const conditions = [];
-    if (filter?.branchId) conditions.push(eq(patients.branchId, filter.branchId));
-    if (filter?.isActive !== undefined) conditions.push(eq(patients.isActive, filter.isActive));
-    if (filter?.search) {
-      const search = `%${filter.search}%`;
-      conditions.push(
-        or(
-          like(patients.firstName, search),
-          like(patients.lastName, search),
-          like(patients.fullName, search),
-          like(patients.mrn, search),
-          like(patients.phone, search)
-        )
-      );
-    }
-    const result = await db.select().from(patients).where(conditions.length > 0 ? and(...conditions) : undefined);
-    return result.map((p) => ({
-      ...p,
-      branchName: null
-    }));
-  },
-
-  async getById(id: string): Promise<PatientRecord | null> {
-    const result = await db.select().from(patients).where(eq(patients.id, id)).limit(1);
-    if (!result[0]) return null;
-    return { ...result[0], branchName: null };
-  },
-
-  async getWithDetails(id: string): Promise<PatientWithDetails | null> {
-    const result = await db.select().from(patients).where(eq(patients.id, id)).limit(1);
-    if (!result[0]) return null;
-    const p = result[0];
-    return {
-      ...p,
-      branchName: null,
-      address: p.address as PatientWithDetails["address"],
-      emergencyContact: p.emergencyContact as PatientWithDetails["emergencyContact"],
-      insurance: p.insurance as PatientWithDetails["insurance"]
-    };
-  },
-
-  async getNotes(patientId: string) {
-    return db.select().from(patientNotes).where(eq(patientNotes.patientId, patientId));
-  },
-
-  async getDocuments(patientId: string) {
-    return db.select().from(patientDocuments).where(eq(patientDocuments.patientId, patientId));
-  },
-
-  async getTimeline(patientId: string) {
-    return db.select().from(patientTimelines).where(eq(patientTimelines.patientId, patientId));
-  }
+  list: listPatientsForAdmin,
+  listPatientsForAdmin,
+  getById: getPatientById,
+  getPatientDetailsForAdmin,
+  createPatientFromForm,
+  updatePatientFromForm,
+  deletePatientFromForm,
+  togglePatientStatusFromForm
 };

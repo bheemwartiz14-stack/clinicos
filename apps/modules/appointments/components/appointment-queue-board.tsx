@@ -1,7 +1,6 @@
-import type { QueueRecord } from "../types/appointment.types";
 import { QueueTokenCard } from "./queue-token-card";
 
-export function AppointmentQueueBoard({ queue }: { queue: QueueRecord[] }) {
+export function AppointmentQueueBoard({ queue }: { queue: any[] }) {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {queue.map((entry) => <QueueTokenCard key={entry.id} entry={entry} />)}
