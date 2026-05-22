@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev --webpack apps/web",
     "dev:turbo": "turbo dev",
-    "build": "next build --webpack apps/web",
-    "build:turbo": "turbo build",
+    "build": "turbo build",
+    "build:webpack": "next build --webpack apps/web",
     "start": "next start apps/web",
     "start:turbo": "turbo start",
     "lint": "biome check .",

@@ -41,7 +41,7 @@
 
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [],
+      "outputs": ["apps/web/.next/**", "!apps/web/.next/cache/**"],
       "env": [
         "DATABASE_URL",
         "AUTH_SECRET",
