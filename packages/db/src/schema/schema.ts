@@ -1145,7 +1145,8 @@ export const departmentRelations = relations(departments, ({ one, many }) => ({
     references: [branches.id]
   }),
   users: many(users),
-  doctors: many(doctors)
+  doctors: many(doctors, { relationName: "doctorDepartment" }),
+  specialtyDoctors: many(doctors, { relationName: "doctorSpecialty" })
 }));
 
 export const userRelations = relations(users, ({ one, many }) => ({
@@ -1323,11 +1324,13 @@ export const doctorRelations = relations(doctors, ({ one, many }) => ({
   }),
   department: one(departments, {
     fields: [doctors.departmentId],
-    references: [departments.id]
+    references: [departments.id],
+    relationName: "doctorDepartment"
   }),
   specialty: one(departments, {
     fields: [doctors.specialtyId],
-    references: [departments.id]
+    references: [departments.id],
+    relationName: "doctorSpecialty"
   }),
   appointments: many(appointments),
   queueEntries: many(appointmentQueueEntries),
