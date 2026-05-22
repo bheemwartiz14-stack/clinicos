@@ -1,82 +1,283 @@
+import { desc, eq } from "drizzle-orm";
 import { hashPassword } from "@mediclinic/auth";
-import * as doctorRepository from "../repositories/doctor.repository";
-import { doctorCreateSchema, doctorUpdateSchema, type DoctorCreateInput, type DoctorUpdateInput } from "../schemas/doctor.schema";
-import { buildDoctorSlots } from "../helpers/slot-generation.helper";
-import type { DoctorRecord, DoctorSchedule } from "../types/doctor.types";
+import { db, departments, doctorAvailabilitySlots, doctorLeaveDates, doctorSchedules, doctorSpecialties, doctors, roles, userRoles, users } from "@mediclinic/db";
 
-function nextDateKeys(days: number) {
-  return Array.from({ length: days }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() + index);
-    return date.toISOString().slice(0, 10);
-  });
+export type DoctorRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  firstName: string;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  departmentId: string | null;
+  departmentName: string | null;
+  specialtyId: string | null;
+  specialtyName: string | null;
+  qualification: string | null;
+  experienceYears: number | null;
+  licenseNumber: string | null;
+  consultationFee: string;
+  bio: string | null;
+  isAvailable: boolean;
+  status: "active" | "inactive" | "blocked";
+};
+
+export type DoctorInput = {
+  firstName: string;
+  lastName?: string | null;
+  email: string;
+  phone?: string | null;
+  password?: string | null;
+  departmentId?: string | null;
+  specialtyId?: string | null;
+  qualification?: string | null;
+  experienceYears?: number | null;
+  licenseNumber?: string | null;
+  consultationFee: string;
+  bio?: string | null;
+  status: "active" | "inactive" | "blocked";
+  isAvailable: boolean;
+  initialSchedules?: ScheduleInput[] | null;
+};
+
+export type ScheduleInput = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDurationMinutes: number;
+  isActive: boolean;
+};
+
+export type LeaveInput = {
+  leaveDate: string;
+  reason?: string | null;
+  isFullDay: boolean;
+  startTime?: string | null;
+  endTime?: string | null;
+};
+
+function nameOf(user: { firstName: string; lastName: string | null }) {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ");
 }
 
-export async function listDoctorsForAdmin() {
-  return doctorRepository.getDoctors();
+async function assignDoctorRole(userId: string) {
+  const [role] = await db.select().from(roles).where(eq(roles.code, "doctor")).limit(1);
+  if (!role) throw new Error("Doctor role does not exist");
+  await db.delete(userRoles).where(eq(userRoles.userId, userId));
+  await db.insert(userRoles).values({ userId, roleId: role.id });
 }
 
-export async function getDoctorDetailsForAdmin(id: string) {
-  return doctorRepository.getDoctorDetails(id);
+function generateSlots(slotDate: string, startTime: string, endTime: string, duration: number) {
+  const slots: Array<{ slotDate: string; startTime: string; endTime: string }> = [];
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  const cursor = new Date(`${slotDate}T${String(startHour).padStart(2, "0")}:${String(startMinute).padStart(2, "0")}:00`);
+  const end = new Date(`${slotDate}T${String(endHour).padStart(2, "0")}:${String(endMinute).padStart(2, "0")}:00`);
+
+  while (cursor < end) {
+    const next = new Date(cursor.getTime() + duration * 60_000);
+    if (next > end) break;
+    slots.push({
+      slotDate,
+      startTime: cursor.toTimeString().slice(0, 5),
+      endTime: next.toTimeString().slice(0, 5)
+    });
+    cursor.setTime(next.getTime());
+  }
+
+  return slots;
 }
 
-export async function getDoctorFormOptions() {
-  return doctorRepository.getDoctorFormOptions();
+function addDays(value: Date, days: number) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return date;
 }
 
-export async function createDoctorFromForm(input: DoctorCreateInput, createdBy: string) {
-  const parsed = doctorCreateSchema.parse(input);
-  const passwordHash = await hashPassword(parsed.password);
-  const result = await doctorRepository.createDoctorWithUserAndSchedule({ ...parsed, createdBy, passwordHash });
-  await generateSlotsForDoctor(result.doctor.id);
-  return result.doctor;
+function dateKey(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
-export async function updateDoctorFromForm(input: DoctorUpdateInput, updatedBy: string) {
-  const parsed = doctorUpdateSchema.parse(input);
-  const passwordHash = parsed.password ? await hashPassword(parsed.password) : undefined;
-  const result = await doctorRepository.updateDoctorWithSchedule({ ...parsed, updatedBy, passwordHash });
-  await generateSlotsForDoctor(parsed.id);
-  return result.doctor;
-}
-
-export async function deleteDoctorFromForm(id: string) {
-  return doctorRepository.deleteDoctor(id);
-}
-
-export async function toggleDoctorStatusFromForm(id: string) {
-  const doctor = await doctorRepository.toggleDoctorStatus(id);
-  await generateSlotsForDoctor(id);
-  return doctor;
-}
-
-export async function generateSlotsForDoctor(doctorId: string) {
-  const doctor = await doctorRepository.getDoctorById(doctorId);
-  if (!doctor) throw new Error("Doctor not found.");
-  const schedules = await doctorRepository.getDoctorSchedules(doctorId);
-  return generateSlotsForDoctorRecord(doctor, schedules);
-}
-
-async function generateSlotsForDoctorRecord(doctor: DoctorRecord, schedules: DoctorSchedule[]) {
-  const existingSlotKeys = await doctorRepository.listExistingSlotKeys(doctor.id, nextDateKeys(30));
-  const slots = buildDoctorSlots({ doctor, schedules, existingSlotKeys, days: 30 });
-  return doctorRepository.createDoctorSlots(slots);
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@$";
+  const bytes = new Uint8Array(14);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
 }
 
 export const doctorService = {
-  list: listDoctorsForAdmin,
-  listDoctorsForAdmin,
-  getById: doctorRepository.getDoctorById,
-  getDoctorDetailsForAdmin,
-  getWithDetails: getDoctorDetailsForAdmin,
-  getByUserId: doctorRepository.getDoctorByUserId,
-  getDoctorFormOptions,
-  createDoctorFromForm,
-  updateDoctorFromForm,
-  deleteDoctorFromForm,
-  toggleDoctorStatusFromForm,
-  generateSlotsForDoctor,
-  getSchedules: doctorRepository.getDoctorSchedules,
-  getSlots: doctorRepository.getDoctorSlots,
-  getDoctorConsultationSettings: doctorRepository.getDoctorConsultationSettings
+  async ensureDefaults() {
+    for (const specialty of [
+      { name: "General Medicine", code: "general" },
+      { name: "Cardiology", code: "cardiology" },
+      { name: "Dermatology", code: "dermatology" },
+      { name: "Pediatrics", code: "pediatrics" }
+    ]) {
+      await db.insert(doctorSpecialties).values(specialty).onConflictDoNothing({ target: doctorSpecialties.name });
+    }
+  },
+
+  async listSpecialties() {
+    await this.ensureDefaults();
+    return db.select().from(doctorSpecialties).orderBy(doctorSpecialties.name);
+  },
+
+  async listDepartments() {
+    for (const department of [
+      { name: "Clinical", code: "clinical" },
+      { name: "Specialists", code: "specialists" }
+    ]) {
+      await db.insert(departments).values(department).onConflictDoNothing({ target: departments.name });
+    }
+    return db.select().from(departments).orderBy(departments.name);
+  },
+
+  async list(): Promise<DoctorRecord[]> {
+    await this.ensureDefaults();
+    const rows = await db
+      .select({ doctor: doctors, user: users, department: departments, specialty: doctorSpecialties })
+      .from(doctors)
+      .innerJoin(users, eq(doctors.userId, users.id))
+      .leftJoin(departments, eq(doctors.departmentId, departments.id))
+      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
+      .orderBy(desc(doctors.createdAt));
+
+    return rows.map(({ doctor, user, department, specialty }) => ({
+      id: doctor.id,
+      userId: user.id,
+      name: nameOf(user),
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      departmentId: doctor.departmentId,
+      departmentName: department?.name ?? null,
+      specialtyId: doctor.specialtyId,
+      specialtyName: specialty?.name ?? null,
+      qualification: doctor.qualification,
+      experienceYears: doctor.experienceYears,
+      licenseNumber: doctor.licenseNumber,
+      consultationFee: doctor.consultationFee,
+      bio: doctor.bio,
+      isAvailable: doctor.isAvailable,
+      status: user.status
+    }));
+  },
+
+  async get(id: string) {
+    return (await this.list()).find((doctor) => doctor.id === id) ?? null;
+  },
+
+  async create(input: DoctorInput) {
+    const temporaryPassword = input.password || generateTemporaryPassword();
+    const [user] = await db
+      .insert(users)
+      .values({
+        firstName: input.firstName,
+        lastName: input.lastName || null,
+        username: `${input.firstName.toLowerCase().replace(/\s+/g, "")}${input.lastName
+            ? "." + input.lastName.toLowerCase().replace(/\s+/g, "")
+            : ""
+          }`,
+        email: input.email.toLowerCase(),
+        phone: input.phone || null,
+        passwordHash: await hashPassword(temporaryPassword),
+        status: input.status,
+        emailVerified: true
+      })
+      .returning();
+
+    await assignDoctorRole(user.id);
+    const [doctor] = await db.insert(doctors).values({
+      userId: user.id,
+      departmentId: input.departmentId || null,
+      specialtyId: input.specialtyId || null,
+      qualification: input.qualification || null,
+      experienceYears: input.experienceYears ?? null,
+      licenseNumber: input.licenseNumber || null,
+      consultationFee: input.consultationFee,
+      bio: input.bio || null,
+      isAvailable: input.isAvailable
+    }).returning();
+
+    if (input.initialSchedules?.length) {
+      await db.insert(doctorSchedules).values(input.initialSchedules.map((schedule) => ({ doctorId: doctor.id, ...schedule })));
+      await this.generateAvailability(doctor.id);
+    }
+
+    return { doctorId: doctor.id, temporaryPassword };
+  },
+
+  async update(id: string, input: DoctorInput) {
+    const doctor = await this.get(id);
+    if (!doctor) throw new Error("Doctor not found");
+
+    await db.update(users).set({
+      firstName: input.firstName,
+      lastName: input.lastName || null,
+      email: input.email.toLowerCase(),
+      phone: input.phone || null,
+      status: input.status
+    }).where(eq(users.id, doctor.userId));
+
+    await db.update(doctors).set({
+      departmentId: input.departmentId || null,
+      specialtyId: input.specialtyId || null,
+      qualification: input.qualification || null,
+      experienceYears: input.experienceYears ?? null,
+      licenseNumber: input.licenseNumber || null,
+      consultationFee: input.consultationFee,
+      bio: input.bio || null,
+      isAvailable: input.isAvailable
+    }).where(eq(doctors.id, id));
+  },
+
+  async deactivate(id: string) {
+    const doctor = await this.get(id);
+    if (!doctor) throw new Error("Doctor not found");
+    await db.update(users).set({ status: "inactive" }).where(eq(users.id, doctor.userId));
+    await db.update(doctors).set({ isAvailable: false }).where(eq(doctors.id, id));
+  },
+
+  async schedules(id: string) {
+    return db.select().from(doctorSchedules).where(eq(doctorSchedules.doctorId, id)).orderBy(doctorSchedules.dayOfWeek);
+  },
+
+  async leaves(id: string) {
+    return db.select().from(doctorLeaveDates).where(eq(doctorLeaveDates.doctorId, id)).orderBy(desc(doctorLeaveDates.leaveDate));
+  },
+
+  async slots(id: string) {
+    return db.select().from(doctorAvailabilitySlots).where(eq(doctorAvailabilitySlots.doctorId, id)).orderBy(desc(doctorAvailabilitySlots.slotDate));
+  },
+
+  async addSchedule(id: string, input: ScheduleInput) {
+    await db.insert(doctorSchedules).values({ doctorId: id, ...input });
+    await this.generateAvailability(id);
+  },
+
+  async addLeave(id: string, input: LeaveInput) {
+    await db.insert(doctorLeaveDates).values({ doctorId: id, ...input });
+    await this.generateAvailability(id);
+  },
+
+  async generateAvailability(id: string) {
+    const schedules = await this.schedules(id);
+    const leaves = await this.leaves(id);
+    const leaveDates = new Set(leaves.filter((leave) => leave.isFullDay).map((leave) => leave.leaveDate));
+
+    for (let offset = 0; offset < 14; offset++) {
+      const day = addDays(new Date(), offset);
+      const slotDate = dateKey(day);
+      if (leaveDates.has(slotDate)) continue;
+      const daySchedules = schedules.filter((schedule) => schedule.isActive && schedule.dayOfWeek === day.getDay());
+
+      for (const schedule of daySchedules) {
+        for (const slot of generateSlots(slotDate, schedule.startTime, schedule.endTime, schedule.slotDurationMinutes)) {
+          await db.insert(doctorAvailabilitySlots).values({ doctorId: id, ...slot }).onConflictDoNothing();
+        }
+      }
+    }
+  }
 };

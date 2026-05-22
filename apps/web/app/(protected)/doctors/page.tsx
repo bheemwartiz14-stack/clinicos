@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { doctorController } from "@modules/doctors/controllers/doctor.controller";
+import { doctorService } from "@modules/doctors/services/doctor.service";
 import { DoctorsListView } from "@modules/doctors/views/doctors-list-view";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "Doctors | MediClinic Pro",
-    description: "Admin doctor management, schedules, consultation settings, and generated slots."
-  };
-}
+export const dynamic = "force-dynamic";
 
-export default async function DoctorsPage() {
-  const session = await requirePagePermission("doctors.view");
-  const data = await doctorController.listForAdmin(session.role);
-  return <DoctorsListView {...data} />;
+export const metadata: Metadata = {
+  title: "Doctors | MediClinic Pro"
+};
+
+export default async function DoctorsPage({ searchParams }: { searchParams?: Promise<{ password?: string }> }) {
+  await requirePagePermission("doctors.view");
+  const params = searchParams ? await searchParams : {};
+  const doctors = await doctorService.list();
+  return <DoctorsListView doctors={doctors} generatedPassword={params.password} />;
 }

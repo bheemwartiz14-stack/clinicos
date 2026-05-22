@@ -14,3 +14,4 @@ You are a senior enterprise software arc.md
 .env*.local
 .kiro/*
 .vscode/*
+.env*

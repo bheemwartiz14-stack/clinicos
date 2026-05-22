@@ -1,37 +1,19 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { StaffForm } from "@modules/staff/components/staff-form";
 import { staffService } from "@modules/staff/services/staff.service";
-import { serializeStaff } from "@modules/staff/utils/serialize-staff";
-import { branchService } from "@modules/branches/services/branch.service";
-import { departmentService } from "@modules/departments/services/department.service";
+import { StaffForm } from "@modules/staff/views/staffs-view";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const staff = await staffService.get(id);
+export const dynamic = "force-dynamic";
 
-  return {
-    title: staff ? `Edit ${staff.name} | MediClinic Pro` : "Edit Staff | MediClinic Pro",
-    description: "Edit staff member assignments, profile, and account details."
-  };
-}
+export const metadata: Metadata = {
+  title: "Edit Staff | MediClinic Pro"
+};
 
 export default async function EditStaffPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePagePermission("staff.manage");
   const { id } = await params;
-  const staff = await staffService.get(id);
-
+  const [staff, departments] = await Promise.all([staffService.get(id), staffService.listDepartments()]);
   if (!staff) notFound();
-
-  const branches = await branchService.list();
-  const departments = await departmentService.list();
-
-  return (
-    <StaffForm
-      staff={serializeStaff(staff as Parameters<typeof serializeStaff>[0])}
-      branches={branches.map((branch) => ({ id: branch.id, name: branch.name }))}
-      departments={departments.map((department) => ({ id: department.id, name: department.name }))}
-    />
-  );
+  return <StaffForm staff={staff} departments={departments} />;
 }

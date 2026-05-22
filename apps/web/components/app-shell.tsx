@@ -7,17 +7,23 @@ import {
   Activity,
   AlertTriangle,
   Bell,
+  Building2,
   CalendarDays,
+  ChevronRight,
+  ClipboardList,
   History,
+  LayoutDashboard,
   Link2,
   LogOut,
   Menu,
   Palette,
   Shield,
+  ShieldCheck,
   Settings,
   Stethoscope,
   UserCog,
   UserRound,
+  UsersRound,
   X
 } from "lucide-react";
 import { useState } from "react";
@@ -52,89 +58,52 @@ type NavItem = {
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   permission?: Permission;
   permissions?: Permission[];
+  section?: "Workspace" | "Administration";
+  badge?: string;
   children?: NavItem[];
 };
 const navItems: NavItem[] = [
   {
     label: "Dashboard",
     href: "/",
-    icon: Activity,
+    icon: LayoutDashboard,
     permission: "dashboard.view",
-  },
-  {
-    label: "Doctors",
-    href: "/doctors",
-    icon: Stethoscope,
-    permissions: ["doctors.view", "doctors.create"],
-    children: [
-      {
-        label: "All Doctors",
-        href: "/doctors",
-        icon: Stethoscope,
-        permission: "doctors.view",
-      }
-    ],
+    section: "Workspace",
   },
   {
     label: "Patients",
     href: "/patients",
     icon: UserRound,
-    permissions: ["patients.view", "patients.create"],
-    children: [
-      {
-        label: "All Patients",
-        href: "/patients",
-        icon: UserRound,
-        permission: "patients.view",
-      },
-    ],
+    permission: "patients.view",
+    section: "Workspace",
   },
   {
     label: "Appointments",
     href: "/appointments",
     icon: CalendarDays,
     permission: "appointments.view",
-    children: [
-      {
-        label: "Calendar",
-        href: "/appointments",
-        icon: CalendarDays,
-        permission: "appointments.view",
-      },
-    ],
+    section: "Workspace",
   },
-  // Settings Section
   {
-    label: "Settings",
-    icon: Settings,
-    href: "/settings",
-    permission: "settings.profile",
-    children: [
-      {
-        label: "Branch Management",
-        href: "/settings/branches",
-        icon: UserCog,
-        permission: "staff.manage",
-      },
-      {
-        label: "department Management",
-        href: "/settings/departments",
-        icon: UserCog,
-        permission: "staff.manage",
-      },
-      {
-        label: "RBAC",
-        href: "/rbac/roles",
-        icon: Shield,
-        permission: "rbac.manage",
-      },
-      {
-        label: "Staff Management",
-        href: "/settings/staff-manage",
-        icon: UserCog,
-        permission: "staff.manage",
-      },
-    ],
+    label: "Doctors",
+    href: "/doctors",
+    icon: Stethoscope,
+    permission: "doctors.view",
+    section: "Workspace",
+  },
+  {
+    label: "Staff",
+    href: "/settings/staff-manage",
+    icon: UsersRound,
+    permission: "staff.manage",
+    section: "Administration",
+  },
+  {
+    label: "Access Control",
+    href: "/rbac/roles",
+    icon: ShieldCheck,
+    permission: "rbac.manage",
+    section: "Administration",
   },
 ];
 
@@ -151,11 +120,6 @@ const userMenuItems: Array<{
   adminOnly?: boolean;
 }> = [
     { label: "My Profile", href: "/settings/profile", icon: UserRound },
-    { label: "Account Settings", href: "/settings/account", icon: Settings },
-    { label: "Security", href: "/settings/security", icon: Shield },
-    { label: "Notifications", href: "/settings/notifications", icon: Bell },
-    { label: "Integrations", href: "/settings/integration", icon: Link2, doctorOnly: true },
-    { label: "Appearance", href: "/settings/preferences", icon: Palette },
     { label: "Login History", href: "/settings/login-history", icon: History },
   ];
 
@@ -190,76 +154,121 @@ function SidebarNav({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const sections = ["Workspace", "Administration"] as const;
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   return (
-    <nav className="mt-7" aria-label="Primary">
-      <p className="px-2 text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/55">
-        Main Menu
-      </p>
-
-      <div className="mt-4 space-y-2">
-        {items.map((item) => {
-          const active = isActivePath(pathname, item.href);
+    <nav className="mt-6 space-y-6" aria-label="Primary navigation">
+      <div className="px-2">
+        <p className="text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/45">
+          Main Menu
+        </p>
+      </div>
+      <div className="space-y-5">
+        {sections.map((section) => {
+          const sectionItems = items.filter((item) => (item.section ?? "Workspace") === section);
+          if (sectionItems.length === 0) return null;
           return (
-            <div key={item.label}>
-              {/* Parent Menu */}
-              <Link
-                href={item.href as any}
-                prefetch={false}
-                onClick={onNavigate}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex h-9 items-center gap-3 rounded-md px-2.5 text-xs font-semibold text-sidebar-foreground/75 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                  active &&
-                  "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
-                )}
-              >
-                <item.icon
-                  className="h-3.5 w-3.5 shrink-0"
-                  aria-hidden
-                />
-
-                <span className="min-w-0 flex-1 truncate">
-                  {item.label}
-                </span>
-              </Link>
-
-              {/* Children */}
-              {item.children && item.children.length > 0 && (
-                <div className="ml-6 mt-1 space-y-1 border-l border-sidebar-border pl-3">
-                  {item.children.map((child) => {
-                    const childActive = isActivePath(
-                      pathname,
-                      child.href
-                    );
-
-                    return (
-                      <Link
-                        key={child.label}
-                        href={child.href as any}
-                        prefetch={false}
-                        onClick={onNavigate}
-                        aria-current={
-                          childActive ? "page" : undefined
-                        }
+            <div key={section} className="space-y-2">
+              <p className="px-2 text-[11px] font-semibold uppercase tracking-normal text-sidebar-foreground/45">
+                {section}
+              </p>
+              <div className="space-y-1">
+                {sectionItems.map((item) => {
+                  const visibleChildren = item.children ?? [];
+                  const childIsActive = visibleChildren.some((child) => isActivePath(pathname, child.href));
+                  const hasChildren = visibleChildren.length > 0;
+                  const active = isActivePath(pathname, item.href) || childIsActive;
+                  const expanded = expandedItems[item.label] ?? active;
+                  const itemClassName = cn(
+                    "group flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-sidebar-foreground/76 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    active && "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-ring/20 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                  );
+                  const itemContent = (
+                    <>
+                      <span
                         className={cn(
-                          "flex h-8 items-center gap-2 rounded-md px-2 text-[11px] font-medium text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                          childActive &&
-                          "bg-sidebar-primary text-sidebar-primary-foreground"
+                          "grid h-7 w-7 shrink-0 place-items-center rounded-md bg-sidebar-accent text-sidebar-foreground/70 transition group-hover:text-sidebar-accent-foreground",
+                          active && "bg-sidebar-primary-foreground/15 text-sidebar-primary-foreground"
                         )}
                       >
-                        <child.icon
-                          className="h-3 w-3 shrink-0"
+                        <item.icon className="h-4 w-4" aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {item.badge ? (
+                        <span
+                          className={cn(
+                            "rounded-full border border-sidebar-border px-2 py-0.5 text-[10px] font-bold uppercase text-sidebar-foreground/55",
+                            active && "border-sidebar-primary-foreground/25 text-sidebar-primary-foreground/85"
+                          )}
+                        >
+                          {item.badge}
+                        </span>
+                      ) : null}
+                      {hasChildren ? (
+                        <ChevronRight
+                          className={cn("h-3.5 w-3.5 text-sidebar-foreground/35 transition", expanded && "rotate-90", active && "text-sidebar-primary-foreground/70")}
                           aria-hidden
                         />
+                      ) : null}
+                    </>
+                  );
 
-                        <span className="truncate">
-                          {child.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+                  return (
+                    <div key={item.label} className="space-y-1">
+                      {hasChildren ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedItems((current) => ({
+                              ...current,
+                              [item.label]: !(current[item.label] ?? active),
+                            }))
+                          }
+                          aria-expanded={expanded}
+                          className={itemClassName}
+                        >
+                          {itemContent}
+                        </button>
+                      ) : (
+                        <Link
+                          href={item.href as any}
+                          prefetch={false}
+                          onClick={onNavigate}
+                          aria-current={active ? "page" : undefined}
+                          className={itemClassName}
+                        >
+                          {itemContent}
+                        </Link>
+                      )}
+
+                      {hasChildren && expanded ? (
+                        <div className="ml-[26px] space-y-1 border-l border-sidebar-border pl-3">
+                          {visibleChildren.map((child) => {
+                            const childActive = isActivePath(pathname, child.href);
+
+                            return (
+                              <Link
+                                key={child.label}
+                                href={child.href as any}
+                                prefetch={false}
+                                onClick={onNavigate}
+                                aria-current={childActive ? "page" : undefined}
+                                className={cn(
+                                  "flex h-9 items-center gap-2 rounded-md px-2.5 text-xs font-medium text-sidebar-foreground/65 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                                  childActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+                                )}
+                              >
+                                <child.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                <span className="truncate">{child.label}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
@@ -279,13 +288,13 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
   }));
   const userInitials = initials(session.name) || "SA";
   const displayRole = roleLabel(session.role);
-  const currentItem = visibleNavItems.find((item) => isActivePath(pathname, item.href));
+  const currentItem = visibleNavItemsWithChildren.find((item) => isActivePath(pathname, item.href) || item.children?.some((child) => isActivePath(pathname, child.href)));
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[208px] border-r border-sidebar-border bg-sidebar px-3 py-3 text-sidebar-foreground lg:block">
-        <div className="flex h-10 items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border bg-sidebar px-3.5 py-4 text-sidebar-foreground lg:block">
+        <div className="flex h-12 items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-2.5">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-ring/20">
             <Activity className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0">
@@ -294,8 +303,8 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
           </div>
         </div>
         <SidebarNav items={visibleNavItemsWithChildren} pathname={pathname} />
-        <div className="absolute bottom-3 left-3 right-3 flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent p-2">
-          <div className="grid h-8 w-8 place-items-center rounded-full bg-sidebar-foreground text-xs font-semibold text-sidebar">
+        <div className="absolute bottom-4 left-3.5 right-3.5 flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/80 p-2.5">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-sidebar-foreground text-xs font-semibold text-sidebar">
             {userInitials}
           </div>
           <div className="min-w-0">
@@ -305,7 +314,7 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
         </div>
       </aside>
 
-      <div className="lg:pl-[208px]">
+      <div className="lg:pl-64">
         <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 px-4 backdrop-blur">
           <div className="flex h-full items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -385,15 +394,15 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
 
       {mobileNavOpen ? (
         <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm lg:hidden">
-          <aside className="h-full w-72 max-w-[86vw] border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground shadow-xl">
+          <aside className="h-full w-80 max-w-[88vw] border-r border-sidebar-border bg-sidebar p-3.5 text-sidebar-foreground shadow-xl">
             <div className="flex items-center justify-between">
-              <div className="flex h-10 items-center gap-2">
-                <div className="grid h-8 w-8 place-items-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
+              <div className="flex h-12 min-w-0 items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-2.5">
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Activity className="h-4 w-4" aria-hidden />
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-sidebar-foreground">MediClinic Pro</p>
-                  <p className="text-[11px] text-sidebar-foreground/55">{shellUser?.branchName ?? "Clinic workspace"}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-sidebar-foreground">MediClinic Pro</p>
+                  <p className="truncate text-[11px] text-sidebar-foreground/55">{shellUser?.branchName ?? "Clinic workspace"}</p>
                 </div>
               </div>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">

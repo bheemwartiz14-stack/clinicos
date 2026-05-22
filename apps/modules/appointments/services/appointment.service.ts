@@ -1,147 +1,299 @@
-import { appointmentCancelSchema, appointmentFormSchema, appointmentRescheduleSchema, appointmentStatusUpdateSchema, appointmentUpdateSchema, quickPatientCreateSchema, type AppointmentFormInput, type AppointmentUpdateInput } from "../schemas/appointment.schema";
-import { appointmentRange, assertCanReschedule, assertCanTransition, assertFutureAppointment } from "../helpers/appointment-availability.helper";
-import { generateBookingNumber } from "../helpers/booking-number.helper";
-import { buildTimeSlots, initials, todayKey } from "../helpers/calendar.helper";
-import * as appointmentRepository from "../repositories/appointment.repository";
+import { and, eq, gte, lte, asc, sql } from "drizzle-orm";
+import { db, appointments, appointmentStatusLogs, appointmentReschedules, patients, doctors, users, doctorAvailabilitySlots, doctorSpecialties } from "@mediclinic/db";
 
-async function assertDoctorCanBook(branchId: string, doctorId: string) {
-  const doctors = await appointmentRepository.getActiveDoctorsForBooking(branchId);
-  if (!doctors.some((doctor) => doctor.id === doctorId)) {
-    throw new Error("Doctor must be active and available.");
-  }
-}
+export type AppointmentRecord = {
+  id: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string | null;
+  slotId: string | null;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string | null;
+  type: string;
+  status: string;
+  reason: string | null;
+  notes: string | null;
+  queueTokenNumber: number | null;
+  createdById: string | null;
+};
 
-async function assertNoConflicts(branchId: string, input: AppointmentFormInput, excludeAppointmentId?: string) {
-  const range = appointmentRange(input.appointmentDate, input.startTime, input.durationMinutes);
-  assertFutureAppointment(range.startsAt);
-  const conflicts = await appointmentRepository.checkAppointmentConflict({
-    branchId,
-    patientId: input.patientId,
-    doctorId: input.doctorId,
-    startsAt: range.startsAt,
-    endsAt: range.endsAt,
-    excludeAppointmentId
-  });
-  if (conflicts.doctorConflict) throw new Error("Doctor already has an overlapping appointment.");
-  if (conflicts.patientConflict) throw new Error("Patient already has an overlapping appointment.");
-}
+export type AvailableSlot = {
+  id: string;
+  slotDate: string;
+  startTime: string;
+  endTime: string;
+  doctorId: string;
+  doctorName: string;
+  doctorSpecialty: string | null;
+};
 
-export async function getAppointmentsCalendarData(branchId: string, selectedDate = todayKey()) {
-  const [appointments, doctors, patients] = await Promise.all([
-    appointmentRepository.getAppointmentsByDate(branchId, selectedDate),
-    appointmentRepository.getActiveDoctorsForBooking(branchId),
-    appointmentRepository.getPatientsForBooking(branchId)
-  ]);
+export type DoctorOption = {
+  id: string;
+  name: string;
+  specialty: string | null;
+};
 
+type AppointmentJoinRow = {
+  appointment: typeof appointments.$inferSelect;
+  patient: typeof patients.$inferSelect;
+  doctor: typeof doctors.$inferSelect;
+  user: typeof users.$inferSelect;
+  specialty: typeof doctorSpecialties.$inferSelect | null;
+};
+
+function toAppointmentRecord(row: AppointmentJoinRow): AppointmentRecord {
   return {
-    selectedDate,
-    doctors: doctors.map((doctor) => ({
-      id: doctor.id,
-      displayName: doctor.displayName,
-      specialty: doctor.specialty,
-      initials: initials(doctor.displayName),
-      defaultDuration: doctor.defaultDuration ?? 30
-    })),
-    patients: patients.map((patient) => ({
-      id: patient.id,
-      fullName: patient.fullName,
-      phone: patient.phone,
-      email: patient.email,
-      label: `${patient.fullName} (${patient.mrn})`
-    })),
-    appointments: appointments.map((appointment) => ({
-      ...appointment,
-      appointmentDate: appointment.appointmentDate ?? selectedDate,
-      startTime: appointment.startTime ?? "09:00",
-      endTime: appointment.endTime ?? "09:30",
-      durationMinutes: appointment.durationMinutes ?? 30,
-      type: appointment.type as "in_clinic" | "online" | "follow_up" | "emergency",
-      status: appointment.status as "confirmed" | "checked_in" | "completed" | "cancelled" | "no_show"
-    })),
-    timeSlots: buildTimeSlots(),
-    statusOptions: [
-      { value: "confirmed" as const, label: "Confirmed" },
-      { value: "checked_in" as const, label: "Checked In" },
-      { value: "completed" as const, label: "Completed" },
-      { value: "cancelled" as const, label: "Cancelled" },
-      { value: "no_show" as const, label: "No Show" }
-    ],
-    typeOptions: [
-      { value: "in_clinic" as const, label: "In Clinic" },
-      { value: "online" as const, label: "Online" },
-      { value: "follow_up" as const, label: "Follow Up" },
-      { value: "emergency" as const, label: "Emergency" }
-    ]
+    id: row.appointment.id,
+    patientId: row.appointment.patientId,
+    patientName: row.patient.fullName,
+    patientPhone: row.patient.phone,
+    doctorId: row.appointment.doctorId,
+    doctorName: [row.user.firstName, row.user.lastName].filter(Boolean).join(" "),
+    doctorSpecialty: row.specialty?.name ?? null,
+    slotId: row.appointment.slotId,
+    appointmentDate: row.appointment.appointmentDate,
+    startTime: row.appointment.startTime,
+    endTime: row.appointment.endTime,
+    type: row.appointment.type,
+    status: row.appointment.status,
+    reason: row.appointment.reason,
+    notes: row.appointment.notes,
+    queueTokenNumber: row.appointment.queueTokenNumber,
+    createdById: row.appointment.createdById,
   };
 }
 
-export async function createAppointmentFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed = appointmentFormSchema.parse(input);
-  await assertDoctorCanBook(branchId, parsed.doctorId);
-  await assertNoConflicts(branchId, parsed);
-  return appointmentRepository.createAppointment(branchId, { ...parsed, userId, bookingNumber: generateBookingNumber() });
-}
-
-export async function updateAppointmentFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed: AppointmentUpdateInput = appointmentUpdateSchema.parse(input);
-  await assertDoctorCanBook(branchId, parsed.doctorId);
-  await assertNoConflicts(branchId, parsed, parsed.id);
-  return appointmentRepository.updateAppointment(branchId, { ...parsed, userId });
-}
-
-export async function cancelAppointmentFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed = appointmentCancelSchema.parse(input);
-  const current = await appointmentRepository.getAppointmentById(branchId, parsed.id);
-  if (!current) throw new Error("Appointment not found.");
-  return appointmentRepository.cancelAppointment(branchId, { ...parsed, userId });
-}
-
-export async function updateAppointmentStatusFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed = appointmentStatusUpdateSchema.parse(input);
-  const current = await appointmentRepository.getAppointmentById(branchId, parsed.id);
-  if (!current) throw new Error("Appointment not found.");
-  assertCanTransition(current.status, parsed.status);
-  return appointmentRepository.updateAppointmentStatus(branchId, { ...parsed, userId });
-}
-
-export async function rescheduleAppointmentFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed = appointmentRescheduleSchema.parse(input);
-  const current = await appointmentRepository.getAppointmentById(branchId, parsed.id);
-  if (!current) throw new Error("Appointment not found.");
-  assertCanReschedule(current.status);
-  const updateInput = appointmentUpdateSchema.parse({
-    id: parsed.id,
-    patientId: current.patientId,
-    doctorId: current.doctorId,
-    appointmentDate: parsed.appointmentDate,
-    startTime: parsed.startTime,
-    durationMinutes: parsed.durationMinutes,
-    type: current.type ?? "in_clinic",
-    status: current.status,
-    reasonForVisit: current.reasonForVisit ?? current.reason,
-    notes: current.notes
-  });
-  await assertNoConflicts(branchId, updateInput, parsed.id);
-  return appointmentRepository.updateAppointment(branchId, { ...updateInput, userId });
-}
-
-export async function quickCreatePatientFromForm(branchId: string, userId: string, input: unknown) {
-  const parsed = quickPatientCreateSchema.parse(input);
-  const patient = await appointmentRepository.quickCreatePatient(branchId, { ...parsed, createdByUserId: userId });
-  return {
-    id: patient.id,
-    label: `${patient.fullName ?? `${patient.firstName} ${patient.lastName}`} (${patient.mrn})`
-  };
+function buildBaseQuery() {
+  return db
+    .select({
+      appointment: appointments,
+      patient: patients,
+      doctor: doctors,
+      user: users,
+      specialty: doctorSpecialties,
+    })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .innerJoin(doctors, eq(appointments.doctorId, doctors.id))
+    .innerJoin(users, eq(doctors.userId, users.id))
+    .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id));
 }
 
 export const appointmentService = {
-  getAppointmentsCalendarData,
-  createAppointmentFromForm,
-  updateAppointmentFromForm,
-  cancelAppointmentFromForm,
-  updateAppointmentStatusFromForm,
-  rescheduleAppointmentFromForm,
-  quickCreatePatientFromForm,
-  workspace: getAppointmentsCalendarData,
-  calendar: getAppointmentsCalendarData
+  async list(filters?: {
+    date?: string;
+    doctorId?: string;
+    status?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<AppointmentRecord[]> {
+    const conditions: ReturnType<typeof eq>[] = [];
+
+    if (filters?.date) conditions.push(eq(appointments.appointmentDate, filters.date));
+    if (filters?.doctorId) conditions.push(eq(appointments.doctorId, filters.doctorId));
+    if (filters?.dateFrom) conditions.push(gte(appointments.appointmentDate, filters.dateFrom));
+    if (filters?.dateTo) conditions.push(lte(appointments.appointmentDate, filters.dateTo));
+
+    let query = buildBaseQuery();
+    if (conditions.length) query = query.where(and(...conditions)) as any;
+    const rows = await query.orderBy(asc(appointments.appointmentDate), asc(appointments.startTime));
+
+    return rows.map(toAppointmentRecord);
+  },
+
+  async get(id: string): Promise<AppointmentRecord | null> {
+    const [row] = await buildBaseQuery()
+      .where(eq(appointments.id, id))
+      .limit(1);
+
+    return row ? toAppointmentRecord(row) : null;
+  },
+
+  async create(input: {
+    patientId: string;
+    doctorId: string;
+    slotId?: string | null;
+    appointmentDate: string;
+    startTime: string;
+    endTime?: string | null;
+    type?: string;
+    status?: string;
+    reason?: string | null;
+    notes?: string | null;
+    createdById?: string | null;
+  }) {
+    const maxToken = await db
+      .select({ max: sql<number>`COALESCE(MAX(${appointments.queueTokenNumber}), 0)` })
+      .from(appointments)
+      .where(and(
+        eq(appointments.doctorId, input.doctorId),
+        eq(appointments.appointmentDate, input.appointmentDate)
+      ));
+
+    const nextToken = (maxToken[0]?.max ?? 0) + 1;
+
+    const [created] = await db
+      .insert(appointments)
+      .values({
+        patientId: input.patientId,
+        doctorId: input.doctorId,
+        slotId: input.slotId ?? null,
+        appointmentDate: input.appointmentDate,
+        startTime: input.startTime,
+        endTime: input.endTime ?? null,
+        type: (input.type ?? "in_clinic") as any,
+        status: (input.status ?? "booked") as any,
+        reason: input.reason ?? null,
+        notes: input.notes ?? null,
+        queueTokenNumber: nextToken,
+        createdById: input.createdById ?? null,
+      })
+      .returning();
+
+    if (input.slotId) {
+      await db.update(doctorAvailabilitySlots).set({ isBooked: true }).where(eq(doctorAvailabilitySlots.id, input.slotId));
+    }
+
+    return created;
+  },
+
+  async updateStatus(id: string, newStatus: string, changedById?: string | null, remarks?: string | null) {
+    const [current] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    if (!current) throw new Error("Appointment not found");
+
+    const oldStatus = current.status;
+
+    await db.update(appointments).set({ status: newStatus as any }).where(eq(appointments.id, id));
+
+    await db.insert(appointmentStatusLogs).values({
+      appointmentId: id,
+      oldStatus: oldStatus as any,
+      newStatus: newStatus as any,
+      changedById: changedById ?? null,
+      remarks: remarks ?? null,
+    });
+
+    if (newStatus === "cancelled" && current.slotId) {
+      await db.update(doctorAvailabilitySlots).set({ isBooked: false }).where(eq(doctorAvailabilitySlots.id, current.slotId));
+    }
+  },
+
+  async reschedule(
+    id: string,
+    input: {
+      newDate: string;
+      newStartTime: string;
+      newSlotId?: string | null;
+      reason?: string | null;
+      changedById?: string | null;
+    }
+  ) {
+    const [current] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    if (!current) throw new Error("Appointment not found");
+
+    if (current.slotId) {
+      await db.update(doctorAvailabilitySlots).set({ isBooked: false }).where(eq(doctorAvailabilitySlots.id, current.slotId));
+    }
+
+    await db.update(appointments).set({
+      appointmentDate: input.newDate,
+      startTime: input.newStartTime,
+      slotId: input.newSlotId ?? null,
+      status: "rescheduled",
+    }).where(eq(appointments.id, id));
+
+    await db.insert(appointmentReschedules).values({
+      appointmentId: id,
+      oldDate: current.appointmentDate,
+      oldStartTime: current.startTime,
+      newDate: input.newDate,
+      newStartTime: input.newStartTime,
+      reason: input.reason ?? null,
+      rescheduledById: input.changedById ?? null,
+    });
+
+    if (input.newSlotId) {
+      await db.update(doctorAvailabilitySlots).set({ isBooked: true }).where(eq(doctorAvailabilitySlots.id, input.newSlotId));
+    }
+  },
+
+  async update(
+    id: string,
+    input: {
+      reason?: string | null;
+      notes?: string | null;
+      type?: string;
+    }
+  ) {
+    await db.update(appointments).set({
+      reason: input.reason ?? null,
+      notes: input.notes ?? null,
+      type: input.type as any,
+    }).where(eq(appointments.id, id));
+  },
+
+  async getQueue(doctorId: string, date: string) {
+    const rows = await db
+      .select()
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .where(and(
+        eq(appointments.doctorId, doctorId),
+        eq(appointments.appointmentDate, date),
+      ))
+      .orderBy(asc(appointments.queueTokenNumber));
+
+    return rows.map((row) => ({
+      id: row.appointments.id,
+      tokenNumber: row.appointments.queueTokenNumber,
+      patientName: row.patients.fullName,
+      startTime: row.appointments.startTime,
+      status: row.appointments.status,
+    }));
+  },
+
+  async getDoctors(): Promise<DoctorOption[]> {
+    const rows = await db
+      .select()
+      .from(doctors)
+      .innerJoin(users, eq(doctors.userId, users.id))
+      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
+      .where(eq(users.status, "active"));
+
+    return rows.map((row) => ({
+      id: row.doctors.id,
+      name: [row.users.firstName, row.users.lastName].filter(Boolean).join(" "),
+      specialty: row.doctor_specialties?.name ?? null,
+    }));
+  },
+
+  async getAvailability(doctorId: string, date: string) {
+    const slots = await db
+      .select({ slot: doctorAvailabilitySlots, doctor: doctors, user: users, specialty: doctorSpecialties })
+      .from(doctorAvailabilitySlots)
+      .innerJoin(doctors, eq(doctorAvailabilitySlots.doctorId, doctors.id))
+      .innerJoin(users, eq(doctors.userId, users.id))
+      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
+      .where(and(
+        eq(doctorAvailabilitySlots.doctorId, doctorId),
+        eq(doctorAvailabilitySlots.slotDate, date),
+        eq(doctorAvailabilitySlots.isBooked, false),
+        eq(doctorAvailabilitySlots.isBlocked, false),
+      ))
+      .orderBy(asc(doctorAvailabilitySlots.startTime));
+
+    return slots.map((s) => ({
+      id: s.slot.id,
+      slotDate: s.slot.slotDate,
+      startTime: s.slot.startTime,
+      endTime: s.slot.endTime,
+      doctorId: s.slot.doctorId,
+      doctorName: [s.user.firstName, s.user.lastName].filter(Boolean).join(" "),
+      doctorSpecialty: s.specialty?.name ?? null,
+    }));
+  },
 };

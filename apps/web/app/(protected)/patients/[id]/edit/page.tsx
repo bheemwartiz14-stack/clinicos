@@ -1,21 +1,19 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { patientController } from "@modules/patients/controllers/patient.controller";
-import { EditPatientView } from "@modules/patients/views/edit-patient-view";
+import { patientService } from "@modules/patients/services/patient.service";
+import { PatientForm } from "@modules/patients/views/patients-list-view";
 
-type Props = { params: Promise<{ id: string }> };
+export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export const metadata: Metadata = {
+  title: "Edit Patient | MediClinic Pro"
+};
+
+export default async function EditPatientPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePagePermission("patients.edit");
   const { id } = await params;
-  return {
-    title: `Edit Patient ${id} | MediClinic Pro`,
-    description: "Update patient profile."
-  };
-}
-
-export default async function EditPatientPage({ params }: Props) {
-  const session = await requirePagePermission("patients.edit");
-  const { id } = await params;
-  const patient = await patientController.detailsForAdmin(session.branchId, id);
-  return <EditPatientView patient={patient} />;
+  const patient = await patientService.get(id);
+  if (!patient) notFound();
+  return <PatientForm patient={patient} />;
 }

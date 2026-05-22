@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { doctorController } from "@modules/doctors/controllers/doctor.controller";
-import { AddDoctorView } from "@modules/doctors/views/add-doctor-view";
+import { doctorService } from "@modules/doctors/services/doctor.service";
+import { DoctorForm } from "@modules/doctors/views/doctors-list-view";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "Add Doctor | MediClinic Pro",
-    description: "Create a doctor account, profile, consultation settings, weekly schedule, and appointment slots."
-  };
-}
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Add Doctor | MediClinic Pro"
+};
 
 export default async function AddDoctorPage() {
-  await requirePagePermission("doctors.create");
-  const options = await doctorController.formOptions();
-  return <AddDoctorView options={options} />;
+  await requirePagePermission("doctors.manage");
+  const [departments, specialties] = await Promise.all([doctorService.listDepartments(), doctorService.listSpecialties()]);
+  return <DoctorForm departments={departments} specialties={specialties} />;
 }

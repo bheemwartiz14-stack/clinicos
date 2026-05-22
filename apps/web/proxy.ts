@@ -4,29 +4,17 @@ import { can, type Permission, type Role } from "@mediclinic/rbac";
 import { env } from "./lib/env";
 
 const publicRoutes = ["/login", "/forgot-password", "/reset-password", "/403"];
-const authRoutes = ["/login", "/forgot-password", "/reset-password"];
-
 const routePermissions: Array<{ path: string; permission: Permission }> = [
   { path: "/settings/login-history", permission: "settings.profile" },
   { path: "/settings/notifications", permission: "settings.profile" },
   { path: "/settings/preferences", permission: "settings.profile" },
-  { path: "/settings/staff-manage", permission: "staff.manage" },
   { path: "/settings/security", permission: "settings.profile" },
   { path: "/settings/profile", permission: "settings.profile" },
   { path: "/settings/account", permission: "settings.profile" },
-  { path: "/settings/integration", permission: "integrations.view" },
-  { path: "/doctor/patients", permission: "patients.profile.view" },
-  { path: "/nurse/patients", permission: "patients.profile.view" },
-  { path: "/billing/patients", permission: "patients.billing.view" },
-  { path: "/appointments", permission: "appointments.view" },
-  { path: "/patients", permission: "patients.view" },
+  { path: "/settings/staff-manage", permission: "staff.manage" },
+  { path: "/settings", permission: "settings.profile" },
+  { path: "/rbac", permission: "rbac.manage" },
   { path: "/doctors", permission: "doctors.view" },
-  { path: "/branches", permission: "branches.manage" },
-  { path: "/billing", permission: "billing.view" },
-  { path: "/payroll", permission: "payroll.view" },
-  { path: "/reports", permission: "reports.view" },
-  { path: "/settings", permission: "settings.manage" },
-  { path: "/ai", permission: "ai.use" },
   { path: "/", permission: "dashboard.view" },
 ];
 
@@ -50,12 +38,6 @@ function isPublic(pathname: string) {
   );
 }
 
-function isAuthRoute(pathname: string) {
-  return authRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-}
-
 function matchPermission(pathname: string) {
   if (pathname === "/") {
     return routePermissions.find((route) => route.path === "/");
@@ -74,18 +56,18 @@ export async function proxy(request: NextRequest) {
 
   const publicRoute = isPublic(pathname);
 
+  if (publicRoute) {
+    return NextResponse.next();
+  }
+
   if (!token) {
-    return publicRoute ? NextResponse.next() : redirect(request, "/login");
+    return redirect(request, "/login");
   }
 
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
 
     const role = payload.role as Role | undefined;
-
-    if (isAuthRoute(pathname)) {
-      return redirect(request, "/");
-    }
 
     const matchedRoute = matchPermission(pathname);
 
@@ -95,9 +77,7 @@ export async function proxy(request: NextRequest) {
 
     return NextResponse.next();
   } catch {
-    const response = publicRoute
-      ? NextResponse.next()
-      : redirect(request, "/login");
+    const response = redirect(request, "/login");
 
     response.cookies.delete(cookieName);
 

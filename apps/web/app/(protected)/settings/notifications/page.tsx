@@ -3,6 +3,8 @@ import { requirePagePermission } from "@/lib/auth";
 import { settingsService } from "@modules/settings/profile/services/settings.service";
 import { NotificationSettingsView } from "@modules/settings/profile/views/settings-dashboard-view";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Notification Settings | MediClinic Pro"
 };

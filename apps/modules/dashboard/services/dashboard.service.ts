@@ -1,91 +1,219 @@
-import { getDashboardRawData } from "../repositories/dashboard.repository";
-import type { DashboardData, DashboardMetric } from "../types/dashboard.types";
+import { and, asc, count, desc, eq, gte, lte, or, sql } from "drizzle-orm";
+import { db, appointments, doctorAvailabilitySlots, doctorSpecialties, doctors, invoices, patients, roles, staffProfiles, userSessions, users } from "@mediclinic/db";
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function startOfNextDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-}
-
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function startOfNextMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
-}
-
-function startOfPreviousMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() - 1, 1);
-}
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", { currency: "USD", maximumFractionDigits: 0, style: "currency" }).format(value);
-}
-
-function trend(current: number, previous: number) {
-  if (previous === 0 && current === 0) return "0%";
-  if (previous === 0) return "+100%";
-
-  const value = ((current - previous) / previous) * 100;
-  const rounded = Math.round(value);
-  return `${rounded > 0 ? "+" : ""}${rounded}%`;
-}
-
-function metric(label: string, value: string, current: number, previous: number): DashboardMetric {
-  const change = trend(current, previous);
-  return {
-    label,
-    value,
-    change,
-    detail: "this month",
-    tone: change.startsWith("-") ? "warning" : "success"
-  };
-}
-
-function statusLabel(status: string) {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export const dashboardService = {
-  async getDashboardData(branchId: string, now = new Date()): Promise<DashboardData> {
-    const raw = await getDashboardRawData(branchId, {
-      today: { start: startOfDay(now), end: startOfNextDay(now) },
-      month: { start: startOfMonth(now), end: startOfNextMonth(now) },
-      previousMonth: { start: startOfPreviousMonth(now), end: startOfMonth(now) }
-    });
+  async adminOverview() {
+    const today = todayKey();
+    const [doctorCount] = await db.select({ value: count() }).from(doctors);
+    const [availableDoctorCount] = await db.select({ value: count() }).from(doctors).where(eq(doctors.isAvailable, true));
+    const [staffCount] = await db.select({ value: count() }).from(staffProfiles);
+    const [patientCount] = await db.select({ value: count() }).from(patients);
+    const [activeSessionCount] = await db.select({ value: count() }).from(userSessions).where(eq(userSessions.isActive, true));
+    const [todayApptCount] = await db.select({ value: count() }).from(appointments).where(eq(appointments.appointmentDate, today));
+    const [slotCount] = await db.select({ value: count() }).from(doctorAvailabilitySlots).where(gte(doctorAvailabilitySlots.slotDate, today));
+    const [roleCount] = await db.select({ value: count() }).from(roles);
+    const [specialtyCount] = await db.select({ value: count() }).from(doctorSpecialties);
 
-    const metrics: DashboardMetric[] = [
-      metric("Total Patients", formatNumber(raw.totalPatients), raw.currentMonthPatients, raw.previousMonthPatients),
-      metric("Today Appointments", formatNumber(raw.todayAppointments), raw.currentMonthAppointments, raw.previousMonthAppointments),
-      metric("Revenue", formatCurrency(raw.currentMonthRevenue), raw.currentMonthRevenue, raw.previousMonthRevenue),
-      metric("AI Notes", formatNumber(raw.currentMonthAiNotes), raw.currentMonthAiNotes, raw.previousMonthAiNotes)
-    ];
+    const statusRows = await db
+      .select({ status: appointments.status, value: count() })
+      .from(appointments)
+      .where(eq(appointments.appointmentDate, today))
+      .groupBy(appointments.status);
+
+    const recentDoctors = await db
+      .select({
+        id: doctors.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        status: users.status,
+        isAvailable: doctors.isAvailable,
+        consultationFee: doctors.consultationFee,
+        specialty: doctorSpecialties.name
+      })
+      .from(doctors)
+      .innerJoin(users, eq(doctors.userId, users.id))
+      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
+      .orderBy(desc(doctors.createdAt))
+      .limit(6);
 
     return {
-      metrics,
-      appointments: raw.upcomingAppointments.map((appointment) => ({
-        id: appointment.id,
-        patient: `${appointment.patientFirstName} ${appointment.patientLastName}`,
-        doctor: `Dr. ${appointment.doctorFirstName} ${appointment.doctorLastName}`,
-        time: new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(appointment.startsAt),
-        status: statusLabel(appointment.status)
-      })),
-      aiSummary: [
-        `${raw.currentMonthPatientNotes} clinical notes were added this month.`,
-        `${raw.pendingConfirmations} appointments are scheduled for today.`,
-        `${raw.currentMonthAiNotes} appointments include AI intake summaries this month.`
-      ],
-      pendingConfirmations: raw.pendingConfirmations
+      metrics: {
+        doctors: Number(doctorCount?.value ?? 0),
+        availableDoctors: Number(availableDoctorCount?.value ?? 0),
+        staff: Number(staffCount?.value ?? 0),
+        patients: Number(patientCount?.value ?? 0),
+        activeSessions: Number(activeSessionCount?.value ?? 0),
+        upcomingSlots: Number(slotCount?.value ?? 0),
+        roles: Number(roleCount?.value ?? 0),
+        specialties: Number(specialtyCount?.value ?? 0),
+        todayAppointments: Number(todayApptCount?.value ?? 0),
+      },
+      todayStatusCounts: Object.fromEntries(statusRows.map((r) => [r.status, Number(r.value)])),
+      recentDoctors: recentDoctors.map((doctor) => ({
+        id: doctor.id,
+        name: [doctor.firstName, doctor.lastName].filter(Boolean).join(" "),
+        email: doctor.email,
+        status: doctor.status,
+        isAvailable: doctor.isAvailable,
+        consultationFee: doctor.consultationFee,
+        specialty: doctor.specialty ?? "General"
+      }))
+    };
+  },
+
+  async doctorOverview(userId: string) {
+    const today = todayKey();
+    const [doctorRow] = await db
+      .select({
+        id: doctors.id,
+        isAvailable: doctors.isAvailable,
+        consultationFee: doctors.consultationFee,
+        specialty: doctorSpecialties.name
+      })
+      .from(doctors)
+      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
+      .where(eq(doctors.userId, userId))
+      .limit(1);
+
+    if (!doctorRow) return null;
+
+    const doctorId = doctorRow.id;
+    const [todayApptCount] = await db
+      .select({ value: count() })
+      .from(appointments)
+      .where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, today)));
+
+    const [completedCount] = await db
+      .select({ value: count() })
+      .from(appointments)
+      .where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, today), eq(appointments.status, "completed")));
+
+    const [patientCount] = await db
+      .select({ value: count() })
+      .from(appointments)
+      .where(eq(appointments.doctorId, doctorId));
+
+    const [checkedInCount] = await db
+      .select({ value: count() })
+      .from(appointments)
+      .where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, today), eq(appointments.status, "checked_in")));
+
+    const todayAppts = await db
+      .select({
+        id: appointments.id,
+        startTime: appointments.startTime,
+        status: appointments.status,
+        patientName: patients.fullName,
+        type: appointments.type
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .where(and(eq(appointments.doctorId, doctorId), eq(appointments.appointmentDate, today)))
+      .orderBy(asc(appointments.startTime));
+
+    return {
+      doctorId,
+      isAvailable: doctorRow.isAvailable,
+      consultationFee: doctorRow.consultationFee,
+      specialty: doctorRow.specialty ?? "General",
+      todayAppointments: Number(todayApptCount?.value ?? 0),
+      completedToday: Number(completedCount?.value ?? 0),
+      totalPatients: Number(patientCount?.value ?? 0),
+      checkedInNow: Number(checkedInCount?.value ?? 0),
+      todaySchedule: todayAppts.map((a) => ({
+        id: a.id,
+        startTime: a.startTime,
+        status: a.status,
+        patientName: a.patientName,
+        type: a.type
+      }))
+    };
+  },
+
+  async receptionistOverview() {
+    const today = todayKey();
+    const [todayApptCount] = await db
+      .select({ value: count() })
+      .from(appointments)
+      .where(eq(appointments.appointmentDate, today));
+
+    const statusRows = await db
+      .select({ status: appointments.status, value: count() })
+      .from(appointments)
+      .where(eq(appointments.appointmentDate, today))
+      .groupBy(appointments.status);
+
+    const [patientCount] = await db.select({ value: count() }).from(patients);
+    const [doctorCount] = await db.select({ value: count() }).from(doctors);
+
+    const recentAppts = await db
+      .select({
+        id: appointments.id,
+        startTime: appointments.startTime,
+        status: appointments.status,
+        patientName: patients.fullName,
+        doctorFirstName: users.firstName,
+        doctorLastName: users.lastName,
+        type: appointments.type
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(appointments.patientId, patients.id))
+      .innerJoin(doctors, eq(appointments.doctorId, doctors.id))
+      .innerJoin(users, eq(doctors.userId, users.id))
+      .where(eq(appointments.appointmentDate, today))
+      .orderBy(asc(appointments.startTime))
+      .limit(10);
+
+    return {
+      todayAppointments: Number(todayApptCount?.value ?? 0),
+      patients: Number(patientCount?.value ?? 0),
+      doctors: Number(doctorCount?.value ?? 0),
+      statusCounts: Object.fromEntries(statusRows.map((r) => [r.status, Number(r.value)])),
+      recentAppointments: recentAppts.map((a) => ({
+        id: a.id,
+        startTime: a.startTime,
+        status: a.status,
+        patientName: a.patientName,
+        doctorName: [a.doctorFirstName, a.doctorLastName].filter(Boolean).join(" "),
+        type: a.type
+      }))
+    };
+  },
+
+  async accountantOverview() {
+    const today = todayKey();
+    const [todayRevenue] = await db
+      .select({ value: sql<number>`COALESCE(SUM(${invoices.totalAmount}), 0)` })
+      .from(invoices)
+      .where(and(eq(invoices.paymentStatus, "paid"), gte(invoices.createdAt, new Date(today + "T00:00:00")), lte(invoices.createdAt, new Date(today + "T23:59:59"))));
+
+    const [pendingInvoices] = await db
+      .select({ value: count() })
+      .from(invoices)
+      .where(or(eq(invoices.paymentStatus, "pending"), eq(invoices.paymentStatus, "partial")));
+
+    const [totalInvoices] = await db.select({ value: count() }).from(invoices);
+    const [todayInvoices] = await db
+      .select({ value: count() })
+      .from(invoices)
+      .where(gte(invoices.createdAt, new Date(today + "T00:00:00")));
+
+    const payStatusRows = await db
+      .select({ status: invoices.paymentStatus, value: count() })
+      .from(invoices)
+      .groupBy(invoices.paymentStatus);
+
+    return {
+      todayRevenue: Number(todayRevenue?.value ?? 0),
+      pendingInvoices: Number(pendingInvoices?.value ?? 0),
+      totalInvoices: Number(totalInvoices?.value ?? 0),
+      todayInvoices: Number(todayInvoices?.value ?? 0),
+      payStatusCounts: Object.fromEntries(payStatusRows.map((r) => [r.status, Number(r.value)])),
     };
   }
 };

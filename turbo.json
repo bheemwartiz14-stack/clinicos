@@ -1,6 +1,5 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "ui": "tui",
   "globalPassThroughEnv": [
     "DATABASE_URL",
     "AUTH_SECRET",

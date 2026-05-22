@@ -1,127 +1,113 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import type { Route } from "next";
 import { z } from "zod";
-import { requirePermission } from "../../../web/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { appointmentService } from "../services/appointment.service";
 
-export type AppointmentActionState = {
-  ok: boolean;
-  message: string;
-  fieldErrors?: Record<string, string[] | undefined>;
-  patient?: { id: string; label: string };
-};
+const createAppointmentSchema = z.object({
+  patientId: z.string().min(1, "Patient is required"),
+  doctorId: z.string().min(1, "Doctor is required"),
+  slotId: z.string().optional().or(z.literal("")),
+  appointmentDate: z.string().min(1, "Date is required"),
+  startTime: z.string().min(1, "Time is required"),
+  endTime: z.string().optional().or(z.literal("")),
+  type: z.enum(["in_clinic", "online", "walk_in"]).default("in_clinic"),
+  status: z.enum(["booked", "confirmed", "pending", "cancelled"]).default("confirmed"),
+  reason: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+});
 
-function value(formData: FormData, key: string) {
-  const raw = formData.get(key);
-  return typeof raw === "string" ? raw : "";
+export async function createAppointmentAction(formData: FormData) {
+  await requirePagePermission("appointments.create");
+  const parsed = createAppointmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/appointments/create?error=invalid" as Route);
+
+  const session = await getSession().catch(() => null);
+
+  await appointmentService.create({
+    ...parsed.data,
+    slotId: parsed.data.slotId || null,
+    endTime: parsed.data.endTime || null,
+    reason: parsed.data.reason || null,
+    notes: parsed.data.notes || null,
+    createdById: session?.userId ?? null,
+  });
+
+  revalidatePath("/appointments");
+  redirect("/appointments" as Route);
 }
 
-function appointmentPayload(formData: FormData) {
-  return {
-    id: value(formData, "id"),
-    patientId: value(formData, "patientId"),
-    doctorId: value(formData, "doctorId"),
-    appointmentDate: value(formData, "appointmentDate"),
-    startTime: value(formData, "startTime"),
-    durationMinutes: value(formData, "durationMinutes"),
-    type: value(formData, "type") || "in_clinic",
-    reasonForVisit: value(formData, "reasonForVisit"),
-    notes: value(formData, "notes") || null,
-    status: value(formData, "status") || "confirmed"
-  };
+const updateStatusSchema = z.object({
+  appointmentId: z.string().min(1),
+  newStatus: z.enum(["booked", "confirmed", "checked_in", "in_consultation", "completed", "cancelled", "rescheduled", "no_show"]),
+  remarks: z.string().optional().or(z.literal("")),
+});
+
+export async function updateAppointmentStatusAction(formData: FormData) {
+  await requirePagePermission("appointments.edit");
+  const parsed = updateStatusSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+
+  const session = await getSession().catch(() => null);
+
+  await appointmentService.updateStatus(
+    parsed.data.appointmentId,
+    parsed.data.newStatus,
+    session?.userId ?? null,
+    parsed.data.remarks || null
+  );
+
+  revalidatePath("/appointments");
 }
 
-function actionError(error: unknown): AppointmentActionState {
-  if (error instanceof z.ZodError) {
-    return { ok: false, message: "Check the highlighted appointment fields.", fieldErrors: error.flatten().fieldErrors };
-  }
-  return { ok: false, message: error instanceof Error ? error.message : "Appointment action failed." };
+const rescheduleSchema = z.object({
+  appointmentId: z.string().min(1),
+  newDate: z.string().min(1, "New date is required"),
+  newStartTime: z.string().min(1, "New time is required"),
+  newSlotId: z.string().optional().or(z.literal("")),
+  reason: z.string().optional().or(z.literal("")),
+});
+
+export async function rescheduleAppointmentAction(formData: FormData) {
+  await requirePagePermission("appointments.edit");
+  const parsed = rescheduleSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+
+  const session = await getSession().catch(() => null);
+
+  await appointmentService.reschedule(parsed.data.appointmentId, {
+    newDate: parsed.data.newDate,
+    newStartTime: parsed.data.newStartTime,
+    newSlotId: parsed.data.newSlotId || null,
+    reason: parsed.data.reason || null,
+    changedById: session?.userId ?? null,
+  });
+
+  revalidatePath("/appointments");
 }
 
-export async function createAppointmentAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("appointments.create");
-    console.log(formData);
-    await appointmentService.createAppointmentFromForm(session.branchId, session.userId, appointmentPayload(formData));
-    revalidatePath("/appointments");
-    return { ok: true, message: "Appointment booked." };
-  } catch (error) {
-    return actionError(error);
-  }
-}
+export async function walkInAppointmentAction(formData: FormData) {
+  await requirePagePermission("appointments.create");
+  const parsed = createAppointmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/appointments/create?error=invalid" as Route);
 
-export async function updateAppointmentAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("appointments.edit");
-    await appointmentService.updateAppointmentFromForm(session.branchId, session.userId, appointmentPayload(formData));
-    revalidatePath("/appointments");
-    return { ok: true, message: "Appointment updated." };
-  } catch (error) {
-    return actionError(error);
-  }
-}
+  const session = await getSession().catch(() => null);
 
-export async function cancelAppointmentAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("appointments.cancel");
-    await appointmentService.cancelAppointmentFromForm(session.branchId, session.userId, {
-      id: value(formData, "id"),
-      cancelledReason: value(formData, "cancelledReason")
-    });
-    revalidatePath("/appointments");
-    return { ok: true, message: "Appointment cancelled." };
-  } catch (error) {
-    return actionError(error);
-  }
-}
+  await appointmentService.create({
+    ...parsed.data,
+    slotId: parsed.data.slotId || null,
+    endTime: parsed.data.endTime || null,
+    reason: parsed.data.reason || null,
+    notes: parsed.data.notes || null,
+    type: "walk_in",
+    status: "checked_in",
+    createdById: session?.userId ?? null,
+  });
 
-export async function updateAppointmentStatusAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("appointments.status-update");
-    await appointmentService.updateAppointmentStatusFromForm(session.branchId, session.userId, {
-      id: value(formData, "id"),
-      status: value(formData, "status")
-    });
-    revalidatePath("/appointments");
-    return { ok: true, message: "Appointment status updated." };
-  } catch (error) {
-    return actionError(error);
-  }
-}
-
-export async function rescheduleAppointmentAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("appointments.edit");
-    await appointmentService.rescheduleAppointmentFromForm(session.branchId, session.userId, {
-      id: value(formData, "id"),
-      appointmentDate: value(formData, "appointmentDate"),
-      startTime: value(formData, "startTime"),
-      durationMinutes: value(formData, "durationMinutes")
-    });
-    revalidatePath("/appointments");
-    return { ok: true, message: "Appointment rescheduled." };
-  } catch (error) {
-    return actionError(error);
-  }
-}
-
-export async function quickCreatePatientAction(formData: FormData): Promise<AppointmentActionState> {
-  try {
-    const session = await requirePermission("patients.create");
-    const patient = await appointmentService.quickCreatePatientFromForm(session.branchId, session.userId, {
-      fullName: value(formData, "fullName"),
-      email: value(formData, "email"),
-      dateOfBirth: value(formData, "dateOfBirth"),
-      sex: value(formData, "sex"),
-      gender: value(formData, "gender"),
-      bloodGroup: value(formData, "bloodGroup"),
-      maritalStatus: value(formData, "maritalStatus"),
-      phone: value(formData, "phone")
-    });
-    revalidatePath("/appointments");
-    return { ok: true, message: "Patient created.", patient };
-  } catch (error) {
-    return actionError(error);
-  }
+  revalidatePath("/appointments");
+  redirect("/appointments" as Route);
 }

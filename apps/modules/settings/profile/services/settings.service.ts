@@ -1,82 +1,150 @@
-import { headers } from "next/headers";
+import { desc, eq } from "drizzle-orm";
 import { hashPassword, verifyPassword } from "@mediclinic/auth";
-import {
-  accountUpdateSchema,
-  notificationPreferenceSchema,
-  passwordSchema,
-  profileUpdateSchema,
-  type AccountUpdateInput,
-  type NotificationPreferenceInput,
-  type PasswordInput,
-  type ProfileUpdateInput
-} from "../validations/profile.validation";
-import * as repository from "../repositories/settings.repository";
+import { db, roles, userRoles, userSessions, users } from "@mediclinic/db";
 
-function clientMetadataFromHeaders(headerStore: Headers) {
-  return {
-    ipAddress: headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? headerStore.get("x-real-ip") ?? undefined,
-    userAgent: headerStore.get("user-agent") ?? undefined
-  };
+export type ProfileSummary = {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  name: string;
+  username: string | null;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  role: string;
+  status: string;
+  emailVerified: boolean;
+  lastLoginAt: Date | null;
+  branchName: string | null;
+};
+
+export type SessionSummary = {
+  id: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  isActive: boolean;
+  isCurrent: boolean;
+  expiresAt: Date;
+  createdAt: Date;
+};
+
+export type NotificationPreference = {
+  key: string;
+  label: string;
+  description: string;
+  enabled: boolean;
+};
+
+function fullName(user: { firstName: string; lastName: string | null }) {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ");
+}
+
+async function getRole(userId: string) {
+  const [role] = await db
+    .select({ code: roles.code })
+    .from(userRoles)
+    .innerJoin(roles, eq(userRoles.roleId, roles.id))
+    .where(eq(userRoles.userId, userId))
+    .limit(1);
+
+  return role?.code ?? "unassigned";
 }
 
 export const settingsService = {
-  async overview(userId: string, sessionId: string) {
-    const [profile, branches, departments, preferences, sessions, loginHistory] = await Promise.all([
-      repository.getSettingsProfile(userId),
-      repository.listBranchesForSettings(),
-      repository.listDepartmentsForSettings(),
-      repository.getNotificationPreferences(userId),
-      repository.listSessions(userId, sessionId),
-      repository.listLoginHistory(userId)
-    ]);
+  async getProfile(userId: string): Promise<ProfileSummary | null> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) return null;
 
-    if (!profile) throw new Error("Profile not found.");
-    return { profile, branches, departments, preferences, sessions, loginHistory };
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      name: fullName(user),
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar,
+      role: await getRole(user.id),
+      status: user.status,
+      emailVerified: user.emailVerified,
+      lastLoginAt: user.lastLoginAt,
+      branchName: "Main Clinic"
+    };
   },
 
-  async getProfile(userId: string) {
-    const profile = await repository.getSettingsProfile(userId);
-    if (!profile) throw new Error("Profile not found.");
-    return profile;
+  async overview(userId: string, currentSessionId: string) {
+    const profile = await this.getProfile(userId);
+    if (!profile) {
+      throw new Error("Profile not found");
+    }
+
+    const sessions = await db
+      .select()
+      .from(userSessions)
+      .where(eq(userSessions.userId, userId))
+      .orderBy(desc(userSessions.createdAt))
+      .limit(10);
+
+    const sessionSummaries = sessions.map((session) => ({
+      id: session.id,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      isActive: session.isActive,
+      isCurrent: session.id === currentSessionId,
+      expiresAt: session.expiresAt,
+      createdAt: session.createdAt
+    }));
+
+    return {
+      profile,
+      branches: [{ id: "main", name: "Main Clinic" }],
+      departments: [],
+      sessions: sessionSummaries,
+      loginHistory: sessionSummaries,
+      preferences: [
+        {
+          key: "appointments",
+          label: "Appointment updates",
+          description: "Notify me about booking, cancellation, and queue changes.",
+          enabled: true
+        },
+        {
+          key: "billing",
+          label: "Billing alerts",
+          description: "Send alerts for invoices, payment failures, and refunds.",
+          enabled: profile.role === "admin" || profile.role === "accountant"
+        },
+        {
+          key: "security",
+          label: "Security notifications",
+          description: "Notify me about password changes and new sessions.",
+          enabled: true
+        }
+      ] satisfies NotificationPreference[]
+    };
   },
 
-  async updateProfile(userId: string, input: ProfileUpdateInput) {
-    const currentProfile = await repository.getSettingsProfile(userId);
-    if (!currentProfile) throw new Error("Profile not found.");
-
-    const payload = profileUpdateSchema.parse({
-      ...input,
-      branchId: currentProfile.role === "doctor" ? currentProfile.branchId : input.branchId,
-      departmentId: currentProfile.role === "doctor" ? currentProfile.departmentId : input.departmentId
-    });
-    await repository.updateProfile(userId, payload);
+  async updateProfile(userId: string, input: { firstName: string; lastName?: string | null; username?: string | null; phone?: string | null; avatar?: string | null }) {
+    await db
+      .update(users)
+      .set({
+        firstName: input.firstName.trim(),
+        lastName: input.lastName?.trim() || null,
+        username: input.username?.trim().toLowerCase() || null,
+        phone: input.phone?.trim() || null,
+        avatar: input.avatar?.trim() || null
+      })
+      .where(eq(users.id, userId));
   },
 
-  async updateAccount(userId: string, input: AccountUpdateInput) {
-    const payload = accountUpdateSchema.parse(input);
-    await repository.updateAccount(userId, payload);
-  },
+  async changePassword(userId: string, input: { currentPassword: string; newPassword: string }) {
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    if (!user) throw new Error("Profile not found");
 
-  async updateNotificationPreferences(userId: string, input: NotificationPreferenceInput) {
-    const payload = notificationPreferenceSchema.parse(input);
-    await repository.updateNotificationPreferences(userId, payload);
-  },
+    const matches = await verifyPassword(input.currentPassword, user.passwordHash);
+    if (!matches) throw new Error("Current password is incorrect");
 
-  async changePassword(userId: string, sessionId: string, input: PasswordInput) {
-    const payload = passwordSchema.parse(input);
-    const currentHash = await repository.getUserPasswordHash(userId);
-    if (!currentHash) throw new Error("Profile not found.");
-
-    const matches = await verifyPassword(payload.currentPassword, currentHash);
-    if (!matches) throw new Error("Current password is incorrect.");
-
-    const nextHash = await hashPassword(payload.newPassword);
-    await repository.changePassword(userId, nextHash, sessionId, payload.logoutOtherDevices, clientMetadataFromHeaders(await headers()));
-  },
-
-  async revokeSession(userId: string, currentSessionId: string, sessionId: string) {
-    if (sessionId === currentSessionId) throw new Error("Use logout to end your current session.");
-    const revoked = await repository.revokeSession(userId, sessionId);
-    if (!revoked) throw new Error("Session not found.");
+    await db.update(users).set({ passwordHash: await hashPassword(input.newPassword) }).where(eq(users.id, userId));
+    await db.update(userSessions).set({ isActive: false }).where(eq(userSessions.userId, userId));
   }
 };

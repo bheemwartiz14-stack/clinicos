@@ -1,65 +1,215 @@
-import { patientFormSchema, patientUpdateSchema, type PatientFormInput, type PatientUpdateInput } from "../schemas/patient.schema";
-import * as patientRepository from "../repositories/patient.repository";
+import { eq, ilike, or, desc } from "drizzle-orm";
+import { db, patientMedicalHistories, patientNotes, patients, appointments, invoices } from "@mediclinic/db";
 
-async function assertUniquePatient(branchId: string, input: PatientFormInput | PatientUpdateInput, currentPatientId?: string) {
-  const patientCode = input.patientCode;
-  if (patientCode) {
-    const existing = await patientRepository.getPatientByCode(branchId, patientCode);
-    if (existing && existing.id !== currentPatientId) throw new Error("Patient code already exists.");
-  }
+export type PatientRecord = {
+  id: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  bloodGroup: string | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  isActive: boolean;
+};
 
-  const phoneMatch = await patientRepository.getPatientByPhone(branchId, input.phone);
-  if (phoneMatch && phoneMatch.id !== currentPatientId) throw new Error("Phone number already exists.");
+export type PatientMedicalHistoryRecord = {
+  id: string;
+  patientId: string;
+  condition: string;
+  description: string | null;
+  diagnosedAt: string | null;
+  createdAt: Date;
+};
 
-  if (input.email) {
-    const emailMatch = await patientRepository.getPatientByEmail(branchId, input.email);
-    if (emailMatch && emailMatch.id !== currentPatientId) throw new Error("Email already exists.");
-  }
-}
-
-export async function listPatientsForAdmin(branchId: string, filter?: { search?: string }) {
-  return patientRepository.getPatients(branchId, filter);
-}
-
-export async function getPatientDetailsForAdmin(branchId: string, id: string) {
-  return patientRepository.getPatientById(branchId, id);
-}
-
-export async function getPatientById(id: string) {
-  return patientRepository.getPatientByIdAnyBranch(id);
-}
-
-export async function createPatientFromForm(branchId: string, userId: string, input: PatientFormInput) {
-  const parsed = patientFormSchema.parse(input);
-  const patientCode = parsed.patientCode || await patientRepository.generateUniquePatientCode(branchId);
-  await assertUniquePatient(branchId, { ...parsed, patientCode });
-  return patientRepository.createPatient(branchId, { ...parsed, patientCode, userId });
-}
-
-export async function updatePatientFromForm(branchId: string, userId: string, input: PatientUpdateInput) {
-  const parsed = patientUpdateSchema.parse(input);
-  await assertUniquePatient(branchId, parsed, parsed.id);
-  return patientRepository.updatePatient(branchId, { ...parsed, userId });
-}
-
-export async function deletePatientFromForm(branchId: string, id: string) {
-  if (await patientRepository.checkPatientHasAppointments(id)) {
-    throw new Error("Patient cannot be deleted because appointments exist.");
-  }
-  return patientRepository.deletePatient(branchId, id);
-}
-
-export async function togglePatientStatusFromForm(branchId: string, id: string) {
-  return patientRepository.togglePatientStatus(branchId, id);
-}
+export type PatientNoteRecord = {
+  id: string;
+  patientId: string;
+  doctorId: string | null;
+  note: string;
+  createdAt: Date;
+};
 
 export const patientService = {
-  list: listPatientsForAdmin,
-  listPatientsForAdmin,
-  getById: getPatientById,
-  getPatientDetailsForAdmin,
-  createPatientFromForm,
-  updatePatientFromForm,
-  deletePatientFromForm,
-  togglePatientStatusFromForm
+  async list(): Promise<PatientRecord[]> {
+    const rows = await db
+      .select()
+      .from(patients)
+      .orderBy(desc(patients.createdAt));
+
+    return rows.map((p) => toPatientRecord(p));
+  },
+
+  async search(query: { q?: string }): Promise<PatientRecord[]> {
+    const q = (query.q ?? "").trim();
+    if (!q) return this.list();
+
+    const like = `%${q}%`;
+    const rows = await db
+      .select()
+      .from(patients)
+      .where(
+        or(
+          ilike(patients.fullName, like),
+          ilike(patients.phone, like),
+          ilike(patients.email, like)
+        )
+      )
+      .orderBy(desc(patients.createdAt));
+
+    return rows.map((p) => toPatientRecord(p));
+  },
+
+  async get(id: string): Promise<PatientRecord | null> {
+    const [row] = await db.select().from(patients).where(eq(patients.id, id)).limit(1);
+    if (!row) return null;
+    return toPatientRecord(row);
+  },
+
+  async create(input: {
+    fullName: string;
+    phone: string;
+    email?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    bloodGroup?: string | null;
+    address?: string | null;
+    emergencyContactName?: string | null;
+    emergencyContactPhone?: string | null;
+    isActive?: boolean;
+  }) {
+    const [created] = await db
+      .insert(patients)
+      .values({
+        fullName: input.fullName,
+        phone: input.phone,
+        email: input.email || null,
+        dateOfBirth: input.dateOfBirth || null,
+        gender: input.gender || null,
+        bloodGroup: input.bloodGroup || null,
+        address: input.address || null,
+        emergencyContactName: input.emergencyContactName || null,
+        emergencyContactPhone: input.emergencyContactPhone || null,
+        isActive: input.isActive ?? true
+      })
+      .returning();
+    return created;
+  },
+
+  async update(
+    id: string,
+    input: {
+      fullName: string;
+      phone: string;
+      email?: string | null;
+      dateOfBirth?: string | null;
+      gender?: string | null;
+      bloodGroup?: string | null;
+      address?: string | null;
+      emergencyContactName?: string | null;
+      emergencyContactPhone?: string | null;
+      isActive?: boolean;
+    }
+  ) {
+    const [updated] = await db
+      .update(patients)
+      .set({
+        fullName: input.fullName,
+        phone: input.phone,
+        email: input.email || null,
+        dateOfBirth: input.dateOfBirth || null,
+        gender: input.gender || null,
+        bloodGroup: input.bloodGroup || null,
+        address: input.address || null,
+        emergencyContactName: input.emergencyContactName || null,
+        emergencyContactPhone: input.emergencyContactPhone || null,
+        isActive: input.isActive ?? true
+      })
+      .where(eq(patients.id, id))
+      .returning();
+    return updated;
+  },
+
+  async medicalHistory(patientId: string): Promise<PatientMedicalHistoryRecord[]> {
+    const rows = await db
+      .select()
+      .from(patientMedicalHistories)
+      .where(eq(patientMedicalHistories.patientId, patientId))
+      .orderBy(desc(patientMedicalHistories.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      condition: r.condition,
+      description: r.description ?? null,
+      diagnosedAt: r.diagnosedAt ? String(r.diagnosedAt) : null,
+      createdAt: r.createdAt
+    }));
+  },
+
+  async notes(patientId: string): Promise<PatientNoteRecord[]> {
+    const rows = await db
+      .select()
+      .from(patientNotes)
+      .where(eq(patientNotes.patientId, patientId))
+      .orderBy(desc(patientNotes.createdAt));
+
+    return rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      doctorId: r.doctorId ?? null,
+      note: r.note,
+      createdAt: r.createdAt
+    }));
+  },
+
+  async appointmentHistory(patientId: string) {
+    const rows = await db
+      .select()
+      .from(appointments)
+      .where(eq(appointments.patientId, patientId))
+      .orderBy(desc(appointments.appointmentDate));
+
+    return rows.map((r) => ({
+      id: r.id,
+      appointmentDate: r.appointmentDate,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      type: r.type,
+      status: r.status,
+      reason: r.reason
+    }));
+  },
+
+  async billingHistory(patientId: string) {
+    const rows = await db
+      .select()
+      .from(invoices)
+      .where(eq(invoices.patientId, patientId))
+      .orderBy(desc(invoices.createdAt));
+    return rows.map((r) => ({
+      id: r.id,
+      invoiceNumber: r.invoiceNumber,
+      totalAmount: r.totalAmount,
+      paymentStatus: r.paymentStatus,
+      createdAt: r.createdAt
+    }));
+  }
 };
+
+function toPatientRecord(p: typeof patients.$inferSelect): PatientRecord {
+  return {
+    id: p.id,
+    fullName: p.fullName,
+    phone: p.phone,
+    email: p.email ?? null,
+    dateOfBirth: p.dateOfBirth ? String(p.dateOfBirth) : null,
+    gender: p.gender ?? null,
+    bloodGroup: p.bloodGroup ?? null,
+    address: p.address ?? null,
+    emergencyContactName: p.emergencyContactName ?? null,
+    emergencyContactPhone: p.emergencyContactPhone ?? null,
+    isActive: p.isActive
+  };
+}

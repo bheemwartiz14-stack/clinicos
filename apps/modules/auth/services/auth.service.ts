@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, eq, gt, or } from "drizzle-orm";
 import {
   generateSecureToken,
   hashPassword,
@@ -13,7 +13,7 @@ import {
   type PasswordResetRequestInput,
   type SessionUser
 } from "@mediclinic/auth";
-import { db, loginHistory, passwordResetTokens, userSessions, users } from "@mediclinic/db";
+import { db, passwordResetTokens, roles, userRoles, userSessions, users } from "@mediclinic/db";
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const RESET_TTL_MS = 30 * 60 * 1000;
@@ -27,7 +27,7 @@ export const authService = {
       .from(users)
       .where(or(eq(users.email, identifier), eq(users.username, identifier)))
       .limit(1);
-    if (!user || !user.isActive) {
+    if (!user || user.status !== "active") {
       throw new Error("Invalid email, username, or password");
     }
 
@@ -36,44 +36,44 @@ export const authService = {
       throw new Error("Invalid email, username, or password");
     }
 
-    const tokenVersion = generateSecureToken(24);
+    const [assignedRole] = await db
+      .select({ code: roles.code })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(eq(userRoles.userId, user.id))
+      .limit(1);
+
+    if (!assignedRole) {
+      throw new Error("Your account does not have an assigned role");
+    }
+
+    const sessionSecret = generateSecureToken(24);
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-    const deviceName = metadata?.userAgent?.includes("Mobile") ? "Mobile browser" : "Web browser";
     const [session] = await db
       .insert(userSessions)
       .values({
         userId: user.id,
-        tokenVersion,
+        tokenHash: sessionSecret,
         expiresAt,
         ipAddress: metadata?.ipAddress,
-        userAgent: metadata?.userAgent,
-        deviceName
+        userAgent: metadata?.userAgent
       })
       .returning({ id: userSessions.id });
 
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
-    await db.insert(loginHistory).values({
-      userId: user.id,
-      sessionId: session.id,
-      status: "success",
-      ipAddress: metadata?.ipAddress,
-      userAgent: metadata?.userAgent,
-      deviceName
-    });
 
     return {
       sessionId: session.id,
       userId: user.id,
-      branchId: user.branchId,
-      role: user.role,
+      role: assignedRole.code as SessionUser["role"],
       email: user.email,
       username: user.username,
-      name: user.name
+      name: [user.firstName, user.lastName].filter(Boolean).join(" ")
     };
   },
 
   async logout(sessionId: string): Promise<void> {
-    await db.update(userSessions).set({ revokedAt: new Date() }).where(eq(userSessions.id, sessionId));
+    await db.update(userSessions).set({ isActive: false }).where(eq(userSessions.id, sessionId));
   },
 
   async requestPasswordReset(input: PasswordResetRequestInput): Promise<{ token?: string }> {
@@ -85,7 +85,7 @@ export const authService = {
       .where(or(eq(users.email, identifier), eq(users.username, identifier)))
       .limit(1);
 
-    if (!user || !user.isActive) {
+    if (!user || user.status !== "active") {
       return {};
     }
 
@@ -105,7 +105,7 @@ export const authService = {
     const [resetToken] = await db
       .select()
       .from(passwordResetTokens)
-      .where(and(eq(passwordResetTokens.tokenHash, tokenHash), isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, new Date())))
+      .where(and(eq(passwordResetTokens.tokenHash, tokenHash), eq(passwordResetTokens.isUsed, false), gt(passwordResetTokens.expiresAt, new Date())))
       .limit(1);
 
     if (!resetToken) {
@@ -113,7 +113,7 @@ export const authService = {
     }
 
     await db.update(users).set({ passwordHash: await hashPassword(payload.password) }).where(eq(users.id, resetToken.userId));
-    await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, resetToken.id));
-    await db.update(userSessions).set({ revokedAt: new Date() }).where(and(eq(userSessions.userId, resetToken.userId), isNull(userSessions.revokedAt)));
+    await db.update(passwordResetTokens).set({ isUsed: true }).where(eq(passwordResetTokens.id, resetToken.id));
+    await db.update(userSessions).set({ isActive: false }).where(eq(userSessions.userId, resetToken.userId));
   }
 };

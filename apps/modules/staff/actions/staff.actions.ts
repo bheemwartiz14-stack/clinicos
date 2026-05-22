@@ -1,93 +1,50 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import type { Route } from "next";
 import { z } from "zod";
+import { requirePagePermission } from "@/lib/auth";
 import { staffService } from "../services/staff.service";
-import { staffCreateSchema, staffUpdateSchema } from "../validations/staff.validation";
-import { requirePermission } from "../../../web/lib/auth";
 
-export type StaffActionState = {
-  ok: boolean;
-  message: string;
-  fieldErrors?: Record<string, string[] | undefined>;
-};
+const staffSchema = z.object({
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().optional().or(z.literal("")),
+  username: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email(),
+  phone: z.string().trim().optional().or(z.literal("")),
+  password: z.string().trim().optional().or(z.literal("")),
+  role: z.enum(["admin", "receptionist", "accountant"]),
+  departmentId: z.string().trim().optional().or(z.literal("")),
+  employeeCode: z.string().trim().optional().or(z.literal("")),
+  designation: z.string().trim().optional().or(z.literal("")),
+  joiningDate: z.string().trim().optional().or(z.literal("")),
+  address: z.string().trim().optional().or(z.literal("")),
+  emergencyContact: z.string().trim().optional().or(z.literal("")),
+  status: z.enum(["active", "inactive", "blocked"])
+});
 
-function formValue(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === "string" ? value : "";
+export async function createStaffAction(formData: FormData) {
+  await requirePagePermission("staff.manage");
+  const parsed = staffSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/settings/staff-manage/create?error=invalid" as Route);
+  await staffService.create(parsed.data);
+  revalidatePath("/settings/staff-manage");
+  redirect("/settings/staff-manage" as Route);
 }
 
-function staffPayload(formData: FormData) {
-  return {
-    branchId: formValue(formData, "branchId"),
-    departmentId: formValue(formData, "departmentId") || null,
-    role: formValue(formData, "role"),
-    name: formValue(formData, "name"),
-    email: formValue(formData, "email"),
-    username: formValue(formData, "username") || null,
-    phone: formValue(formData, "phone") || null,
-    isActive: formValue(formData, "isActive") === "true",
-    shiftStart: formValue(formData, "shiftStart") || null,
-    shiftEnd: formValue(formData, "shiftEnd") || null,
-    password: formValue(formData, "password") || null
-  };
+export async function updateStaffAction(id: string, formData: FormData) {
+  await requirePagePermission("staff.manage");
+  const parsed = staffSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/settings/staff-manage/${id}/edit?error=invalid` as Route);
+  await staffService.update(id, parsed.data);
+  revalidatePath("/settings/staff-manage");
+  redirect("/settings/staff-manage" as Route);
 }
 
-function failure(error: unknown): StaffActionState {
-  if (error instanceof z.ZodError) {
-    return {
-      ok: false,
-      message: "Please fix the highlighted staff profile details.",
-      fieldErrors: error.flatten().fieldErrors
-    };
-  }
-
-  return {
-    ok: false,
-    message: error instanceof Error ? error.message : "Staff action failed."
-  };
-}
-
-export async function createStaffAction(formData: FormData): Promise<StaffActionState> {
-  await requirePermission("staff.manage");
-
-  try {
-    await staffService.create(staffCreateSchema.parse(staffPayload(formData)));
-    revalidatePath("/settings/staff-manage");
-    return { ok: true, message: "Staff member created." };
-  } catch (error) {
-    return failure(error);
-  }
-}
-
-export async function updateStaffAction(formData: FormData): Promise<StaffActionState> {
-  await requirePermission("staff.manage");
-
-  try {
-    await staffService.update(
-      staffUpdateSchema.parse({
-        id: formValue(formData, "id"),
-        ...staffPayload(formData)
-      })
-    );
-    revalidatePath("/settings/staff-manage");
-    return { ok: true, message: "Staff member updated." };
-  } catch (error) {
-    return failure(error);
-  }
-}
-
-export async function deleteStaffAction(formData: FormData): Promise<StaffActionState> {
-  await requirePermission("staff.manage");
-  const id = formValue(formData, "id");
-
-  if (!id) return { ok: false, message: "Staff ID is required." };
-
-  try {
-    await staffService.delete(id);
-    revalidatePath("/settings/staff-manage");
-    return { ok: true, message: "Staff member deleted." };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Delete failed." };
-  }
+export async function deactivateStaffAction(formData: FormData) {
+  await requirePagePermission("staff.manage");
+  const id = String(formData.get("id") ?? "");
+  if (id) await staffService.deactivate(id);
+  revalidatePath("/settings/staff-manage");
 }

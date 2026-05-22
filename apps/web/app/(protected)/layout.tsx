@@ -2,6 +2,8 @@ import { AppShell } from "@/components/app-shell";
 import { requirePageSession } from "@/lib/auth";
 import { settingsService } from "@modules/settings/profile/services/settings.service";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProtectedLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePageSession();
 

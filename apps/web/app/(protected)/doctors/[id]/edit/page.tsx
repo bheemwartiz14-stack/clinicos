@@ -1,23 +1,19 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { doctorController } from "@modules/doctors/controllers/doctor.controller";
-import { EditDoctorView } from "@modules/doctors/views/edit-doctor-view";
+import { doctorService } from "@modules/doctors/services/doctor.service";
+import { DoctorForm } from "@modules/doctors/views/doctors-list-view";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const doctor = await doctorController.detailsForAdmin(id).catch(() => null);
-  return {
-    title: doctor ? `Edit ${doctor.displayName} | MediClinic Pro` : "Edit Doctor | MediClinic Pro",
-    description: "Update doctor profile, consultation settings, availability, and weekly schedule."
-  };
-}
+export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Edit Doctor | MediClinic Pro"
+};
 
 export default async function EditDoctorPage({ params }: { params: Promise<{ id: string }> }) {
-  await requirePagePermission("doctors.edit");
+  await requirePagePermission("doctors.manage");
   const { id } = await params;
-  const [doctor, options] = await Promise.all([
-    doctorController.detailsForAdmin(id),
-    doctorController.formOptions()
-  ]);
-  return <EditDoctorView doctor={doctor} options={options} />;
+  const [doctor, departments, specialties] = await Promise.all([doctorService.get(id), doctorService.listDepartments(), doctorService.listSpecialties()]);
+  if (!doctor) notFound();
+  return <DoctorForm doctor={doctor} departments={departments} specialties={specialties} />;
 }

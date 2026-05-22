@@ -4,6 +4,8 @@ import { requirePagePermission } from "@/lib/auth";
 import { settingsService } from "@modules/settings/profile/services/settings.service";
 import { SettingsDashboardView } from "@modules/settings/profile/views/settings-dashboard-view";
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Settings | MediClinic Pro",

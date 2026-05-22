@@ -1,28 +1,24 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { can } from "@mediclinic/rbac";
 import { requirePagePermission } from "@/lib/auth";
-import { doctorController } from "@modules/doctors/controllers/doctor.controller";
-import { DoctorDetailsView } from "@modules/doctors/views/doctor-details-view";
+import { doctorService } from "@modules/doctors/services/doctor.service";
+import { DoctorDetailView } from "@modules/doctors/views/doctors-list-view";
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  const { id } = await params;
-  const doctor = await doctorController.detailsForAdmin(id).catch(() => null);
-  return {
-    title: doctor ? `${doctor.displayName} | MediClinic Pro` : "Doctor | MediClinic Pro",
-    description: "View doctor profile, fees, weekly schedule, and generated appointment slots."
-  };
-}
+export const dynamic = "force-dynamic";
 
-export default async function DoctorDetailsPage({ params }: { params: Promise<{ id: string }> }) {
-  const session = await requirePagePermission("doctors.view");
+export const metadata: Metadata = {
+  title: "Doctor Profile | MediClinic Pro"
+};
+
+export default async function DoctorDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePagePermission("doctors.view");
   const { id } = await params;
-  const doctor = await doctorController.detailsForAdmin(id);
-  return (
-    <DoctorDetailsView
-      doctor={doctor}
-      canEdit={can(session.role, "doctors.edit")}
-      canDelete={can(session.role, "doctors.delete")}
-      canManage={can(session.role, "doctors.manage") || can(session.role, "doctors.manage-all")}
-    />
-  );
+  const [doctor, schedules, leaves, slots] = await Promise.all([
+    doctorService.get(id),
+    doctorService.schedules(id),
+    doctorService.leaves(id),
+    doctorService.slots(id)
+  ]);
+  if (!doctor) notFound();
+  return <DoctorDetailView doctor={doctor} schedules={schedules} leaves={leaves} slots={slots} />;
 }

@@ -9,15 +9,7 @@ export function ServiceWorkerCleanup() {
 
     navigator.serviceWorker.getRegistrations()
       .then(async (registrations) => {
-        const hadController = Boolean(navigator.serviceWorker.controller);
-        const hadRegistrations = registrations.length > 0;
-
         await Promise.all(registrations.map((registration) => registration.unregister()));
-
-        if ((hadController || hadRegistrations) && sessionStorage.getItem("mediclinic-sw-cleaned") !== "true") {
-          sessionStorage.setItem("mediclinic-sw-cleaned", "true");
-          window.location.replace(window.location.href);
-        }
       })
       .catch(() => undefined);
 

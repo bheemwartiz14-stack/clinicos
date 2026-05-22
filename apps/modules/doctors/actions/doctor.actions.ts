@@ -4,142 +4,102 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { z } from "zod";
-import { requirePermission } from "../../../web/lib/auth";
+import { requirePagePermission } from "@/lib/auth";
 import { doctorService } from "../services/doctor.service";
-import { doctorCreateSchema, doctorDaysOfWeek, doctorUpdateSchema, type DoctorCreateInput, type DoctorUpdateInput } from "../schemas/doctor.schema";
 
-export type DoctorActionState = {
-  ok: boolean;
-  message: string;
-  fieldErrors?: Record<string, string[] | undefined>;
-};
+const doctorSchema = z.object({
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().optional().or(z.literal("")),
+  email: z.string().trim().email(),
+  phone: z.string().trim().optional().or(z.literal("")),
+  password: z.string().trim().optional().or(z.literal("")),
+  departmentId: z.string().trim().optional().or(z.literal("")),
+  specialtyId: z.string().trim().optional().or(z.literal("")),
+  qualification: z.string().trim().optional().or(z.literal("")),
+  experienceYears: z.coerce.number().int().min(0).optional(),
+  licenseNumber: z.string().trim().optional().or(z.literal("")),
+  consultationFee: z.string().trim().min(1),
+  bio: z.string().trim().optional().or(z.literal("")),
+  status: z.enum(["active", "inactive", "blocked"]),
+  isAvailable: z.coerce.boolean().default(false),
+  createSchedule: z.coerce.boolean().default(false),
+  scheduleStartTime: z.string().default("09:00"),
+  scheduleEndTime: z.string().default("17:00"),
+  scheduleSlotDurationMinutes: z.coerce.number().int().min(5).max(180).default(30)
+});
 
-function value(formData: FormData, key: string) {
-  const raw = formData.get(key);
-  return typeof raw === "string" ? raw : "";
+const mondayToSaturday = [1, 2, 3, 4, 5, 6];
+
+const scheduleSchema = z.object({
+  doctorId: z.string().uuid(),
+  dayOfWeek: z.coerce.number().int().min(0).max(6),
+  startTime: z.string().min(4),
+  endTime: z.string().min(4),
+  slotDurationMinutes: z.coerce.number().int().min(5).max(180),
+  isActive: z.coerce.boolean().default(false)
+});
+
+const leaveSchema = z.object({
+  doctorId: z.string().uuid(),
+  leaveDate: z.string().min(8),
+  reason: z.string().trim().optional().or(z.literal("")),
+  isFullDay: z.coerce.boolean().default(false),
+  startTime: z.string().optional().or(z.literal("")),
+  endTime: z.string().optional().or(z.literal(""))
+});
+
+export async function createDoctorAction(formData: FormData) {
+  await requirePagePermission("doctors.manage");
+  const parsed = doctorSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/doctors/add?error=invalid" as Route);
+  const { createSchedule, scheduleStartTime, scheduleEndTime, scheduleSlotDurationMinutes, ...doctorInput } = parsed.data;
+  const result = await doctorService.create({
+    ...doctorInput,
+    initialSchedules: createSchedule
+      ? mondayToSaturday.map((dayOfWeek) => ({
+          dayOfWeek,
+          startTime: scheduleStartTime,
+          endTime: scheduleEndTime,
+          slotDurationMinutes: scheduleSlotDurationMinutes,
+          isActive: true
+        }))
+      : null
+  });
+  revalidatePath("/doctors");
+  redirect(`/doctors?created=1&password=${encodeURIComponent(result.temporaryPassword)}` as Route);
 }
 
-function checked(formData: FormData, key: string) {
-  return value(formData, key) === "true" || value(formData, key) === "on";
-}
-
-function optionalSelect(formData: FormData, key: string) {
-  const selected = value(formData, key);
-  return selected && selected !== "none" ? selected : null;
-}
-
-function schedulesPayload(formData: FormData) {
-  return doctorDaysOfWeek.map((day) => ({
-    dayOfWeek: day,
-    isActive: checked(formData, `schedule.${day}.isActive`),
-    startTime: value(formData, `schedule.${day}.startTime`) || "09:00",
-    endTime: value(formData, `schedule.${day}.endTime`) || "17:00",
-    slotDuration: Number(value(formData, `schedule.${day}.slotDuration`) || value(formData, "defaultSlotDuration") || 20)
-  }));
-}
-
-function payload(formData: FormData) {
-  const consultationFee = Number(value(formData, "consultationFee") || 0);
-  const defaultSlotDuration = Number(value(formData, "defaultSlotDuration") || 20);
-
-  return {
-    branchId: value(formData, "branchId"),
-    departmentId: optionalSelect(formData, "departmentId"),
-    specialtyId: optionalSelect(formData, "specialtyId"),
-    displayName: value(formData, "displayName"),
-    phone: value(formData, "phone") || null,
-    email: value(formData, "email"),
-    qualification: value(formData, "qualification") || null,
-    experienceYears: Number(value(formData, "experienceYears") || 0),
-    licenseNumber: value(formData, "licenseNumber"),
-    bio: value(formData, "bio") || null,
-    isActive: checked(formData, "isActive"),
-    isAvailable: checked(formData, "isAvailable"),
-    password: value(formData, "password"),
-    consultationSettings: {
-      consultationFee,
-      followUpFee: Number(value(formData, "followUpFee") || consultationFee),
-      followUpValidityDays: Number(value(formData, "followUpValidityDays") || 7),
-      defaultSlotDuration,
-      allowOnlineConsultation: checked(formData, "allowOnlineConsultation"),
-      onlineConsultationFee: Number(value(formData, "onlineConsultationFee") || consultationFee),
-      notes: value(formData, "notes") || null
-    },
-    schedules: schedulesPayload(formData)
-  };
-}
-
-function failure(error: unknown): DoctorActionState {
-  if (error instanceof z.ZodError) {
-    return {
-      ok: false,
-      message: "Please fix the highlighted doctor details.",
-      fieldErrors: error.flatten().fieldErrors
-    };
-  }
-
-  return {
-    ok: false,
-    message: error instanceof Error ? error.message : "Doctor action failed."
-  };
-}
-
-export async function createDoctorAction(formData: FormData): Promise<DoctorActionState> {
-  const session = await requirePermission("doctors.create");
-
-  try {
-    const parsed: DoctorCreateInput = doctorCreateSchema.parse(payload(formData));
-    await doctorService.createDoctorFromForm(parsed, session.userId);
-  } catch (error) {
-    return failure(error);
-  }
-
+export async function updateDoctorAction(id: string, formData: FormData) {
+  await requirePagePermission("doctors.manage");
+  const parsed = doctorSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/doctors/${id}/edit?error=invalid` as Route);
+  const { createSchedule, scheduleStartTime, scheduleEndTime, scheduleSlotDurationMinutes, ...doctorInput } = parsed.data;
+  await doctorService.update(id, doctorInput);
   revalidatePath("/doctors");
   redirect("/doctors" as Route);
 }
 
-export async function updateDoctorAction(formData: FormData): Promise<DoctorActionState> {
-  const session = await requirePermission("doctors.edit");
-
-  try {
-    const parsed: DoctorUpdateInput = doctorUpdateSchema.parse({
-      id: value(formData, "id"),
-      ...payload(formData)
-    });
-    await doctorService.updateDoctorFromForm(parsed, session.userId);
-    revalidatePath("/doctors");
-    revalidatePath(`/doctors/${parsed.id}`);
-    redirect(`/doctors/${parsed.id}` as Route);
-  } catch (error) {
-    return failure(error);
-  }
+export async function deactivateDoctorAction(formData: FormData) {
+  await requirePagePermission("doctors.manage");
+  const id = String(formData.get("id") ?? "");
+  if (id) await doctorService.deactivate(id);
+  revalidatePath("/doctors");
 }
 
-export async function deleteDoctorAction(formData: FormData): Promise<DoctorActionState> {
-  await requirePermission("doctors.delete");
-  const id = value(formData, "id");
-  if (!id) return { ok: false, message: "Doctor ID is required." };
-
-  try {
-    await doctorService.deleteDoctorFromForm(id);
-    revalidatePath("/doctors");
-    redirect("/doctors" as Route);
-  } catch (error) {
-    return failure(error);
-  }
+export async function addScheduleAction(formData: FormData) {
+  await requirePagePermission("doctors.manage");
+  const parsed = scheduleSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  const { doctorId, ...input } = parsed.data;
+  await doctorService.addSchedule(doctorId, input);
+  revalidatePath(`/doctors/${doctorId}`);
 }
 
-export async function toggleDoctorStatusAction(formData: FormData): Promise<DoctorActionState> {
-  await requirePermission("doctors.manage");
-  const id = value(formData, "id");
-  if (!id) return { ok: false, message: "Doctor ID is required." };
-
-  try {
-    await doctorService.toggleDoctorStatusFromForm(id);
-    revalidatePath("/doctors");
-    revalidatePath(`/doctors/${id}`);
-    return { ok: true, message: "Doctor status updated." };
-  } catch (error) {
-    return failure(error);
-  }
+export async function addLeaveAction(formData: FormData) {
+  await requirePagePermission("doctors.manage");
+  const parsed = leaveSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  const { doctorId, ...input } = parsed.data;
+  await doctorService.addLeave(doctorId, input);
+  revalidatePath(`/doctors/${doctorId}`);
 }

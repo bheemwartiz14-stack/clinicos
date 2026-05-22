@@ -1,29 +1,33 @@
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { can } from "@mediclinic/rbac";
 import { requirePagePermission } from "@/lib/auth";
-import { patientController } from "@modules/patients/controllers/patient.controller";
-import { PatientDetailsView } from "@modules/patients/views/patient-details-view";
+import { patientService } from "@modules/patients/services/patient.service";
+import { PatientDetailView } from "@modules/patients/views/patients-list-view";
 
-type Props = { params: Promise<{ id: string }> };
+export const dynamic = "force-dynamic";
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export const metadata: Metadata = {
+  title: "Patient Profile | MediClinic Pro"
+};
+
+export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePagePermission("patients.view");
   const { id } = await params;
-  return {
-    title: `Patient ${id} | MediClinic Pro`,
-    description: "View patient profile and appointment summary."
-  };
-}
-
-export default async function PatientDetailsPage({ params }: Props) {
-  const session = await requirePagePermission("patients.view");
-  const { id } = await params;
-  const patient = await patientController.detailsForAdmin(session.branchId, id);
+  const [patient, medicalHistory, appointmentHistory, billingHistory, notes] = await Promise.all([
+    patientService.get(id),
+    patientService.medicalHistory(id),
+    patientService.appointmentHistory(id),
+    patientService.billingHistory(id),
+    patientService.notes(id)
+  ]);
+  if (!patient) notFound();
   return (
-    <PatientDetailsView
+    <PatientDetailView
       patient={patient}
-      canEdit={can(session.role, "patients.edit")}
-      canDelete={can(session.role, "patients.delete")}
-      canManage={can(session.role, "patients.manage")}
+      medicalHistory={medicalHistory}
+      appointmentHistory={appointmentHistory}
+      billingHistory={billingHistory}
+      notes={notes}
     />
   );
 }

@@ -1,18 +1,37 @@
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
-import { appointmentsPageController } from "@modules/appointments/controllers/appointment.controller";
-import { AppointmentsCalendarView } from "@modules/appointments/views/appointments-calendar-view";
+import { appointmentService } from "@modules/appointments/services/appointment.service";
+import { AppointmentsCalendarView } from "@modules/appointments/views/appointments-list-view";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: "Appointments | MediClinic Pro",
-    description: "Doctor-wise appointment calendar, booking, details, rescheduling, and cancellations."
-  };
-}
+export const dynamic = "force-dynamic";
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  const session = await requirePagePermission("appointments.view");
-  const params = await searchParams;
-  const data = await appointmentsPageController({ branchId: session.branchId, selectedDate: params.date });
-  return <AppointmentsCalendarView data={data} />;
+export const metadata: Metadata = {
+  title: "Appointments | MediClinic Pro"
+};
+
+export default async function AppointmentsPage({ searchParams }: { searchParams?: Promise<{ date?: string; doctorId?: string }> }) {
+  await requirePagePermission("appointments.view");
+  const params = searchParams ? await searchParams : {};
+
+  const currentDate = params.date || new Date().toISOString().slice(0, 10);
+
+  const [appointments, doctors, slots] = await Promise.all([
+    appointmentService.list({
+      date: currentDate,
+      doctorId: params.doctorId || undefined,
+    }),
+    appointmentService.getDoctors(),
+    params.doctorId
+      ? appointmentService.getAvailability(params.doctorId, currentDate)
+      : Promise.resolve([]),
+  ]);
+
+  return (
+    <AppointmentsCalendarView
+      appointments={appointments}
+      doctors={doctors}
+      currentDate={currentDate}
+      slots={slots}
+    />
+  );
 }

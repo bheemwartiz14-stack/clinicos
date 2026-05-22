@@ -19,8 +19,7 @@ export const passwordResetSchema = z.object({
 export const sessionSchema = z.object({
   sessionId: z.string().uuid(),
   userId: z.string().uuid(),
-  branchId: z.string().uuid(),
-  role: z.enum(["admin", "doctor", "nurse", "receptionist", "accountant", "analyst", "patient"]),
+  role: z.enum(["admin", "doctor", "receptionist", "accountant"]),
   email: z.string().email(),
   username: z.string().min(3).max(64).optional().nullable(),
   name: z.string().min(1)
@@ -98,6 +97,11 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  if (storedHash.startsWith("$2")) {
+    const bcrypt = await import("bcryptjs");
+    return bcrypt.compare(password, storedHash);
+  }
+
   const [algorithm, iterations, encodedSalt, encodedHash] = storedHash.split("$");
   if (algorithm !== "pbkdf2-sha256" || !iterations || !encodedSalt || !encodedHash) {
     return false;
