@@ -1,6 +1,8 @@
 import { desc, eq } from "drizzle-orm";
 import { hashPassword } from "@mediclinic/auth";
 import { db, departments, doctorAvailabilitySlots, doctorLeaveDates, doctorSchedules, doctorSpecialties, doctors, roles, userRoles, users } from "@mediclinic/db";
+import { specialtyService } from "@modules/specialties/services/specialty.service";
+import { sendNotification } from "@modules/settings/notifications/services/notification-sender.service";
 
 export type DoctorRecord = {
   id: string;
@@ -107,34 +109,15 @@ function generateTemporaryPassword() {
 }
 
 export const doctorService = {
-  async ensureDefaults() {
-    for (const specialty of [
-      { name: "General Medicine", code: "general" },
-      { name: "Cardiology", code: "cardiology" },
-      { name: "Dermatology", code: "dermatology" },
-      { name: "Pediatrics", code: "pediatrics" }
-    ]) {
-      await db.insert(doctorSpecialties).values(specialty).onConflictDoNothing({ target: doctorSpecialties.name });
-    }
-  },
-
   async listSpecialties() {
-    await this.ensureDefaults();
     return db.select().from(doctorSpecialties).orderBy(doctorSpecialties.name);
   },
 
   async listDepartments() {
-    for (const department of [
-      { name: "Clinical", code: "clinical" },
-      { name: "Specialists", code: "specialists" }
-    ]) {
-      await db.insert(departments).values(department).onConflictDoNothing({ target: departments.name });
-    }
     return db.select().from(departments).orderBy(departments.name);
   },
 
   async list(): Promise<DoctorRecord[]> {
-    await this.ensureDefaults();
     const rows = await db
       .select({ doctor: doctors, user: users, department: departments, specialty: doctorSpecialties })
       .from(doctors)
@@ -206,6 +189,21 @@ export const doctorService = {
       await this.generateAvailability(doctor.id);
     }
 
+    sendNotification({
+      templateCode: "doctor_welcome",
+      recipient: input.email,
+      variables: {
+        doctor_name: `${input.firstName} ${input.lastName || ""}`.trim(),
+        doctor_email: input.email,
+        temporary_password: temporaryPassword,
+        portal_url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        clinic_name: process.env.NEXT_PUBLIC_APP_NAME || "MediClinic Pro",
+      },
+      userId: user.id,
+    }).catch((error) => {
+      console.error("Failed to dispatch welcome notification:", error);
+    });
+
     return { doctorId: doctor.id, temporaryPassword };
   },
 
@@ -231,6 +229,16 @@ export const doctorService = {
       bio: input.bio || null,
       isAvailable: input.isAvailable
     }).where(eq(doctors.id, id));
+
+    sendNotification({
+      templateCode: "doctor_profile_updated",
+      recipient: input.email,
+      variables: {
+        doctor_name: `${input.firstName} ${input.lastName || ""}`.trim(),
+        clinic_name: process.env.NEXT_PUBLIC_APP_NAME || "MediClinic Pro",
+      },
+      userId: doctor.userId,
+    }).catch(() => {});
   },
 
   async deactivate(id: string) {
@@ -238,6 +246,16 @@ export const doctorService = {
     if (!doctor) throw new Error("Doctor not found");
     await db.update(users).set({ status: "inactive" }).where(eq(users.id, doctor.userId));
     await db.update(doctors).set({ isAvailable: false }).where(eq(doctors.id, id));
+
+    sendNotification({
+      templateCode: "doctor_deactivated",
+      recipient: doctor.email,
+      variables: {
+        doctor_name: doctor.name,
+        clinic_name: process.env.NEXT_PUBLIC_APP_NAME || "MediClinic Pro",
+      },
+      userId: doctor.userId,
+    }).catch(() => {});
   },
 
   async schedules(id: string) {
@@ -253,13 +271,46 @@ export const doctorService = {
   },
 
   async addSchedule(id: string, input: ScheduleInput) {
+    const doctor = await this.get(id);
     await db.insert(doctorSchedules).values({ doctorId: id, ...input });
     await this.generateAvailability(id);
+
+    if (doctor) {
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      sendNotification({
+        templateCode: "doctor_schedule_updated",
+        recipient: doctor.email,
+        variables: {
+          doctor_name: doctor.name,
+          schedule_day: days[input.dayOfWeek] ?? String(input.dayOfWeek),
+          schedule_time: `${input.startTime} - ${input.endTime}`,
+          schedule_duration: String(input.slotDurationMinutes),
+          clinic_name: process.env.NEXT_PUBLIC_APP_NAME || "MediClinic Pro",
+        },
+        userId: doctor.userId,
+      }).catch(() => {});
+    }
   },
 
   async addLeave(id: string, input: LeaveInput) {
+    const doctor = await this.get(id);
     await db.insert(doctorLeaveDates).values({ doctorId: id, ...input });
     await this.generateAvailability(id);
+
+    if (doctor) {
+      sendNotification({
+        templateCode: "doctor_leave_added",
+        recipient: doctor.email,
+        variables: {
+          doctor_name: doctor.name,
+          leave_date: input.leaveDate,
+          leave_duration: input.isFullDay ? "Full day" : `${input.startTime || ""} - ${input.endTime || ""}`.trim() || "Full day",
+          leave_reason: input.reason || "Not specified",
+          clinic_name: process.env.NEXT_PUBLIC_APP_NAME || "MediClinic Pro",
+        },
+        userId: doctor.userId,
+      }).catch(() => {});
+    }
   },
 
   async generateAvailability(id: string) {

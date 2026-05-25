@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { resetPasswordAction, type AuthActionState } from "../actions/auth.actions";
+import { FormField } from "@/components/form-controls";
+import { Button } from "@/components/ui/button";
 
 const initialState: AuthActionState = { ok: false };
 
@@ -11,17 +13,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
   return (
     <form action={action} className="space-y-4">
       <input type="hidden" name="token" value={token} />
-      <label className="block text-sm font-medium">
-        New password
-        <input
-          name="password"
-          type="password"
-          autoComplete="new-password"
-          className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          minLength={8}
-          required
-        />
-      </label>
+      <FormField label="New password" name="password" type="password" autoComplete="new-password" minLength={8} required />
       {state.message ? (
         <p className="rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
           {state.message}
@@ -32,9 +24,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
           ) : null}
         </p>
       ) : null}
-      <button disabled={pending} className="h-11 w-full rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-70">
+      <Button disabled={pending} className="h-11 w-full">
         {pending ? "Resetting..." : "Reset password"}
-      </button>
+      </Button>
     </form>
   );
 }

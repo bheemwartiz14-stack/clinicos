@@ -5,11 +5,10 @@ import { useForm } from "react-hook-form";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { AlertCircle, Eye, EyeOff } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FormField } from "@/components/form-controls";
 import { loginAction, type AuthActionState } from "../actions/auth.actions";
 import { loginSchema, type LoginInput } from "@mediclinic/auth";
 
@@ -64,49 +63,39 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="space-y-2">
-        <Label htmlFor="identifier" className="text-xs text-slate-700">
-          Email or username
-        </Label>
-        <span className="relative mt-2 block">
-          <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <Input
-            id="identifier"
-            type="text"
-            autoComplete="username"
-            placeholder="admin@example.com"
-            aria-invalid={Boolean(errors.identifier)}
-            className="h-10 rounded-md border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
-            {...register("identifier")}
-          />
-        </span>
-        {errors.identifier?.message ? <p className="text-xs font-medium text-destructive">{errors.identifier.message as any}</p> : null}
+        <FormField
+          label="Email or username"
+          id="identifier"
+          type="text"
+          autoComplete="username"
+          placeholder="admin@example.com"
+          error={errors.identifier?.message as string | undefined}
+          className="h-10 rounded-md border-slate-200 bg-white text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
+          {...register("identifier")}
+        />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="password" className="text-xs text-slate-700">
-          Password
-        </Label>
         <span className="relative mt-2 block">
-          <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <Input
+          <FormField
+            label="Password"
             id="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             placeholder="Enter your password"
-            aria-invalid={Boolean(errors.password)}
-            className="h-10 rounded-md border-slate-200 bg-white pl-10 pr-11 text-sm text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
+            error={errors.password?.message as string | undefined}
+            className="h-10 rounded-md border-slate-200 bg-white pr-11 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
             {...register("password")}
           />
           <button
             type="button"
-            className="absolute right-2 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+            className="absolute right-2 top-8 grid h-7 w-7 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
             aria-label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((current) => !current)}
           >
             {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
           </button>
         </span>
-        {errors.password?.message ? <p className="text-xs font-medium text-destructive">{errors.password.message as any}</p> : null}
       </div>
 
       {errorMessage && (

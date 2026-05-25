@@ -9,10 +9,14 @@
       "@mediclinic/db/*": ["../../packages/db/src/*"],
       "@mediclinic/ui": ["../../packages/ui/src/index.ts"],
       "@mediclinic/ui/*": ["../../packages/ui/src/*"],
+      "@mediclinic/logger": ["../../packages/logger/src/index.ts"],
+      "@mediclinic/logger/*": ["../../packages/logger/src/*"],
       "@mediclinic/rbac": ["../../packages/rbac/src/index.ts"],
       "@mediclinic/rbac/*": ["../../packages/rbac/src/*"],
       "@mediclinic/auth": ["../../packages/auth/src/index.ts"],
-      "@mediclinic/auth/*": ["../../packages/auth/src/*"]
+      "@mediclinic/auth/*": ["../../packages/auth/src/*"],
+      "@mediclinic/queue": ["../../packages/queue/src/index.ts"],
+      "@mediclinic/queue/*": ["../../packages/queue/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "../modules/**/*.ts", "../modules/**/*.tsx"],

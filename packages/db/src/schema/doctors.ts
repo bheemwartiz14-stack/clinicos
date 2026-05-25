@@ -23,7 +23,10 @@ export const doctorSpecialties = pgTable("doctor_specialties", {
     name: varchar("name", { length: 150 }).notNull().unique(),
     code: varchar("code", { length: 50 }).unique(),
     description: text("description"),
+    departmentId: uuid("department_id").references(() => departments.id, { onDelete: "set null" }),
     isActive: boolean("is_active").default(true).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export const doctors = pgTable("doctors", {

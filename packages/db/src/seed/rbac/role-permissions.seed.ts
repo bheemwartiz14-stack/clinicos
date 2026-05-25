@@ -1,9 +1,13 @@
 
 import { db, permissions, rolePermissions, roles } from "@mediclinic/db";
 import { rolePermissionsData } from "@mediclinic/db/data/role-permissions.data";
+import { createScopedLogger } from "@mediclinic/logger";
 import { eq } from "drizzle-orm";
+
+const logger = createScopedLogger("role-permissions-seed");
+
 export async function seedRolePermissions() {
-  console.log("🌱 Seeding role permissions...");
+  logger.info("Seeding role permissions");
 
   for (const [roleCode, permissionCodes] of Object.entries(
     rolePermissionsData
@@ -12,7 +16,7 @@ export async function seedRolePermissions() {
       where: eq(roles.code, roleCode),
     });
     if (!role) {
-      console.warn(`⚠️ Role not found: ${roleCode}`);
+      logger.warn("Role not found", { roleCode });
       continue;
     }
     for (const permissionCode of permissionCodes) {
@@ -20,7 +24,7 @@ export async function seedRolePermissions() {
         where: eq(permissions.code, permissionCode),
       });
       if (!permission) {
-        console.warn(`⚠️ Permission not found: ${permissionCode}`);
+        logger.warn("Permission not found", { permissionCode });
         continue;
       }
       await db
@@ -33,5 +37,5 @@ export async function seedRolePermissions() {
     }
   }
 
-  console.log("✅ Role permissions seeded");
+  logger.info("Role permissions seeded");
 }

@@ -182,7 +182,7 @@ export function SelectField(props: { label?: string; error?: string; hint?: stri
 }
 
 export function Select2Field(props: { label?: string; error?: string; hint?: string; required?: boolean; className?: string; children?: React.ReactNode } & Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "label" | "error" | "hint" | "required" | "className" | "children">) {
-  const { label, error, hint, required, className, children, name, defaultValue, value, disabled, id, ...rest } = props;
+  const { label, error, hint, required, className, children, name, defaultValue, value, disabled, id, onChange, ...rest } = props;
   const options = optionElementsToOptions(children);
   const initialValue = stringifyFieldValue(value ?? defaultValue ?? options[0]?.value ?? "");
   const [selectedValue, setSelectedValue] = React.useState(initialValue);
@@ -265,6 +265,7 @@ export function Select2Field(props: { label?: string; error?: string; hint?: str
                     disabled={option.disabled}
                     onSelect={() => {
                       setSelectedValue(option.value);
+                      onChange?.({ target: { name, value: option.value } } as React.ChangeEvent<HTMLSelectElement>);
                       setOpen(false);
                     }}
                   >

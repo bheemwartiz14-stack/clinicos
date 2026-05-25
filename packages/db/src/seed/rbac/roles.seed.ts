@@ -1,11 +1,11 @@
 import { db, roles } from "@mediclinic/db";
 import { rolesData } from "@mediclinic/db/data/roles.data";
+import { createScopedLogger } from "@mediclinic/logger";
 
-
-
+const logger = createScopedLogger("roles-seed");
 
 export async function seedRoles() {
-  console.log("🌱 Seeding roles...");
+  logger.info("Seeding roles");
 
   await db
     .insert(roles)
@@ -14,5 +14,5 @@ export async function seedRoles() {
       target: roles.code,
     });
 
-  console.log("✅ Roles seeded");
+  logger.info("Roles seeded");
 }

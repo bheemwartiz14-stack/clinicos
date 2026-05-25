@@ -9,9 +9,10 @@ drizzle
 .vercel
 playwright-report
 test-results
+logs
 apps/web/public/uploads/*
-You are a senior enterprise software arc.md
 .env*.local
 .kiro/*
 .vscode/*
 .env*
+clinicos-local-root.crt

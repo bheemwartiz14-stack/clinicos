@@ -5,18 +5,23 @@ import {
   text,
   boolean,
   timestamp,
-  jsonb,
   pgEnum,
 } from "drizzle-orm/pg-core";
-import { patients } from "./patients";
-import { appointments } from "./appointments";
+import { users } from "./auth";
+
 export const notificationChannelEnum = pgEnum("notification_channel", [
+  "email",
   "sms",
   "whatsapp",
-  "email",
   "system",
 ]);
 
+export const notificationStatusEnum = pgEnum("notification_status", [
+  "queued",
+  "sent",
+  "failed",
+  "cancelled",
+]);
 
 export const notificationTemplates = pgTable("notification_templates", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -26,17 +31,20 @@ export const notificationTemplates = pgTable("notification_templates", {
   subject: varchar("subject", { length: 255 }),
   body: text("body").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 });
 
 export const notificationLogs = pgTable("notification_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
-  patientId: uuid("patient_id").references(() => patients.id, { onDelete: "set null" }),
-  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: "set null" }),
+  templateId: uuid("template_id").references(() => notificationTemplates.id, { onDelete: "set null" }),
   channel: notificationChannelEnum("channel").notNull(),
   recipient: varchar("recipient", { length: 255 }).notNull(),
-  message: text("message").notNull(),
-  status: varchar("status", { length: 50 }).default("pending").notNull(),
-  providerResponse: jsonb("provider_response"),
+  subject: varchar("subject", { length: 255 }),
+  body: text("body"),
+  status: notificationStatusEnum("status").default("queued").notNull(),
+  error: text("error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

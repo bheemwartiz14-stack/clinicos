@@ -1,14 +1,13 @@
 import Link from "next/link";
 import type React from "react";
-import { Bell, CheckCircle2, Clock3, KeyRound, Laptop, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { CheckCircle2, Clock3, KeyRound, Laptop, Mail, ShieldCheck, UserRound } from "lucide-react";
 import { updateProfileAction, changePasswordAction } from "../actions/settings.actions";
-import type { NotificationPreference, ProfileSummary, SessionSummary } from "../services/settings.service";
+import type { ProfileSummary, SessionSummary } from "../services/settings.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@mediclinic/ui";
+import { FormField } from "@/components/form-controls";
+import { AvatarUploadField } from "@/components/avatar-upload-field";
 
 type SettingsProps = {
   profile: ProfileSummary;
@@ -21,10 +20,6 @@ type ProfileProps = SettingsProps & {
 
 type SecurityProps = SettingsProps & {
   sessions: SessionSummary[];
-};
-
-type NotificationProps = SettingsProps & {
-  preferences: NotificationPreference[];
 };
 
 function roleLabel(role: string) {
@@ -52,7 +47,6 @@ function SettingsHeader({ profile, active }: SettingsProps & { active: string })
   const tabs = [
     ["Profile", "/settings/profile"],
     ["Security", "/settings/security"],
-    ["Notifications", "/settings/notifications"],
     ["Account", "/settings/account"]
   ] as const;
 
@@ -89,7 +83,7 @@ export function SettingsDashboardView({ profile }: SettingsProps) {
       <div className="grid gap-4 md:grid-cols-3">
         <SummaryCard icon={UserRound} title="Profile" value={profile.name} detail="Personal and contact details" href="/settings/profile" />
         <SummaryCard icon={ShieldCheck} title="Security" value={profile.emailVerified ? "Verified" : "Needs review"} detail="Password and sessions" href="/settings/security" />
-        <SummaryCard icon={Bell} title="Notifications" value="Enabled" detail="Clinic and account alerts" href="/settings/notifications" />
+        <SummaryCard icon={CheckCircle2} title="Account" value={roleLabel(profile.role)} detail="Role and account details" href="/settings/account" />
       </div>
     </div>
   );
@@ -124,15 +118,15 @@ export function ProfileSettingsView({ profile }: ProfileProps) {
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Profile Settings</CardTitle>
-          <CardDescription>Update your name, username, phone number, and avatar URL.</CardDescription>
+          <CardDescription>Update your name, username, phone number, and avatar image.</CardDescription>
         </CardHeader>
         <CardContent>
           <form action={updateProfileAction} className="grid gap-4 md:grid-cols-2">
-            <Field label="First name" name="firstName" defaultValue={profile.firstName} required />
-            <Field label="Last name" name="lastName" defaultValue={profile.lastName ?? ""} />
-            <Field label="Username" name="username" defaultValue={profile.username ?? ""} />
-            <Field label="Phone" name="phone" defaultValue={profile.phone ?? ""} />
-            <Field label="Avatar URL" name="avatar" defaultValue={profile.avatar ?? ""} className="md:col-span-2" />
+            <FormField label="First name" name="firstName" defaultValue={profile.firstName} required />
+            <FormField label="Last name" name="lastName" defaultValue={profile.lastName ?? ""} />
+            <FormField label="Username" name="username" defaultValue={profile.username ?? ""} />
+            <FormField label="Phone" name="phone" defaultValue={profile.phone ?? ""} />
+            <AvatarUploadField name="avatar" defaultValue={profile.avatar} className="md:col-span-2" />
             <div className="md:col-span-2">
               <Button type="submit">Save Changes</Button>
             </div>
@@ -140,15 +134,6 @@ export function ProfileSettingsView({ profile }: ProfileProps) {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function Field({ label, className, ...props }: React.ComponentProps<"input"> & { label: string }) {
-  return (
-    <label className={cn("grid gap-1.5 text-sm font-medium", className)}>
-      <span>{label}</span>
-      <Input {...props} />
-    </label>
   );
 }
 
@@ -164,9 +149,9 @@ export function SecuritySettingsView({ profile, sessions }: SecurityProps) {
           </CardHeader>
           <CardContent>
             <form action={changePasswordAction} className="space-y-4">
-              <Field label="Current password" name="currentPassword" type="password" required />
-              <Field label="New password" name="newPassword" type="password" required />
-              <Field label="Confirm password" name="confirmPassword" type="password" required />
+              <FormField label="Current password" name="currentPassword" type="password" required />
+              <FormField label="New password" name="newPassword" type="password" required />
+              <FormField label="Confirm password" name="confirmPassword" type="password" required />
               <Button type="submit">
                 <KeyRound className="h-4 w-4" aria-hidden />
                 Update Password
@@ -199,31 +184,6 @@ export function SecuritySettingsView({ profile, sessions }: SecurityProps) {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
-
-export function NotificationSettingsView({ profile, preferences }: NotificationProps) {
-  return (
-    <div className="space-y-5">
-      <SettingsHeader profile={profile} active="Notifications" />
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Notification Settings</CardTitle>
-          <CardDescription>Choose which clinic and account updates should reach you.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {preferences.map((preference) => (
-            <div key={preference.key} className="flex items-center justify-between gap-4 rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">{preference.label}</p>
-                <p className="text-xs text-muted-foreground">{preference.description}</p>
-              </div>
-              <Switch defaultChecked={preference.enabled} aria-label={preference.label} />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
     </div>
   );
 }

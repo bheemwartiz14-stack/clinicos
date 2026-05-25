@@ -6,7 +6,6 @@ export const clinicModules = [
   "appointments",
   "billing",
   "payroll",
-  "notifications",
   "branches",
   "departments",
   "staff",

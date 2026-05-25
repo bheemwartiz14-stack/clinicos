@@ -1,25 +1,30 @@
+import { createScopedLogger } from "@mediclinic/logger";
 import { seedRoles } from "./rbac/roles.seed";
 import { seedPermissions } from "./rbac/permissions.seed";
 import { seedRolePermissions } from "./rbac/role-permissions.seed";
-
 import { seedDepartments } from "./department.seed";
+import { seedSpecialties } from "./specialty.seed";
+import { seedNotificationTemplates } from "./notification-template.seed";
 import { seedUsers } from "./users.seed";
-
+const logger = createScopedLogger("db-seed");
 async function main() {
   try {
-    console.log("🌱 Starting database seed...");
+    logger.info("Starting database seed");
     await seedRoles();
     await seedPermissions();
     await seedRolePermissions();
-    console.log("✅ All RBAC seeders completed");
+    logger.info("All RBAC seeders completed");
     await seedDepartments();
-    console.log("✅ Department seeders completed");
+    logger.info("Department seeders completed");
+    await seedSpecialties();
+    logger.info("Specialty seeders completed");
+    await seedNotificationTemplates();
+    logger.info("Notification template seeders completed");
     await seedUsers();
-    console.log("✅ Users and staff profiles seeders completed");
-
-    console.log("🎉 Database seeding completed successfully");
+    logger.info("Users and staff profiles seeders completed");
+    logger.info("Database seeding completed successfully");
   } catch (error) {
-    console.error("❌ Seeder error:", error);
+    logger.error("Seeder error", { error });
     process.exit(1);
   }
 }

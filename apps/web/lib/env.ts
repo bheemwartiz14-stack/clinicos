@@ -21,7 +21,7 @@ if (process.env.NODE_ENV !== "production") {
 
   for (const envFile of envCandidates) {
     if (fs.existsSync(envFile)) {
-      loadDotenv({ path: envFile, override: true, quiet: true });
+      loadDotenv({ path: envFile, override: false, quiet: true });
     }
   }
 }
@@ -48,12 +48,6 @@ export const envSchema = z.object({
   TWILIO_FROM_NUMBER: z.string().optional(),
   WHATSAPP_CLOUD_TOKEN: z.string().optional(),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().default(587),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().trim().email().or(z.literal("")).optional().transform((value) => (value === "" ? undefined : value)),
-
   ADMIN_EMAIL: z.string().trim().email().or(z.literal("")).optional().transform((value) => (value === "" ? undefined : value)),
   ADMIN_PASSWORD: z.string().trim().optional(),
   DOCTOR_EMAIL: z.string().trim().email().or(z.literal("")).optional().transform((value) => (value === "" ? undefined : value)),
@@ -63,7 +57,12 @@ export const envSchema = z.object({
   RECEPTIONIST_EMAIL: z.string().trim().email().or(z.literal("")).optional().transform((value) => (value === "" ? undefined : value)),
   RECEPTIONIST_PASSWORD: z.string().trim().optional(),
   ACCOUNTANT_EMAIL: z.string().trim().email().or(z.literal("")).optional().transform((value) => (value === "" ? undefined : value)),
-  ACCOUNTANT_PASSWORD: z.string().trim().optional()
+  ACCOUNTANT_PASSWORD: z.string().trim().optional(),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional()
 });
 export type AppEnv = z.infer<typeof envSchema>;
 const parsedEnv = envSchema.parse(process.env);

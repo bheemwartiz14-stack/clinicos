@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { requestPasswordResetAction, type AuthActionState } from "../actions/auth.actions";
+import { FormField } from "@/components/form-controls";
+import { Button } from "@/components/ui/button";
 
 const initialState: AuthActionState = { ok: false };
 
@@ -10,15 +12,7 @@ export function ForgotPasswordForm() {
 
   return (
     <form action={action} className="space-y-4">
-      <label className="block text-sm font-medium">
-        Email or username
-        <input
-          name="identifier"
-          autoComplete="username"
-          className="mt-2 h-11 w-full rounded-lg border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-          required
-        />
-      </label>
+      <FormField label="Email or username" name="identifier" autoComplete="username" required />
       {state.message ? (
         <p className="rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground">
           {state.message}
@@ -27,9 +21,9 @@ export function ForgotPasswordForm() {
           ) : null}
         </p>
       ) : null}
-      <button disabled={pending} className="h-11 w-full rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-70">
+      <Button disabled={pending} className="h-11 w-full">
         {pending ? "Preparing reset..." : "Continue"}
-      </button>
+      </Button>
       <a href="/login" className="block text-center text-sm font-medium text-primary">
         Back to sign in
       </a>

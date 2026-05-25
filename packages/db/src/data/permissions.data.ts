@@ -105,6 +105,18 @@ export const permissionsData = [
   },
 
   {
+    module: "specialties",
+    action: "view",
+    code: "specialties.view",
+    description: "View specialties",
+  },
+  {
+    module: "specialties",
+    action: "manage",
+    code: "specialties.manage",
+    description: "Manage specialties",
+  },
+  {
     module: "rbac",
     action: "manage",
     code: "rbac.manage",

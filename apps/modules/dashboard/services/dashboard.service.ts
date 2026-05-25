@@ -1,5 +1,5 @@
 import { and, asc, count, desc, eq, gte, lte, or, sql } from "drizzle-orm";
-import { db, appointments, doctorAvailabilitySlots, doctorSpecialties, doctors, invoices, patients, roles, staffProfiles, userSessions, users } from "@mediclinic/db";
+import { db, appointments, doctorAvailabilitySlots, doctorSpecialties, doctors, invoices, notificationLogs, notificationTemplates, patients, roles, staffProfiles, userSessions, users } from "@mediclinic/db";
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -62,7 +62,23 @@ export const dashboardService = {
         isAvailable: doctor.isAvailable,
         consultationFee: doctor.consultationFee,
         specialty: doctor.specialty ?? "General"
-      }))
+      })),
+      recentNotifications: await db
+        .select({
+          id: notificationLogs.id,
+          channel: notificationLogs.channel,
+          recipient: notificationLogs.recipient,
+          subject: notificationLogs.subject,
+          status: notificationLogs.status,
+          error: notificationLogs.error,
+          sentAt: notificationLogs.sentAt,
+          createdAt: notificationLogs.createdAt,
+          templateName: notificationTemplates.name,
+        })
+        .from(notificationLogs)
+        .leftJoin(notificationTemplates, eq(notificationLogs.templateId, notificationTemplates.id))
+        .orderBy(desc(notificationLogs.createdAt))
+        .limit(10),
     };
   },
 

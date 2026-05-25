@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Settings | MediClinic Pro",
-    description: "Profile, account, security, notification, and appearance settings."
+    description: "Profile, account, security, and appearance settings."
   };
 }
 

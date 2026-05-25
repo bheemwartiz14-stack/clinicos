@@ -28,13 +28,6 @@ export type SessionSummary = {
   createdAt: Date;
 };
 
-export type NotificationPreference = {
-  key: string;
-  label: string;
-  description: string;
-  enabled: boolean;
-};
-
 function fullName(user: { firstName: string; lastName: string | null }) {
   return [user.firstName, user.lastName].filter(Boolean).join(" ");
 }
@@ -100,27 +93,7 @@ export const settingsService = {
       branches: [{ id: "main", name: "Main Clinic" }],
       departments: [],
       sessions: sessionSummaries,
-      loginHistory: sessionSummaries,
-      preferences: [
-        {
-          key: "appointments",
-          label: "Appointment updates",
-          description: "Notify me about booking, cancellation, and queue changes.",
-          enabled: true
-        },
-        {
-          key: "billing",
-          label: "Billing alerts",
-          description: "Send alerts for invoices, payment failures, and refunds.",
-          enabled: profile.role === "admin" || profile.role === "accountant"
-        },
-        {
-          key: "security",
-          label: "Security notifications",
-          description: "Notify me about password changes and new sessions.",
-          enabled: true
-        }
-      ] satisfies NotificationPreference[]
+      loginHistory: sessionSummaries
     };
   },
 

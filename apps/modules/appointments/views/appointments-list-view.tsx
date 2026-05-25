@@ -2,28 +2,27 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Calendar, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleSlash, Clock, Plus, Search, Timer, User, XCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleSlash, Clock, Plus, Search, Timer, User } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { createAppointmentAction } from "../actions/appointment.actions";
 import type { AppointmentRecord, AvailableSlot, DoctorOption } from "../services/appointment.service";
 import { FormField, SelectField, TextareaField } from "@/components/form-controls";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@mediclinic/ui";
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; border: string }> = {
-  booked: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-500", border: "border-blue-200" },
-  confirmed: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", border: "border-emerald-200" },
-  checked_in: { bg: "bg-violet-50", text: "text-violet-700", dot: "bg-violet-500", border: "border-violet-200" },
-  in_consultation: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500", border: "border-amber-200" },
-  completed: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500", border: "border-green-200" },
-  cancelled: { bg: "bg-rose-50", text: "text-rose-700", dot: "bg-rose-500", border: "border-rose-200" },
-  rescheduled: { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500", border: "border-orange-200" },
-  no_show: { bg: "bg-gray-50", text: "text-gray-600", dot: "bg-gray-400", border: "border-gray-200" },
-  pending: { bg: "bg-yellow-50", text: "text-yellow-700", dot: "bg-yellow-500", border: "border-yellow-200" },
+  booked: { bg: "bg-background", text: "text-foreground", dot: "bg-slate-500", border: "border-border" },
+  confirmed: { bg: "bg-background", text: "text-foreground", dot: "bg-emerald-600", border: "border-border" },
+  checked_in: { bg: "bg-background", text: "text-foreground", dot: "bg-blue-600", border: "border-border" },
+  in_consultation: { bg: "bg-background", text: "text-foreground", dot: "bg-amber-600", border: "border-border" },
+  completed: { bg: "bg-background", text: "text-foreground", dot: "bg-green-700", border: "border-border" },
+  cancelled: { bg: "bg-background", text: "text-foreground", dot: "bg-red-600", border: "border-border" },
+  rescheduled: { bg: "bg-background", text: "text-foreground", dot: "bg-orange-600", border: "border-border" },
+  no_show: { bg: "bg-background", text: "text-muted-foreground", dot: "bg-muted-foreground", border: "border-border" },
+  pending: { bg: "bg-background", text: "text-foreground", dot: "bg-yellow-600", border: "border-border" },
 };
 
 const STATUS_GROUPS = [
@@ -59,11 +58,22 @@ function getCurrentTimeRounded() {
   return now.toTimeString().slice(0, 5);
 }
 
+function isTimeInPast(date: string, time: string): boolean {
+  if (date !== getDateString(new Date())) return false;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m < currentMinutes;
+}
+
+function getCurrentTime() {
+  return new Date().toTimeString().slice(0, 5);
+}
+
 export function AppointmentsCalendarView({
   appointments,
   doctors,
   currentDate,
-  slots,
 }: {
   appointments: AppointmentRecord[];
   doctors: DoctorOption[];
@@ -121,31 +131,129 @@ export function AppointmentsCalendarView({
     return counts;
   }, [dayAppointments]);
 
-  const totalAppointments = dayAppointments.length;
+  const displayDate = currentDateObj.toLocaleDateString("en", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
   return (
-    <div className="flex gap-5">
-      <div className="flex-1 min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <Button variant="outline" size="icon" onClick={prevDay} className="h-8 w-8" aria-label="Previous day">
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant={isToday ? "default" : "outline"} size="sm" onClick={goToday} className="h-8 text-xs">Today</Button>
-            <Button variant="outline" size="icon" onClick={nextDay} className="h-8 w-8" aria-label="Next day">
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-            <span className="ml-1 text-xs font-semibold">
-              {currentDateObj.toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex flex-wrap gap-1">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-normal">Appointments</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage today&apos;s schedule and bookings</p>
+        </div>
+        <Button asChild>
+          <a href="#new-booking">
+            <Plus className="h-4 w-4" />
+            New Booking
+          </a>
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-5 xl:flex-row">
+        <div className="min-w-0 flex-1">
+          <Card className="overflow-hidden rounded-lg border shadow-none">
+            <div className="border-b px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold">A. Staff Booking Interface (Calendar / Appointment View)</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">{displayDate}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="outline" size="icon" onClick={prevDay} className="h-8 w-8" aria-label="Previous day">
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant={isToday ? "default" : "outline"} size="sm" onClick={goToday} className="h-8 text-xs">Today</Button>
+                    <Button variant="outline" size="icon" onClick={nextDay} className="h-8 w-8" aria-label="Next day">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="min-w-[700px]">
+                <div className="grid" style={{ gridTemplateColumns: `64px repeat(${filteredDoctors.length}, 1fr)` }}>
+                  <div className="sticky left-0 z-10 border-b bg-muted/40 p-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                    Time
+                  </div>
+                  {filteredDoctors.map((doctor) => (
+                    <div key={doctor.id} className="border-b border-l bg-muted/30 p-3 text-center">
+                      <Link href={`/doctors/${doctor.id}`} className="group inline-block">
+                        <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-md border bg-background text-[11px] font-bold text-foreground transition group-hover:border-primary">
+                          {getInitials(doctor.name)}
+                        </div>
+                        <div className="mt-1.5 text-xs font-semibold leading-tight">{doctor.name}</div>
+                        <div className="text-[10px] text-muted-foreground">({doctor.specialty ?? "General"})</div>
+                      </Link>
+                    </div>
+                  ))}
+                  {HOURS.map((hour) => (
+                    <Fragment key={hour}>
+                      <div
+                        className={cn(
+                          "border-b border-r px-2 py-3 text-[11px] text-muted-foreground",
+                          parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/10" : ""
+                        )}
+                      >
+                        <span className="font-medium">{formatTime(hour)}</span>
+                      </div>
+                      {filteredDoctors.map((doctor) => {
+                        const hourApps = getAppointmentsForDoctorAndHour(doctor.id, hour);
+                        return (
+                          <div
+                            key={`${doctor.id}-${hour}`}
+                            className={cn(
+                              "relative min-h-[66px] border-b border-l p-1.5 transition-colors",
+                              parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : ""
+                            )}
+                          >
+                            {hourApps.length === 0 && (
+                              <div className="flex h-full items-center justify-center">
+                                <span className="text-[8px] text-muted-foreground/25">-</span>
+                              </div>
+                            )}
+                            {hourApps.map((app) => {
+                              const style = STATUS_STYLES[app.status] || STATUS_STYLES.pending;
+                              return (
+                                <Link
+                                  key={app.id}
+                                  href={`/appointments/${app.id}`}
+                                  className={cn(
+                                    "group relative z-10 mb-1 block rounded border px-2 py-1.5 text-[11px] transition-colors hover:bg-muted/40",
+                                    style.bg, style.border
+                                  )}
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                                    <span className="flex-1 truncate font-semibold leading-none">{app.patientName}</span>
+                                  </div>
+                                  <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
+                                    <Clock className="h-2.5 w-2.5" />
+                                    <span>{formatTime(app.startTime)}</span>
+                                  </div>
+                                </Link>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 border-t px-5 py-3">
               {STATUS_GROUPS.map((sg) => {
                 const st = STATUS_STYLES[sg.value];
                 const count = statusCounts[sg.value] || 0;
                 return (
-                  <Badge key={sg.value} variant="outline" className={cn("flex items-center gap-1 border-0 text-[10px] py-0.5", st.bg, st.text)}>
+                  <Badge key={sg.value} variant="outline" className={cn("flex items-center gap-1 text-[10px] py-0.5", st.bg, st.text)}>
                     <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
                     {sg.label}
                     <span className="ml-0.5 font-bold">{count}</span>
@@ -153,116 +261,25 @@ export function AppointmentsCalendarView({
                 );
               })}
             </div>
-            <select
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-              value={selectedDoctorId}
-              onChange={(e) => {
-                const params = new URLSearchParams(searchParams.toString());
-                if (e.target.value) params.set("doctorId", e.target.value);
-                else params.delete("doctorId");
-                router.push(`/appointments?${params.toString()}`);
-              }}
-            >
-              <option value="">All Doctors</option>
-              {doctors.map((doc) => (
-                <option key={doc.id} value={doc.id}>{doc.name}</option>
-              ))}
-            </select>
-          </div>
+          </Card>
         </div>
 
-        <Card className="overflow-hidden rounded-xl border-0 shadow-md">
-          <div className="overflow-x-auto">
-            <div className="min-w-[700px]">
-              <div className="grid" style={{ gridTemplateColumns: `60px repeat(${filteredDoctors.length}, 1fr)` }}>
-                <div className="sticky left-0 z-10 border-b bg-gradient-to-r from-muted/80 to-muted/30 p-2 text-[10px] font-semibold uppercase text-muted-foreground">
-                  Time
+        <div id="new-booking" className="w-full shrink-0 xl:w-[380px]">
+          <div className="rounded-lg border bg-card xl:sticky xl:top-20">
+            <div className="border-b px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span className="grid h-9 w-9 place-items-center rounded-md border bg-background text-foreground">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-sm font-bold">B. New Booking Form (Staff)</h2>
+                  <p className="text-[11px] text-muted-foreground">Book a new appointment for a patient.</p>
                 </div>
-                {filteredDoctors.map((doctor) => (
-                  <div key={doctor.id} className="border-b border-l bg-gradient-to-b from-muted/50 to-muted/20 p-2 text-center">
-                    <Link href={`/doctors/${doctor.id}`} className="group inline-block">
-                      <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-[10px] font-bold text-primary transition group-hover:bg-primary group-hover:text-white">
-                        {getInitials(doctor.name)}
-                      </div>
-                      <div className="mt-1 text-[10px] font-semibold leading-tight">{doctor.name}</div>
-                      <div className="text-[8px] text-muted-foreground">{doctor.specialty ?? "General"}</div>
-                    </Link>
-                  </div>
-                ))}
-
-                {HOURS.map((hour) => (
-                  <Fragment key={hour}>
-                    <div
-                      className={cn(
-                        "border-b border-r px-1.5 py-2 text-[10px] text-muted-foreground",
-                        parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/10" : ""
-                      )}
-                    >
-                      <span className="font-medium">{formatTime(hour)}</span>
-                    </div>
-                    {filteredDoctors.map((doctor) => {
-                      const hourApps = getAppointmentsForDoctorAndHour(doctor.id, hour);
-                      return (
-                        <div
-                          key={`${doctor.id}-${hour}`}
-                          className={cn(
-                            "relative min-h-[60px] border-b border-l p-1 transition-colors",
-                            parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : ""
-                          )}
-                        >
-                          {hourApps.length === 0 && (
-                            <div className="flex h-full items-center justify-center">
-                              <span className="text-[8px] text-muted-foreground/30">—</span>
-                            </div>
-                          )}
-                          {hourApps.map((app) => {
-                            const style = STATUS_STYLES[app.status] || STATUS_STYLES.pending;
-                            return (
-                              <Link
-                                key={app.id}
-                                href={`/appointments/${app.id}`}
-                                className={cn(
-                                  "group relative z-10 mb-0.5 block rounded border px-1.5 py-1 text-[10px] shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5",
-                                  style.bg, style.border
-                                )}
-                              >
-                                <div className="flex items-center gap-1">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                                  <span className="flex-1 truncate font-semibold leading-none">{app.patientName}</span>
-                                </div>
-                                <div className="mt-0.5 flex items-center gap-1 text-[8px] opacity-75">
-                                  <Clock className="h-2.5 w-2.5" />
-                                  <span>{formatTime(app.startTime)}</span>
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                    </Fragment>
-                  ))}
               </div>
             </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="w-[380px] shrink-0 hidden lg:block">
-        <div className="sticky top-5 rounded-xl border bg-card shadow-sm">
-          <div className="border-b px-5 py-4">
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/60 text-white shadow-sm">
-                <Plus className="h-4 w-4" />
-              </span>
-              <div>
-                <h2 className="text-sm font-bold">New Appointment Booking</h2>
-                <p className="text-[11px] text-muted-foreground">Book a new appointment for a patient.</p>
-              </div>
+            <div className="max-h-none overflow-y-visible px-5 py-4 xl:max-h-[calc(100vh-180px)] xl:overflow-y-auto">
+              <NewBookingForm doctors={doctors} onSuccess={() => {}} />
             </div>
-          </div>
-          <div className="max-h-[calc(100vh-200px)] overflow-y-auto px-5 py-4">
-            <NewBookingForm doctors={doctors} onSuccess={() => {}} />
           </div>
         </div>
       </div>
@@ -273,7 +290,6 @@ export function AppointmentsCalendarView({
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuccess: () => void }) {
-  const router = useRouter();
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedDate, setSelectedDate] = useState(getDateString(new Date()));
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
@@ -356,8 +372,8 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
   if (showCreatePatient) {
     return (
       <div className="grid gap-5">
-        <div className="flex items-center gap-3 rounded-lg border bg-muted/20 px-4 py-3">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
+        <div className="flex items-center gap-3 rounded-md border bg-muted/20 px-4 py-3">
+          <span className="grid h-8 w-8 place-items-center rounded-md border bg-background text-foreground">
             <User className="h-4 w-4" />
           </span>
           <div>
@@ -366,54 +382,37 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Full name <span className="text-red-500">*</span></Label>
-            <Input className="h-11" value={newPatient.fullName} onChange={(e) => setNewPatient((p) => ({ ...p, fullName: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Phone <span className="text-red-500">*</span></Label>
-            <Input className="h-11" value={newPatient.phone} onChange={(e) => setNewPatient((p) => ({ ...p, phone: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Email</Label>
-            <Input type="email" className="h-11" value={newPatient.email} onChange={(e) => setNewPatient((p) => ({ ...p, email: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Date of birth</Label>
-            <Input type="date" className="h-11" value={newPatient.dateOfBirth} onChange={(e) => setNewPatient((p) => ({ ...p, dateOfBirth: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Gender</Label>
-            <select className="h-11 rounded-md border border-input bg-background px-3 text-sm" value={newPatient.gender} onChange={(e) => setNewPatient((p) => ({ ...p, gender: e.target.value }))}>
-              <option value="">Select gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Blood group</Label>
-            <select className="h-11 rounded-md border border-input bg-background px-3 text-sm" value={newPatient.bloodGroup} onChange={(e) => setNewPatient((p) => ({ ...p, bloodGroup: e.target.value }))}>
-              <option value="">Select blood group</option>
-              {BLOOD_GROUPS.map((bg) => (<option key={bg} value={bg}>{bg}</option>))}
-            </select>
-          </div>
-          <div className="grid gap-2 md:col-span-2">
-            <Label className="text-sm font-semibold">Address</Label>
-            <textarea className="min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm" value={newPatient.address} onChange={(e) => setNewPatient((p) => ({ ...p, address: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Emergency contact name</Label>
-            <Input className="h-11" value={newPatient.emergencyContactName} onChange={(e) => setNewPatient((p) => ({ ...p, emergencyContactName: e.target.value }))} />
-          </div>
-          <div className="grid gap-2">
-            <Label className="text-sm font-semibold">Emergency contact phone</Label>
-            <Input className="h-11" value={newPatient.emergencyContactPhone} onChange={(e) => setNewPatient((p) => ({ ...p, emergencyContactPhone: e.target.value }))} />
-          </div>
+          <FormField label="Full name" required value={newPatient.fullName} onChange={(e) => setNewPatient((p) => ({ ...p, fullName: e.target.value }))} />
+          <FormField label="Phone" required value={newPatient.phone} onChange={(e) => setNewPatient((p) => ({ ...p, phone: e.target.value }))} />
+          <FormField label="Email" type="email" value={newPatient.email} onChange={(e) => setNewPatient((p) => ({ ...p, email: e.target.value }))} />
+          <FormField label="Date of birth" type="date" value={newPatient.dateOfBirth} onChange={(e) => setNewPatient((p) => ({ ...p, dateOfBirth: e.target.value }))} />
+          <SelectField
+            label="Gender"
+            value={newPatient.gender}
+            onChange={(e) => setNewPatient((p) => ({ ...p, gender: e.target.value }))}
+            options={[
+              { value: "", label: "Select gender" },
+              { value: "Male", label: "Male" },
+              { value: "Female", label: "Female" },
+              { value: "Other", label: "Other" }
+            ]}
+          />
+          <SelectField
+            label="Blood group"
+            value={newPatient.bloodGroup}
+            onChange={(e) => setNewPatient((p) => ({ ...p, bloodGroup: e.target.value }))}
+            options={[
+              { value: "", label: "Select blood group" },
+              ...BLOOD_GROUPS.map((bg) => ({ value: bg, label: bg }))
+            ]}
+          />
+          <TextareaField label="Address" className="md:col-span-2" rows={3} value={newPatient.address} onChange={(e) => setNewPatient((p) => ({ ...p, address: e.target.value }))} />
+          <FormField label="Emergency contact name" value={newPatient.emergencyContactName} onChange={(e) => setNewPatient((p) => ({ ...p, emergencyContactName: e.target.value }))} />
+          <FormField label="Emergency contact phone" value={newPatient.emergencyContactPhone} onChange={(e) => setNewPatient((p) => ({ ...p, emergencyContactPhone: e.target.value }))} />
         </div>
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => setShowCreatePatient(false)}>Back</Button>
-          <Button type="button" size="lg" className="bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20" disabled={creatingPatient || !newPatient.fullName.trim() || !newPatient.phone.trim()} onClick={handleCreatePatient}>
+          <Button type="button" size="lg" disabled={creatingPatient || !newPatient.fullName.trim() || !newPatient.phone.trim()} onClick={handleCreatePatient}>
             {creatingPatient ? "Creating..." : "Save & Associate"}
           </Button>
         </div>
@@ -430,8 +429,8 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
       <div className="grid gap-2">
         <Label className="text-sm font-semibold">Patient</Label>
         {selectedPatientId ? (
-          <div className="flex items-center gap-3 rounded-lg border bg-primary/5 px-4 py-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
+          <div className="flex items-center gap-3 rounded-md border bg-muted/20 px-4 py-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-background text-xs font-bold text-foreground">
               {getInitials(patientSearch)}
             </span>
             <div className="flex-1">
@@ -452,7 +451,7 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
         ) : (
           <div className="relative">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <FormField
               placeholder="Search by name or phone..."
               value={patientSearch}
               onChange={(e) => {
@@ -464,13 +463,13 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           </div>
         )}
         {!selectedPatientId && searchingPatient && (
-          <div className="flex items-center gap-2 rounded-lg border p-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 rounded-md border p-3 text-sm text-muted-foreground">
             <Timer className="h-4 w-4 animate-spin" />
             Searching...
           </div>
         )}
         {!selectedPatientId && patients.length > 0 && (
-          <div className="max-h-36 overflow-y-auto rounded-lg border p-1.5 shadow-sm">
+          <div className="max-h-36 overflow-y-auto rounded-md border p-1.5">
             {patients.map((p) => (
               <button
                 key={p.id}
@@ -482,7 +481,7 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
                   setPatients([]);
                 }}
               >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md border bg-background text-[10px] font-bold text-foreground">
                   {getInitials(p.fullName)}
                 </span>
                 <span>{p.fullName}</span>
@@ -491,10 +490,10 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
             ))}
             <button
               type="button"
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm font-semibold text-primary transition hover:bg-primary/5 border-t mt-1.5 pt-2.5"
+              className="mt-1.5 flex w-full items-center gap-3 border-t px-3 py-2.5 pt-2.5 text-left text-sm font-semibold text-foreground transition hover:bg-muted"
               onClick={() => setShowCreatePatient(true)}
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md border bg-background">
                 <Plus className="h-4 w-4" />
               </span>
               Create new patient
@@ -502,7 +501,7 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           </div>
         )}
         {!selectedPatientId && patientSearch.length >= 2 && patients.length === 0 && !searchingPatient && (
-          <div className="rounded-lg border p-3 text-center text-sm">
+          <div className="rounded-md border p-3 text-center text-sm">
             <p className="text-muted-foreground mb-2">No patients match &quot;{patientSearch}&quot;</p>
             <Button type="button" variant="outline" size="sm" onClick={() => setShowCreatePatient(true)}>
               <Plus className="h-3.5 w-3.5 mr-1" />
@@ -547,30 +546,35 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           </div>
         ) : availableSlots.length > 0 ? (
           <div className="flex flex-wrap gap-2">
-            {availableSlots.map((slot) => (
-              <button
-                key={slot.id}
-                type="button"
-                onClick={() => {
-                  setSelectedSlot(slot);
-                  setManualTime("");
-                }}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm font-medium transition-all",
-                  selectedSlot?.id === slot.id
-                    ? "border-primary bg-primary/10 text-primary shadow-sm"
-                    : "hover:border-muted-foreground/30 hover:bg-muted/30"
-                )}
-              >
-                <Clock className="h-3.5 w-3.5" />
-                {formatTime(slot.startTime)}
-              </button>
-            ))}
+            {availableSlots.map((slot) => {
+              const past = isTimeInPast(selectedDate, slot.startTime);
+              return (
+                <button
+                  key={slot.id}
+                  type="button"
+                  disabled={past}
+                  onClick={() => {
+                    if (past) return;
+                    setSelectedSlot(slot);
+                    setManualTime("");
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium transition-colors",
+                    past && "cursor-not-allowed opacity-40",
+                    !past && selectedSlot?.id === slot.id && "border-primary bg-muted text-foreground",
+                    !past && selectedSlot?.id !== slot.id && "hover:border-muted-foreground/30 hover:bg-muted/30"
+                  )}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  {formatTime(slot.startTime)}
+                </button>
+              );
+            })}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Input type="time" className="h-11" value={manualTime}
+              <FormField type="time" value={manualTime}
                 onChange={(e) => {
                   setManualTime(e.target.value);
                   setSelectedSlot(null);
@@ -626,7 +630,7 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
       />
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" size="lg" className="w-full bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20">Save Booking</Button>
+        <Button type="submit" size="lg" className="w-full">Save Booking</Button>
       </div>
     </form>
   );

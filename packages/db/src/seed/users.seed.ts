@@ -8,7 +8,10 @@ import {
 } from "@mediclinic/db";
 
 import { getUsersData } from "@mediclinic/db/data/users.data";
+import { createScopedLogger } from "@mediclinic/logger";
 import { eq } from "drizzle-orm";
+
+const logger = createScopedLogger("users-seed");
 
 function getStaffProfileByRole(roleCode: string) {
   const code = roleCode.toLowerCase();
@@ -52,7 +55,7 @@ function getStaffProfileByRole(roleCode: string) {
 }
 
 export async function seedUsers() {
-  console.log("Seeding users...");
+  logger.info("Seeding users");
   const usersData = await getUsersData();
   for (const userData of usersData) {
     const { roleCode, ...insertUserData } = userData;
@@ -66,14 +69,14 @@ export async function seedUsers() {
       where: eq(users.email, userData.email),
     });
     if (!user) {
-      console.warn(`User not found: ${userData.email}`);
+      logger.warn("User not found after insert", { email: userData.email });
       continue;
     }
     const role = await db.query.roles.findFirst({
       where: eq(roles.code, roleCode),
     });
     if (!role) {
-      console.warn(`Role not found: ${roleCode}`);
+      logger.warn("Role not found", { roleCode });
       continue;
     }
     await db
@@ -85,16 +88,14 @@ export async function seedUsers() {
       .onConflictDoNothing();
     const staffProfileData = getStaffProfileByRole(roleCode);
     if (!staffProfileData) {
-      console.warn(`Staff profile mapping not found for role: ${roleCode}`);
+      logger.warn("Staff profile mapping not found for role", { roleCode });
       continue;
     }
     const department = await db.query.departments.findFirst({
       where: eq(departments.code, staffProfileData.departmentCode),
     });
     if (!department) {
-      console.warn(
-        `Department not found: ${staffProfileData.departmentCode}`
-      );
+      logger.warn("Department not found", { departmentCode: staffProfileData.departmentCode });
       continue;
     }
     await db
@@ -113,5 +114,5 @@ export async function seedUsers() {
         target: staffProfiles.userId,
       });
   }
-  console.log("Users and staff profiles seeded");
+  logger.info("Users and staff profiles seeded");
 }

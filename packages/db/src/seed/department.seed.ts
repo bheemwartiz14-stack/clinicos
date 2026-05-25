@@ -1,8 +1,11 @@
 // packages/db/src/seed/department.seed.ts
 
+import { createScopedLogger } from "@mediclinic/logger";
 import { db } from "../index";
 import { departments } from "../schema";
 import { eq } from "drizzle-orm";
+
+const logger = createScopedLogger("department-seed");
 
 const departmentData = [
   // Admin / Management
@@ -81,7 +84,7 @@ const departmentData = [
 
 export async function seedDepartments() {
   try {
-    console.log("🌱 Seeding departments...");
+    logger.info("Seeding departments");
 
     for (const department of departmentData) {
       const existingDepartment = await db.query.departments.findFirst({
@@ -89,7 +92,7 @@ export async function seedDepartments() {
       });
 
       if (existingDepartment) {
-        console.log(`⚠️ Department already exists: ${department.name}`);
+        logger.info("Department already exists", { departmentName: department.name, departmentCode: department.code });
         continue;
       }
 
@@ -100,12 +103,12 @@ export async function seedDepartments() {
         isActive: true,
       });
 
-      console.log(`✅ Department created: ${department.name}`);
+      logger.info("Department created", { departmentName: department.name, departmentCode: department.code });
     }
 
-    console.log("🎉 Department seeding completed.");
+    logger.info("Department seeding completed");
   } catch (error) {
-    console.error("❌ Error seeding departments:", error);
+    logger.error("Error seeding departments", { error });
     throw error;
   }
 }

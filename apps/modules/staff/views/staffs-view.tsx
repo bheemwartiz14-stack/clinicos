@@ -1,13 +1,11 @@
 import Link from "next/link";
-import type React from "react";
 import { Plus, UserMinus } from "lucide-react";
 import { deactivateStaffAction, createStaffAction, updateStaffAction } from "../actions/staff.actions";
 import { staffManageRoles, type StaffRecord } from "../services/staff.service";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { FormField } from "@/components/form-controls";
+import { FormField, SelectField, TextareaField } from "@/components/form-controls";
 
 type Department = { id: string; name: string };
 
@@ -82,17 +80,14 @@ export function StaffForm({ departments, staff }: { departments: Department[]; s
             <FormField label="Username" name="username" defaultValue={staff?.username ?? ""} />
             <FormField label="Phone" name="phone" defaultValue={staff?.phone ?? ""} />
             <FormField label={staff ? "New password (leave blank)" : "Password"} name="password" type="password" required={!staff} />
-            <SelectField label="Role" name="role" defaultValue={staff?.role ?? "receptionist"} options={staffManageRoles.map((role) => [role, role])} />
-            <SelectField label="Department" name="departmentId" defaultValue={staff?.departmentId ?? ""} options={[["", "No department"], ...departments.map((department) => [department.id, department.name] as const)]} />
+            <SelectField label="Role" name="role" defaultValue={staff?.role ?? "receptionist"} options={staffManageRoles.map((role) => ({ value: role, label: role }))} />
+            <SelectField label="Department" name="departmentId" defaultValue={staff?.departmentId ?? ""} options={[{ value: "", label: "No department" }, ...departments.map((department) => ({ value: department.id, label: department.name }))]} />
             <FormField label="Employee code" name="employeeCode" defaultValue={staff?.employeeCode ?? ""} />
             <FormField label="Designation" name="designation" defaultValue={staff?.designation ?? ""} />
             <FormField label="Joining date" name="joiningDate" type="date" defaultValue={staff?.joiningDate ?? ""} />
             <FormField label="Emergency contact" name="emergencyContact" defaultValue={staff?.emergencyContact ?? ""} />
-            <label className="grid gap-1.5 text-sm font-medium md:col-span-2">
-              <span>Address</span>
-              <textarea name="address" defaultValue={staff?.address ?? ""} className="min-h-20 rounded-lg border bg-background px-3 py-2 text-sm" />
-            </label>
-            <SelectField label="Status" name="status" defaultValue={staff?.status ?? "active"} options={[["active", "Active"], ["inactive", "Inactive"], ["blocked", "Blocked"]]} />
+            <TextareaField label="Address" name="address" defaultValue={staff?.address ?? ""} className="md:col-span-2" rows={3} />
+            <SelectField label="Status" name="status" defaultValue={staff?.status ?? "active"} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "blocked", label: "Blocked" }]} />
             <div className="flex items-end gap-2">
               <Button type="submit">{staff ? "Save Staff" : "Create Staff"}</Button>
               <Button asChild variant="outline">
@@ -103,17 +98,5 @@ export function StaffForm({ departments, staff }: { departments: Department[]; s
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-
-function SelectField({ label, name, defaultValue, options }: { label: string; name: string; defaultValue: string; options: ReadonlyArray<readonly [string, string]> }) {
-  return (
-    <label className="grid gap-1.5 text-sm font-medium">
-      <span>{label}</span>
-      <select name={name} defaultValue={defaultValue} className="h-8 rounded-lg border bg-background px-2.5 text-sm">
-        {options.map(([value, label]) => <option key={value || "empty"} value={value}>{label}</option>)}
-      </select>
-    </label>
   );
 }

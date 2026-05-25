@@ -6,7 +6,6 @@ import { env } from "./lib/env";
 const publicRoutes = ["/login", "/forgot-password", "/reset-password", "/403"];
 const routePermissions: Array<{ path: string; permission: Permission }> = [
   { path: "/settings/login-history", permission: "settings.profile" },
-  { path: "/settings/notifications", permission: "settings.profile" },
   { path: "/settings/preferences", permission: "settings.profile" },
   { path: "/settings/security", permission: "settings.profile" },
   { path: "/settings/profile", permission: "settings.profile" },

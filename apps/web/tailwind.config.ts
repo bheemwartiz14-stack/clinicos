@@ -2,7 +2,12 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   darkMode: ["class"],
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "../modules/**/*.{ts,tsx}", "../../packages/ui/src/**/*.{ts,tsx}"],
+  content: [
+    "./app/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "../modules/{appointments,auth,dashboard,doctors,patients,settings,specialties,staff}/**/*.{ts,tsx}",
+    "../../packages/ui/src/**/*.{ts,tsx}",
+  ],
   theme: {
     extend: {
       colors: {
@@ -65,7 +70,7 @@ const config: Config = {
       }
     }
   },
-  plugins: []
+  plugins: [require("@tailwindcss/typography")]
 };
 
 export default config;

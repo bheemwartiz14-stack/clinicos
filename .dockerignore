@@ -1,0 +1,10 @@
+.git
+.turbo
+.vercel
+node_modules
+**/node_modules
+apps/web/.next
+**/.turbo
+**/*.tsbuildinfo
+*.log
+.env.local

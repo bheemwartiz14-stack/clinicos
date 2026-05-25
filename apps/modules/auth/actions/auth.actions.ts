@@ -2,11 +2,15 @@
 
 import { redirect } from "next/navigation";
 import type { Route } from "next";
+import { createScopedLogger } from "@mediclinic/logger";
 import { headers } from "next/headers";
 import { getSession } from "../../../web/lib/auth";
 import { loginSchema, passwordResetRequestSchema, passwordResetSchema } from "../validations/auth.validation";
 import { authService } from "../services/auth.service";
+import { authRateLimitService } from "../services/auth-rate-limit.service";
 import { clearSessionCookie, setSessionCookie } from "../services/session-cookie.service";
+
+const logger = createScopedLogger("auth-actions");
 
 export type AuthActionState = {
   ok: boolean;
@@ -32,15 +36,29 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
     };
   }
 
+  const headerStore = await headers();
+  const ipAddress = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? headerStore.get("x-real-ip") ?? "unknown";
+  const userAgent = headerStore.get("user-agent") ?? undefined;
+  const rateLimitKey = `login:${ipAddress}:${parsed.data.identifier.trim().toLowerCase()}`;
+  const rateLimit = authRateLimitService.consume(rateLimitKey);
+
+  if (rateLimit.limited) {
+    logger.warn("Login rate limit exceeded", { ipAddress, identifier: parsed.data.identifier });
+    return {
+      ok: false,
+      message: `Too many sign-in attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`
+    };
+  }
+
   try {
-    const headerStore = await headers();
     const session = await authService.login(parsed.data, {
-      ipAddress: headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? headerStore.get("x-real-ip") ?? undefined,
-      userAgent: headerStore.get("user-agent") ?? undefined
+      ipAddress,
+      userAgent
     });
+    authRateLimitService.reset(rateLimitKey);
     await setSessionCookie(session);
   } catch (error) {
-    console.error("Login failed:", error);
+    logger.error("Login failed", { error });
     return { ok: false, message: error instanceof Error ? error.message : "Unable to sign in" };
   }
 

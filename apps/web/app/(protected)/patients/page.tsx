@@ -9,9 +9,9 @@ export const metadata: Metadata = {
   title: "Patients | MediClinic Pro"
 };
 
-export default async function PatientsPage({ searchParams }: { searchParams?: Promise<{ q?: string }> }) {
+export default async function PatientsPage({ searchParams }: { searchParams?: Promise<{ q?: string; status?: string }> }) {
   await requirePagePermission("patients.view");
   const params = searchParams ? await searchParams : {};
   const patients = await patientService.search({ q: params.q });
-  return <PatientsListView patients={patients} q={params.q} />;
+  return <PatientsListView patients={patients} q={params.q} status={params.status} />;
 }

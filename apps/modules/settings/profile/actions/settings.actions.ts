@@ -13,7 +13,11 @@ const profileSchema = z.object({
   lastName: z.string().trim().max(100).optional(),
   username: z.string().trim().min(3).max(100).optional().or(z.literal("")),
   phone: z.string().trim().max(30).optional().or(z.literal("")),
-  avatar: z.string().trim().url().optional().or(z.literal(""))
+  avatar: z.string().trim().refine((value) => {
+    if (!value) return true;
+    if (value.startsWith("/uploads/images/")) return true;
+    return z.string().url().safeParse(value).success;
+  }, "Avatar must be an uploaded image or a valid URL").optional().or(z.literal(""))
 });
 
 const passwordSchema = z.object({

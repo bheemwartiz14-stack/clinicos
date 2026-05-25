@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^3.10.0",
     "@mediclinic/auth": "workspace:*",
     "@mediclinic/db": "workspace:*",
+    "@mediclinic/logger": "workspace:*",
     "@mediclinic/rbac": "workspace:*",
     "@mediclinic/ui": "workspace:*",
     "@tanstack/react-query": "^5.83.0",

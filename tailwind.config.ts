@@ -6,7 +6,7 @@ const config: Config = {
     "./apps/web/app/**/*.{ts,tsx}",
     "./apps/web/components/**/*.{ts,tsx}",
     "./apps/web/hooks/**/*.{ts,tsx}",
-    "./apps/modules/**/*.{ts,tsx}",
+    "./apps/modules/{appointments,auth,dashboard,doctors,patients,settings,specialties,staff}/**/*.{ts,tsx}",
     "./packages/ui/src/**/*.{ts,tsx}",
   ],
   theme: {

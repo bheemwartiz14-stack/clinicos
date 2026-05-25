@@ -24,7 +24,8 @@ import {
   UserCog,
   UserRound,
   UsersRound,
-  X
+  X,
+  FileText
 } from "lucide-react";
 import { useState } from "react";
 import { type Permission, filterByPermission } from "@mediclinic/rbac";
@@ -90,6 +91,20 @@ const navItems: NavItem[] = [
     icon: Stethoscope,
     permission: "doctors.view",
     section: "Workspace",
+    children: [
+      {
+        label: "Doctor Profiles",
+        href: "/doctors",
+        icon: UserCog,
+        permission: "doctors.view",
+      },
+      {
+        label: "Specialties",
+        href: "/doctors/specialty",
+        icon: ClipboardList,
+        permission: "specialties.view",
+      },
+    ],
   },
   {
     label: "Staff",
@@ -97,6 +112,27 @@ const navItems: NavItem[] = [
     icon: UsersRound,
     permission: "staff.manage",
     section: "Administration",
+  },
+  {
+    label: "Notifications",
+    href: "/settings/notifications/templates",
+    icon: Bell,
+    permission: "settings.notifications",
+    section: "Administration",
+    children: [
+      {
+        label: "Notification Templates",
+        href: "/settings/notifications/templates",
+        icon: FileText,
+        permission: "settings.notifications",
+      },
+      {
+        label: "Notification Logs",
+        href: "/settings/notifications/logs",
+        icon: Activity,
+        permission: "settings.notifications",
+      },
+    ],
   },
   {
     label: "Access Control",
@@ -303,15 +339,6 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
           </div>
         </div>
         <SidebarNav items={visibleNavItemsWithChildren} pathname={pathname} />
-        <div className="absolute bottom-4 left-3.5 right-3.5 flex items-center gap-2.5 rounded-xl border border-sidebar-border bg-sidebar-accent/80 p-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-sidebar-foreground text-xs font-semibold text-sidebar">
-            {userInitials}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-sidebar-accent-foreground">{session.name || displayRole}</p>
-            <p className="truncate text-[11px] text-sidebar-foreground/55">{displayRole}</p>
-          </div>
-        </div>
       </aside>
 
       <div className="lg:pl-64">
@@ -329,10 +356,6 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
 
             <div className="flex items-center gap-3">
               <ThemeToggle className="h-8 w-8 border-transparent bg-transparent shadow-none hover:bg-muted [&_svg]:h-4 [&_svg]:w-4" />
-              <button type="button" className="relative grid h-8 w-8 place-items-center rounded-md text-foreground transition hover:bg-muted" aria-label="Notifications">
-                <Bell className="h-4 w-4" aria-hidden />
-                <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />
-              </button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="flex h-9 items-center gap-2 rounded-full bg-muted py-1 pl-1 pr-3 text-left transition hover:bg-accent">
@@ -381,7 +404,6 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
             </div>
           </div>
         </header>
-
         <motion.main
           className="px-4 py-5 sm:px-6"
           initial={{ opacity: 0, y: 8 }}
