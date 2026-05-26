@@ -62,16 +62,14 @@ export async function updateTemplateAction(id: string, _prev: TemplateActionStat
   }
 }
 
-export async function deleteTemplateAction(formData: FormData): Promise<TemplateActionState> {
+export async function deleteTemplateAction(formData: FormData): Promise<void> {
   try {
     await requirePagePermission("settings.notifications");
     const id = String(formData.get("id") ?? "");
-    if (!id) return { ok: false, message: "Missing template ID" };
+    if (!id) return;
     await notificationTemplateService.delete(id);
     revalidatePath("/settings/notifications/templates");
-    return { ok: true, message: "Template deleted successfully" };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Failed to delete template";
-    return { ok: false, message };
+    throw err instanceof Error ? err : new Error("Failed to delete template");
   }
 }
