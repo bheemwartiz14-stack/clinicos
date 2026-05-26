@@ -1,6 +1,7 @@
 import { db, notificationLogs } from "@mediclinic/db";
 import { sendEmail } from "./email.service";
 import { notificationTemplateService } from "./notification-template.service";
+import { systemNotificationService } from "./system-notification.service";
 
 export type SendNotificationInput = {
   templateCode: string;
@@ -80,22 +81,53 @@ export async function sendNotification(input: SendNotificationInput) {
 
     return { queued: true, channel: template.channel };
   }
-  {
-    const result = await sendEmail({
-      to: input.recipient,
-      subject: renderedSubject ?? "Notification",
-      text: renderedBody,
-    });
+  if (template.channel === "system") {
     await logNotification({
       templateId: template.id,
       channel: "system",
       recipient: input.recipient,
       subject: renderedSubject,
       body: renderedBody,
-      status: result.success ? "sent" : "failed",
-      error: result.error,
+      status: "sent",
       userId: input.userId,
     });
-    return { queued: false, success: result.success, error: result.error };
+
+    if (input.userId) {
+      await systemNotificationService.create({
+        userId: input.userId,
+        type: "info",
+        title: renderedSubject ?? "System Notification",
+        message: renderedBody,
+      });
+    }
+
+    return { queued: false, success: true };
   }
+
+  return { queued: false, success: false, error: `Unsupported channel: ${template.channel}` };
+}
+
+export async function sendSystemNotification(params: {
+  userId: string;
+  subject: string;
+  body?: string;
+  type?: "info" | "warning" | "error" | "success";
+  link?: string;
+}) {
+  await db.insert(notificationLogs).values({
+    channel: "system",
+    recipient: "in-app",
+    subject: params.subject,
+    body: params.body || null,
+    status: "sent",
+    userId: params.userId,
+  });
+
+  await systemNotificationService.create({
+    userId: params.userId,
+    type: params.type ?? "info",
+    title: params.subject,
+    message: params.body,
+    link: params.link,
+  });
 }

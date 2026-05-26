@@ -77,5 +77,23 @@ export async function getUsersData() {
       updatedAt: new Date(),
       roleCode: "accountant",
     },
+    {
+      firstName: "Nurse",
+      lastName: "User",
+      username: "nurse",
+      email: process.env.NURSE_EMAIL! ?? "nurse@mediclinicpro.com",
+      phone: "9999999994",
+      passwordHash: await bcrypt.hash(
+        process.env.NURSE_PASSWORD ?? "Nurse@1234",
+        10
+      ),
+      avatar: null,
+      status: "active",
+      emailVerified: true,
+      lastLoginAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      roleCode: "nurse",
+    },
   ] as const;
 }

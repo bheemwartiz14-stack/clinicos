@@ -12,7 +12,9 @@ export const clinicModules = [
   "rbac",
   "settings",
   "ai",
-  "reports"
+  "reports",
+  "documents",
+  "notifications",
 ] as const;
 
 export type ClinicModule = (typeof clinicModules)[number];

@@ -21,7 +21,36 @@ export const patients = pgTable("patients", {
   address: text("address"),
   emergencyContactName: varchar("emergency_contact_name", { length: 150 }),
   emergencyContactPhone: varchar("emergency_contact_phone", { length: 30 }),
+  allergies: text("allergies"),
+  chronicDiseases: text("chronic_diseases"),
   isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export const patientFamilyMembers = pgTable("patient_family_members", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientId: uuid("patient_id").references(() => patients.id, { onDelete: "cascade" }).notNull(),
+  fullName: varchar("full_name", { length: 150 }).notNull(),
+  relationship: varchar("relationship", { length: 100 }).notNull(),
+  phone: varchar("phone", { length: 30 }),
+  dateOfBirth: date("date_of_birth"),
+  gender: varchar("gender", { length: 50 }),
+  isEmergencyContact: boolean("is_emergency_contact").default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
+});
+
+export const patientInsurance = pgTable("patient_insurance", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  patientId: uuid("patient_id").references(() => patients.id, { onDelete: "cascade" }).notNull(),
+  provider: varchar("provider", { length: 200 }).notNull(),
+  policyNumber: varchar("policy_number", { length: 100 }).notNull(),
+  planName: varchar("plan_name", { length: 200 }),
+  coverageType: varchar("coverage_type", { length: 100 }),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),
 });

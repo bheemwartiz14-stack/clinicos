@@ -7,31 +7,28 @@ import {
   Activity,
   AlertTriangle,
   Bell,
-  Building2,
   CalendarDays,
   ChevronRight,
   ClipboardList,
   History,
   LayoutDashboard,
-  Link2,
   LogOut,
   Menu,
-  Palette,
-  Shield,
   ShieldCheck,
-  Settings,
   Stethoscope,
   UserCog,
   UserRound,
   UsersRound,
   X,
-  FileText
+  FileText,
+  Search
 } from "lucide-react";
 import { useState } from "react";
 import { type Permission, filterByPermission } from "@mediclinic/rbac";
 import type { SessionUser } from "@mediclinic/auth";
 import { logoutAction } from "@modules/auth/actions/auth.actions";
 import { ThemeToggle } from "./theme-toggle";
+import { NotificationBell } from "./notification-bell";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -97,13 +94,52 @@ const navItems: NavItem[] = [
         href: "/doctors",
         icon: UserCog,
         permission: "doctors.view",
-      },
-      {
-        label: "Specialties",
-        href: "/doctors/specialty",
-        icon: ClipboardList,
-        permission: "specialties.view",
-      },
+      }
+    ],
+  },
+  {
+    label: "Billing",
+    href: "/billing/invoices",
+    icon: FileText,
+    permission: "billing.view",
+    section: "Workspace",
+    children: [
+      { label: "Invoices", href: "/billing/invoices", icon: FileText, permission: "billing.view" },
+      { label: "Payments", href: "/billing/payments", icon: Activity, permission: "billing.view" },
+      { label: "Pending", href: "/billing/pending", icon: AlertTriangle, permission: "billing.view" },
+    ],
+  },
+  {
+    label: "Payroll",
+    href: "/payroll/payouts",
+    icon: ClipboardList,
+    permission: "payroll.view",
+    section: "Workspace",
+    children: [
+      { label: "Payouts", href: "/payroll/payouts", icon: ClipboardList, permission: "payroll.view" },
+      { label: "Doctor Settings", href: "/payroll/doctors", icon: UserCog, permission: "payroll.manage" },
+      { label: "Reports", href: "/payroll/reports", icon: Activity, permission: "payroll.view" },
+      { label: "Payment History", href: "/payroll/payment-history", icon: History, permission: "payroll.view" },
+    ],
+  },
+  {
+    label: "Documents",
+    href: "/patient-documents",
+    icon: FileText,
+    permission: "documents.view",
+    section: "Workspace",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: Activity,
+    permission: "reports.view",
+    section: "Workspace",
+    children: [
+      { label: "Revenue", href: "/reports/revenue", icon: FileText, permission: "reports.view" },
+      { label: "Appointments", href: "/reports/appointments", icon: CalendarDays, permission: "reports.view" },
+      { label: "Doctors", href: "/reports/doctors", icon: Stethoscope, permission: "reports.view" },
+      { label: "Patients", href: "/reports/patients", icon: UserRound, permission: "reports.view" },
     ],
   },
   {
@@ -115,24 +151,37 @@ const navItems: NavItem[] = [
   },
   {
     label: "Notifications",
-    href: "/settings/notifications/templates",
+    href: "/notifications",
     icon: Bell,
     permission: "settings.notifications",
     section: "Administration",
     children: [
       {
-        label: "Notification Templates",
+        label: "Dashboard",
+        href: "/notifications",
+        icon: Bell,
+        permission: "settings.notifications",
+      },
+      {
+        label: "Templates",
         href: "/settings/notifications/templates",
         icon: FileText,
         permission: "settings.notifications",
       },
       {
-        label: "Notification Logs",
+        label: "Logs",
         href: "/settings/notifications/logs",
         icon: Activity,
         permission: "settings.notifications",
       },
     ],
+  },
+  {
+    label: "Audit Logs",
+    href: "/settings/audit-logs",
+    icon: Search,
+    permission: "audit.view",
+    section: "Administration",
   },
   {
     label: "Access Control",
@@ -156,6 +205,7 @@ const userMenuItems: Array<{
   adminOnly?: boolean;
 }> = [
     { label: "My Profile", href: "/settings/profile", icon: UserRound },
+    { label: "Security", href: "/settings/security", icon: ShieldCheck },
     { label: "Login History", href: "/settings/login-history", icon: History },
   ];
 
@@ -193,22 +243,17 @@ function SidebarNav({
   const sections = ["Workspace", "Administration"] as const;
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   return (
-    <nav className="mt-6 space-y-6" aria-label="Primary navigation">
-      <div className="px-2">
-        <p className="text-xs font-semibold uppercase tracking-normal text-sidebar-foreground/45">
-          Main Menu
-        </p>
-      </div>
-      <div className="space-y-5">
+    <nav className="mt-4 space-y-3" aria-label="Primary navigation">
+      <div className="space-y-4">
         {sections.map((section) => {
           const sectionItems = items.filter((item) => (item.section ?? "Workspace") === section);
           if (sectionItems.length === 0) return null;
           return (
             <div key={section} className="space-y-2">
-              <p className="px-2 text-[11px] font-semibold uppercase tracking-normal text-sidebar-foreground/45">
+              <p className="px-2 text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/35">
                 {section}
               </p>
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {sectionItems.map((item) => {
                   const visibleChildren = item.children ?? [];
                   const childIsActive = visibleChildren.some((child) => isActivePath(pathname, child.href));
@@ -216,33 +261,21 @@ function SidebarNav({
                   const active = isActivePath(pathname, item.href) || childIsActive;
                   const expanded = expandedItems[item.label] ?? active;
                   const itemClassName = cn(
-                    "group flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold text-sidebar-foreground/76 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                    active && "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-ring/20 hover:bg-sidebar-primary hover:text-sidebar-primary-foreground"
+                    "group flex min-h-9 w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-left text-sm text-sidebar-foreground/70 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    active && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                   );
                   const itemContent = (
                     <>
-                      <span
-                        className={cn(
-                          "grid h-7 w-7 shrink-0 place-items-center rounded-md bg-sidebar-accent text-sidebar-foreground/70 transition group-hover:text-sidebar-accent-foreground",
-                          active && "bg-sidebar-primary-foreground/15 text-sidebar-primary-foreground"
-                        )}
-                      >
-                        <item.icon className="h-4 w-4" aria-hidden />
-                      </span>
+                      <item.icon className={cn("h-4 w-4 shrink-0", active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/50")} aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {item.badge ? (
-                        <span
-                          className={cn(
-                            "rounded-full border border-sidebar-border px-2 py-0.5 text-[10px] font-bold uppercase text-sidebar-foreground/55",
-                            active && "border-sidebar-primary-foreground/25 text-sidebar-primary-foreground/85"
-                          )}
-                        >
+                        <span className="rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[10px] font-medium text-sidebar-foreground/50">
                           {item.badge}
                         </span>
                       ) : null}
                       {hasChildren ? (
                         <ChevronRight
-                          className={cn("h-3.5 w-3.5 text-sidebar-foreground/35 transition", expanded && "rotate-90", active && "text-sidebar-primary-foreground/70")}
+                          className={cn("h-3 w-3 text-sidebar-foreground/25 transition", expanded && "rotate-90")}
                           aria-hidden
                         />
                       ) : null}
@@ -278,7 +311,7 @@ function SidebarNav({
                       )}
 
                       {hasChildren && expanded ? (
-                        <div className="ml-[26px] space-y-1 border-l border-sidebar-border pl-3">
+                        <div className="ml-5 space-y-0.5 border-l border-sidebar-border/50 pl-2.5">
                           {visibleChildren.map((child) => {
                             const childActive = isActivePath(pathname, child.href);
 
@@ -290,8 +323,8 @@ function SidebarNav({
                                 onClick={onNavigate}
                                 aria-current={childActive ? "page" : undefined}
                                 className={cn(
-                                  "flex h-9 items-center gap-2 rounded-md px-2.5 text-xs font-medium text-sidebar-foreground/65 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                                  childActive && "bg-sidebar-accent text-sidebar-accent-foreground"
+                                  "flex h-8 items-center gap-2 rounded-md px-2 text-xs text-sidebar-foreground/55 transition hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                                  childActive && "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                                 )}
                               >
                                 <child.icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -328,20 +361,20 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-sidebar-border bg-sidebar px-3.5 py-4 text-sidebar-foreground lg:block">
-        <div className="flex h-12 items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-2.5">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-sidebar-ring/20">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-56 border-r border-sidebar-border bg-sidebar px-3 py-3 text-sidebar-foreground lg:block">
+        <div className="flex h-10 items-center gap-2.5">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
             <Activity className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-sidebar-foreground">MediClinic Pro</p>
-            <p className="truncate text-[11px] leading-tight text-sidebar-foreground/55">{shellUser?.branchName ?? "Clinic workspace"}</p>
+            <p className="truncate text-[10px] leading-tight text-sidebar-foreground/45">{shellUser?.branchName ?? "Clinic workspace"}</p>
           </div>
         </div>
         <SidebarNav items={visibleNavItemsWithChildren} pathname={pathname} />
       </aside>
 
-      <div className="lg:pl-64">
+      <div className="lg:pl-56">
         <header className="sticky top-0 z-30 h-14 border-b border-border bg-background/95 px-4 backdrop-blur">
           <div className="flex h-full items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -354,7 +387,8 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
+              <NotificationBell />
               <ThemeToggle className="h-8 w-8 border-transparent bg-transparent shadow-none hover:bg-muted [&_svg]:h-4 [&_svg]:w-4" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -416,15 +450,15 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
 
       {mobileNavOpen ? (
         <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm lg:hidden">
-          <aside className="h-full w-80 max-w-[88vw] border-r border-sidebar-border bg-sidebar p-3.5 text-sidebar-foreground shadow-xl">
+          <aside className="h-full w-72 max-w-[88vw] border-r border-sidebar-border bg-sidebar p-3 text-sidebar-foreground shadow-xl">
             <div className="flex items-center justify-between">
-              <div className="flex h-12 min-w-0 items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-2.5">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+              <div className="flex h-10 min-w-0 items-center gap-2.5">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <Activity className="h-4 w-4" aria-hidden />
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-sidebar-foreground">MediClinic Pro</p>
-                  <p className="truncate text-[11px] text-sidebar-foreground/55">{shellUser?.branchName ?? "Clinic workspace"}</p>
+                  <p className="truncate text-[10px] text-sidebar-foreground/45">{shellUser?.branchName ?? "Clinic workspace"}</p>
                 </div>
               </div>
               <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">

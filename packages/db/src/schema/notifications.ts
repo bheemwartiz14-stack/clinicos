@@ -46,5 +46,7 @@ export const notificationLogs = pgTable("notification_logs", {
   error: text("error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  isRead: boolean("is_read").default(false).notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

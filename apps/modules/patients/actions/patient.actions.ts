@@ -17,6 +17,8 @@ const patientSchema = z.object({
   address: z.string().trim().optional().or(z.literal("")),
   emergencyContactName: z.string().trim().optional().or(z.literal("")),
   emergencyContactPhone: z.string().trim().optional().or(z.literal("")),
+  allergies: z.string().trim().optional().or(z.literal("")),
+  chronicDiseases: z.string().trim().optional().or(z.literal("")),
   isActive: z.coerce.boolean().default(true)
 });
 

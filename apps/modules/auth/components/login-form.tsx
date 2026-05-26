@@ -70,7 +70,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
           autoComplete="username"
           placeholder="admin@example.com"
           error={errors.identifier?.message as string | undefined}
-          className="h-10 rounded-md border-slate-200 bg-white text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
+          className="h-10 rounded-md border-border bg-background text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-ring"
           {...register("identifier")}
         />
       </div>
@@ -84,12 +84,12 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
             autoComplete="current-password"
             placeholder="Enter your password"
             error={errors.password?.message as string | undefined}
-            className="h-10 rounded-md border-slate-200 bg-white pr-11 text-slate-950 shadow-none placeholder:text-slate-400 focus-visible:ring-sky-200"
+            className="h-10 rounded-md border-border bg-background pr-11 text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-ring"
             {...register("password")}
           />
           <button
             type="button"
-            className="absolute right-2 top-8 grid h-7 w-7 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950"
+            className="absolute right-2 top-8 grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
             aria-label={showPassword ? "Hide password" : "Show password"}
             onClick={() => setShowPassword((current) => !current)}
           >
@@ -108,7 +108,7 @@ export function LoginForm({ redirectTo = "/" }: LoginFormProps) {
       <Button
         type="submit"
         disabled={isPending}
-        className="mt-2 h-10 w-full rounded-md bg-slate-950 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+        className="mt-2 h-10 w-full rounded-md bg-primary text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
       >
         {isPending ? "Signing in..." : "Continue"}
       </Button>

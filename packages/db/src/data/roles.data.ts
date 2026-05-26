@@ -30,6 +30,13 @@ export const rolesData = [
     isSystem: true,
     createdAt: new Date(),
   },
+  {
+    name: "Nurse",
+    code: "nurse",
+    description: "Nurse role",
+    isSystem: true,
+    createdAt: new Date(),
+  },
 ] satisfies Array<{
   name: string;
   code: string;

@@ -124,6 +124,7 @@ export const appointmentService = {
     status?: string;
     reason?: string | null;
     notes?: string | null;
+    consultationLink?: string | null;
     createdById?: string | null;
   }) {
     const maxToken = await db
@@ -149,6 +150,7 @@ export const appointmentService = {
         status: (input.status ?? "booked") as any,
         reason: input.reason ?? null,
         notes: input.notes ?? null,
+        consultationLink: input.consultationLink ?? null,
         queueTokenNumber: nextToken,
         createdById: input.createdById ?? null,
       })
@@ -254,6 +256,77 @@ export const appointmentService = {
       startTime: row.appointments.startTime,
       status: row.appointments.status,
     }));
+  },
+
+  async createRecurring(input: {
+    patientId: string;
+    doctorId: string;
+    slotId?: string | null;
+    appointmentDate: string;
+    startTime: string;
+    endTime?: string | null;
+    type?: string;
+    reason?: string | null;
+    notes?: string | null;
+    createdById?: string | null;
+    recurringPattern: "daily" | "weekly" | "biweekly" | "monthly" | "quarterly";
+    recurringEndDate: string;
+  }) {
+    const dates: string[] = [];
+    const start = new Date(input.appointmentDate);
+    const end = new Date(input.recurringEndDate);
+
+    switch (input.recurringPattern) {
+      case "daily": {
+        let d = new Date(start);
+        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 1); }
+        break;
+      }
+      case "weekly": {
+        let d = new Date(start);
+        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 7); }
+        break;
+      }
+      case "biweekly": {
+        let d = new Date(start);
+        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 14); }
+        break;
+      }
+      case "monthly": {
+        let d = new Date(start);
+        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setMonth(d.getMonth() + 1); }
+        break;
+      }
+      case "quarterly": {
+        let d = new Date(start);
+        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setMonth(d.getMonth() + 3); }
+        break;
+      }
+    }
+
+    const parent = await this.create({ ...input, status: "booked" });
+
+    for (let i = 1; i < dates.length; i++) {
+      await db.insert(appointments).values({
+        patientId: input.patientId,
+        doctorId: input.doctorId,
+        slotId: input.slotId ?? null,
+        appointmentDate: dates[i],
+        startTime: input.startTime,
+        endTime: input.endTime ?? null,
+        type: (input.type ?? "in_clinic") as any,
+        status: "booked",
+        reason: input.reason ?? null,
+        notes: input.notes ?? null,
+        isRecurring: true,
+        recurringPattern: input.recurringPattern as any,
+        recurringEndDate: input.recurringEndDate,
+        parentAppointmentId: parent.id,
+        createdById: input.createdById ?? null,
+      });
+    }
+
+    return parent;
   },
 
   async getDoctors(): Promise<DoctorOption[]> {

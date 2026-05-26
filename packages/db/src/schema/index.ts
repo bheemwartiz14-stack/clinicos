@@ -7,3 +7,6 @@ export * from "./documents";
 export * from "./patients";
 export * from "./payroll";
 export * from "./staff";
+export * from "./audit_logs";
+export * from "./login_history";
+export * from "./system-notifications";

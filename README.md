@@ -19,7 +19,7 @@ The platform is single-tenant by design: data is scoped by `branch_id`, never `t
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+docker compose up -d
 bun install
 bun run db:generate
 bun run db:push

@@ -1,5 +1,5 @@
 import { eq, ilike, or, desc } from "drizzle-orm";
-import { db, patientMedicalHistories, patientNotes, patients, appointments, invoices } from "@mediclinic/db";
+import { db, patientMedicalHistories, patientNotes, patients, patientFamilyMembers, patientInsurance, appointments, invoices } from "@mediclinic/db";
 
 export type PatientRecord = {
   id: string;
@@ -12,6 +12,8 @@ export type PatientRecord = {
   address: string | null;
   emergencyContactName: string | null;
   emergencyContactPhone: string | null;
+  allergies: string | null;
+  chronicDiseases: string | null;
   isActive: boolean;
 };
 
@@ -78,6 +80,8 @@ export const patientService = {
     address?: string | null;
     emergencyContactName?: string | null;
     emergencyContactPhone?: string | null;
+    allergies?: string | null;
+    chronicDiseases?: string | null;
     isActive?: boolean;
   }) {
     const [created] = await db
@@ -92,6 +96,8 @@ export const patientService = {
         address: input.address || null,
         emergencyContactName: input.emergencyContactName || null,
         emergencyContactPhone: input.emergencyContactPhone || null,
+        allergies: input.allergies || null,
+        chronicDiseases: input.chronicDiseases || null,
         isActive: input.isActive ?? true
       })
       .returning();
@@ -110,6 +116,8 @@ export const patientService = {
       address?: string | null;
       emergencyContactName?: string | null;
       emergencyContactPhone?: string | null;
+      allergies?: string | null;
+      chronicDiseases?: string | null;
       isActive?: boolean;
     }
   ) {
@@ -125,6 +133,8 @@ export const patientService = {
         address: input.address || null,
         emergencyContactName: input.emergencyContactName || null,
         emergencyContactPhone: input.emergencyContactPhone || null,
+        allergies: input.allergies || null,
+        chronicDiseases: input.chronicDiseases || null,
         isActive: input.isActive ?? true
       })
       .where(eq(patients.id, id))
@@ -182,6 +192,80 @@ export const patientService = {
     }));
   },
 
+  async familyMembers(patientId: string) {
+    return db
+      .select()
+      .from(patientFamilyMembers)
+      .where(eq(patientFamilyMembers.patientId, patientId))
+      .orderBy(desc(patientFamilyMembers.createdAt));
+  },
+
+  async addFamilyMember(input: {
+    patientId: string;
+    fullName: string;
+    relationship: string;
+    phone?: string | null;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    isEmergencyContact?: boolean;
+  }) {
+    const [member] = await db
+      .insert(patientFamilyMembers)
+      .values({
+        patientId: input.patientId,
+        fullName: input.fullName,
+        relationship: input.relationship,
+        phone: input.phone ?? null,
+        dateOfBirth: input.dateOfBirth ?? null,
+        gender: input.gender ?? null,
+        isEmergencyContact: input.isEmergencyContact ?? false,
+      })
+      .returning();
+    return member;
+  },
+
+  async removeFamilyMember(id: string) {
+    await db.delete(patientFamilyMembers).where(eq(patientFamilyMembers.id, id));
+  },
+
+  async insuranceRecords(patientId: string) {
+    return db
+      .select()
+      .from(patientInsurance)
+      .where(eq(patientInsurance.patientId, patientId))
+      .orderBy(desc(patientInsurance.createdAt));
+  },
+
+  async addInsurance(input: {
+    patientId: string;
+    provider: string;
+    policyNumber: string;
+    planName?: string | null;
+    coverageType?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    isActive?: boolean;
+  }) {
+    const [record] = await db
+      .insert(patientInsurance)
+      .values({
+        patientId: input.patientId,
+        provider: input.provider,
+        policyNumber: input.policyNumber,
+        planName: input.planName ?? null,
+        coverageType: input.coverageType ?? null,
+        startDate: input.startDate ?? null,
+        endDate: input.endDate ?? null,
+        isActive: input.isActive ?? true,
+      })
+      .returning();
+    return record;
+  },
+
+  async removeInsurance(id: string) {
+    await db.delete(patientInsurance).where(eq(patientInsurance.id, id));
+  },
+
   async billingHistory(patientId: string) {
     const rows = await db
       .select()
@@ -210,6 +294,8 @@ function toPatientRecord(p: typeof patients.$inferSelect): PatientRecord {
     address: p.address ?? null,
     emergencyContactName: p.emergencyContactName ?? null,
     emergencyContactPhone: p.emergencyContactPhone ?? null,
+    allergies: p.allergies ?? null,
+    chronicDiseases: p.chronicDiseases ?? null,
     isActive: p.isActive
   };
 }

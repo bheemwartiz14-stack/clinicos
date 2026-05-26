@@ -7,25 +7,27 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
-  title: "MediClinic Pro",
-  description: "Enterprise AI-ready clinic management system for USA clinic workflows",
-  applicationName: "MediClinic Pro",
+  title: { default: "Clinicos", template: "%s | Clinicos" },
+  description: "Enterprise AI-ready clinic management system.",
+  applicationName: "Clinicos",
   keywords: ["clinic management", "EHR", "appointments", "billing", "healthcare operations", "RBAC"],
-  authors: [{ name: "MediClinic Pro" }],
-  creator: "MediClinic Pro",
-  publisher: "MediClinic Pro",
-  manifest: "/manifest.webmanifest",
+  authors: [{ name: "Clinicos" }],
+  creator: "Clinicos",
+  publisher: "Clinicos",
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Clinicos" },
+  formatDetection: { telephone: true },
   openGraph: {
-    title: "MediClinic Pro",
-    description: "Premium clinic operations platform for secure scheduling, patient intake, billing, payroll, and AI workflows.",
+    title: "Clinicos",
+    description: "Enterprise AI-ready clinic management system.",
     url: "/",
-    siteName: "MediClinic Pro",
+    siteName: "Clinicos",
     type: "website"
   },
   twitter: {
     card: "summary",
-    title: "MediClinic Pro",
-    description: "Enterprise AI-ready clinic management system for USA clinic workflows"
+    title: "Clinicos",
+    description: "Enterprise AI-ready clinic management system."
   }
 };
 

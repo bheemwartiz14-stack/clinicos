@@ -7,10 +7,12 @@ import {
   date,
   time,
   pgEnum,
+  boolean,
 } from "drizzle-orm/pg-core";
 import { patients } from "./patients";
 import { doctorAvailabilitySlots, doctors } from "./doctors";
 import { users } from "./auth";
+
 export const appointmentStatusEnum = pgEnum("appointment_status", [
   "booked",
   "confirmed",
@@ -28,6 +30,14 @@ export const appointmentTypeEnum = pgEnum("appointment_type", [
   "walk_in",
 ]);
 
+export const recurringPatternEnum = pgEnum("recurring_pattern", [
+  "daily",
+  "weekly",
+  "biweekly",
+  "monthly",
+  "quarterly",
+]);
+
 export const appointments = pgTable("appointments", {
   id: uuid("id").defaultRandom().primaryKey(),
   patientId: uuid("patient_id").references(() => patients.id, { onDelete: "cascade" }).notNull(),
@@ -41,6 +51,12 @@ export const appointments = pgTable("appointments", {
   reason: text("reason"),
   notes: text("notes"),
   queueTokenNumber: integer("queue_token_number"),
+  consultationLink: text("consultation_link"),
+  isRecurring: boolean("is_recurring").default(false).notNull(),
+  recurringPattern: recurringPatternEnum("recurring_pattern"),
+  recurringEndDate: date("recurring_end_date"),
+  parentAppointmentId: uuid("parent_appointment_id"),
+  googleCalendarEventId: text("google_calendar_event_id"),
   createdById: uuid("created_by_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().$onUpdate(() => new Date()).notNull(),

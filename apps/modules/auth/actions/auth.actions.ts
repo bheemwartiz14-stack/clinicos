@@ -67,8 +67,11 @@ export async function loginAction(_state: AuthActionState, formData: FormData): 
 
 export async function logoutAction() {
   const session = await getSession();
+  const headerStore = await headers();
+  const ipAddress = headerStore.get("x-forwarded-for")?.split(",")[0]?.trim() ?? headerStore.get("x-real-ip") ?? undefined;
+  const userAgent = headerStore.get("user-agent") ?? undefined;
   if (session) {
-    await authService.logout(session.sessionId);
+    await authService.logout(session.sessionId, { ipAddress, userAgent });
   }
   await clearSessionCookie();
   redirect("/login" as Route);

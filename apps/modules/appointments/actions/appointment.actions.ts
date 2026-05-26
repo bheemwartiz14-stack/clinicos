@@ -19,6 +19,9 @@ const createAppointmentSchema = z.object({
   status: z.enum(["booked", "confirmed", "pending", "cancelled"]).default("confirmed"),
   reason: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
+  recurringPattern: z.enum(["daily", "weekly", "biweekly", "monthly", "quarterly"]).optional(),
+  recurringEndDate: z.string().optional().or(z.literal("")),
+  consultationLink: z.string().url().optional().or(z.literal("")),
 });
 
 export async function createAppointmentAction(formData: FormData) {
@@ -28,14 +31,34 @@ export async function createAppointmentAction(formData: FormData) {
 
   const session = await getSession().catch(() => null);
 
-  await appointmentService.create({
-    ...parsed.data,
-    slotId: parsed.data.slotId || null,
-    endTime: parsed.data.endTime || null,
-    reason: parsed.data.reason || null,
-    notes: parsed.data.notes || null,
-    createdById: session?.userId ?? null,
-  });
+  const safeData = parsed.data;
+
+  if (safeData.recurringPattern && safeData.recurringEndDate) {
+    await appointmentService.createRecurring({
+      patientId: safeData.patientId,
+      doctorId: safeData.doctorId,
+      slotId: safeData.slotId || null,
+      appointmentDate: safeData.appointmentDate,
+      startTime: safeData.startTime,
+      endTime: safeData.endTime || null,
+      type: safeData.type,
+      reason: safeData.reason || null,
+      notes: safeData.notes || null,
+      createdById: session?.userId ?? null,
+      recurringPattern: safeData.recurringPattern,
+      recurringEndDate: safeData.recurringEndDate,
+    });
+  } else {
+    await appointmentService.create({
+      ...safeData,
+      slotId: safeData.slotId || null,
+      endTime: safeData.endTime || null,
+      reason: safeData.reason || null,
+      notes: safeData.notes || null,
+      consultationLink: safeData.consultationLink || null,
+      createdById: session?.userId ?? null,
+    });
+  }
 
   revalidatePath("/appointments");
   redirect("/appointments" as Route);
@@ -88,6 +111,37 @@ export async function rescheduleAppointmentAction(formData: FormData) {
   });
 
   revalidatePath("/appointments");
+}
+
+export async function createRecurringAppointmentAction(formData: FormData) {
+  await requirePagePermission("appointments.create");
+  const parsed = createAppointmentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/appointments/create?error=invalid` as Route);
+
+  const session = await getSession().catch(() => null);
+  const data = parsed.data;
+
+  if (!data.recurringPattern || !data.recurringEndDate) {
+    throw new Error("Recurring pattern and end date are required");
+  }
+
+  await appointmentService.createRecurring({
+    patientId: data.patientId,
+    doctorId: data.doctorId,
+    slotId: data.slotId || null,
+    appointmentDate: data.appointmentDate,
+    startTime: data.startTime,
+    endTime: data.endTime || null,
+    type: data.type,
+    reason: data.reason || null,
+    notes: data.notes || null,
+    createdById: session?.userId ?? null,
+    recurringPattern: data.recurringPattern,
+    recurringEndDate: data.recurringEndDate,
+  });
+
+  revalidatePath("/appointments");
+  redirect("/appointments" as Route);
 }
 
 export async function walkInAppointmentAction(formData: FormData) {

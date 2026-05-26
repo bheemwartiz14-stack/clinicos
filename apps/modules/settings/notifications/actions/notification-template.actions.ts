@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePagePermission } from "@/lib/auth";
 import { notificationTemplateService } from "../services/notification-template.service";
+import { notificationLogService } from "../services/notification-log.service";
 
 const templateSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
@@ -60,6 +61,12 @@ export async function updateTemplateAction(id: string, _prev: TemplateActionStat
     const message = err instanceof Error ? err.message : "Failed to update template";
     return { ok: false, message };
   }
+}
+
+export async function listNotificationsAction() {
+  await requirePagePermission("notifications.view");
+  const { data } = await notificationLogService.list({ pageSize: 20 });
+  return data;
 }
 
 export async function deleteTemplateAction(formData: FormData): Promise<void> {
