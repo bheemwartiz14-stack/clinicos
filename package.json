@@ -15,6 +15,7 @@
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "turbo test:e2e",
+    "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "db:generate": "turbo --filter @mediclinic/db db:generate",
     "db:studio": "turbo --filter @mediclinic/db db:studio",
     "db:push": "turbo --filter @mediclinic/db db:push",
