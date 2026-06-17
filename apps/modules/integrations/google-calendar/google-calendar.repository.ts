@@ -14,87 +14,139 @@ type UpsertInput = {
 
 export const GoogleCalendarRepository = {
   async upsertConnection(data: UpsertInput) {
-    const encryptedRefreshToken = data.refreshToken ? encryptToken(data.refreshToken) : null;
-    return db
-      .insert(googleCalendarConnections)
-      .values({
-        userId: data.userId,
-        accessToken: data.accessToken,
-        refreshToken: encryptedRefreshToken,
-        expiryDate: data.expiryDate ?? null,
-        scope: data.scope ?? null,
-        calendarId: data.calendarId ?? null,
-        isConnected: true,
-      })
-      .onConflictDoUpdate({
-        target: googleCalendarConnections.userId,
-        set: {
+    try {
+      if (!data.userId) throw new Error("userId required");
+
+      const encryptedRefreshToken = data.refreshToken
+        ? encryptToken(data.refreshToken)
+        : null;
+
+      return await db
+        .insert(googleCalendarConnections)
+        .values({
+          userId: data.userId,
           accessToken: data.accessToken,
           refreshToken: encryptedRefreshToken,
           expiryDate: data.expiryDate ?? null,
           scope: data.scope ?? null,
           calendarId: data.calendarId ?? null,
           isConnected: true,
-          updatedAt: new Date(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: googleCalendarConnections.userId,
+          set: {
+            accessToken: data.accessToken,
+            refreshToken: encryptedRefreshToken,
+            expiryDate: data.expiryDate ?? null,
+            scope: data.scope ?? null,
+            calendarId: data.calendarId ?? null,
+            isConnected: true,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (err) {
+      console.error("❌ upsertConnection FAILED:", err);
+      throw err;
+    }
   },
 
   async getByUserId(
-  userId: string
-): Promise<GoogleCalendarConnection | undefined> {
-  const connection = await db.query.googleCalendarConnections.findFirst({
-    where: eq(googleCalendarConnections.userId, userId),
-  });
+    userId: string
+  ): Promise<GoogleCalendarConnection | undefined> {
+    try {
+      if (!userId) throw new Error("userId required");
 
-  if (!connection) return undefined;
+      const connection =
+        await db
+          .select()
+          .from(googleCalendarConnections)
+          .where(eq(googleCalendarConnections.userId, userId))
+          .limit(1)
+          .then((r) => r[0]);
 
-  return {
-    ...connection,
-    createdAt: connection.createdAt ?? new Date(),
-    updatedAt: connection.updatedAt ?? new Date(),
-    refreshToken: connection.refreshToken
-      ? decryptToken(connection.refreshToken)
-      : null,
-  };
-},
+      if (!connection) return undefined;
 
-  async updateTokens(userId: string, accessToken: string, refreshToken: string | null, expiryDate: Date | null) {
-    const encryptedRefreshToken = refreshToken ? encryptToken(refreshToken) : null;
-    return db
-      .update(googleCalendarConnections)
-      .set({
-        accessToken,
-        refreshToken: encryptedRefreshToken,
-        expiryDate,
-        updatedAt: new Date(),
-      })
-      .where(eq(googleCalendarConnections.userId, userId));
+      return {
+        ...connection,
+        createdAt: connection.createdAt ?? new Date(),
+        updatedAt: connection.updatedAt ?? new Date(),
+        refreshToken: connection.refreshToken
+          ? decryptToken(connection.refreshToken)
+          : null,
+      };
+    } catch (err) {
+      console.error("❌ getByUserId FAILED:", err);
+      return undefined;
+    }
+  },
+
+  async updateTokens(
+    userId: string,
+    accessToken: string,
+    refreshToken: string | null,
+    expiryDate: Date | null
+  ) {
+    try {
+      const encryptedRefreshToken = refreshToken
+        ? encryptToken(refreshToken)
+        : null;
+
+      return await db
+        .update(googleCalendarConnections)
+        .set({
+          accessToken,
+          refreshToken: encryptedRefreshToken,
+          expiryDate,
+          updatedAt: new Date(),
+        })
+        .where(eq(googleCalendarConnections.userId, userId));
+    } catch (err) {
+      console.error("❌ updateTokens FAILED:", err);
+      throw err;
+    }
   },
 
   async updateCalendarId(userId: string, calendarId: string) {
-    return db
-      .update(googleCalendarConnections)
-      .set({ calendarId, updatedAt: new Date() })
-      .where(eq(googleCalendarConnections.userId, userId));
+    try {
+      return await db
+        .update(googleCalendarConnections)
+        .set({
+          calendarId,
+          updatedAt: new Date(),
+        })
+        .where(eq(googleCalendarConnections.userId, userId));
+    } catch (err) {
+      console.error("❌ updateCalendarId FAILED:", err);
+      throw err;
+    }
   },
 
   async disconnect(userId: string) {
-    return db
-      .update(googleCalendarConnections)
-      .set({
-        isConnected: false,
-        accessToken: null,
-        refreshToken: null,
-        expiryDate: null,
-        updatedAt: new Date(),
-      })
-      .where(eq(googleCalendarConnections.userId, userId));
+    try {
+      return await db
+        .update(googleCalendarConnections)
+        .set({
+          isConnected: false,
+          accessToken: null,
+          refreshToken: null,
+          expiryDate: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(googleCalendarConnections.userId, userId));
+    } catch (err) {
+      console.error("❌ disconnect FAILED:", err);
+      throw err;
+    }
   },
 
   async delete(userId: string) {
-    return db
-      .delete(googleCalendarConnections)
-      .where(eq(googleCalendarConnections.userId, userId));
+    try {
+      return await db
+        .delete(googleCalendarConnections)
+        .where(eq(googleCalendarConnections.userId, userId));
+    } catch (err) {
+      console.error("❌ delete FAILED:", err);
+      throw err;
+    }
   },
 };

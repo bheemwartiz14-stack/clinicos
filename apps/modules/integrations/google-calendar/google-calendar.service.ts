@@ -1,7 +1,11 @@
 import { google } from "googleapis";
 import { db, users } from "@mediclinic/db";
 import { eq } from "drizzle-orm";
-import { getGoogleOAuthClient, generateAuthUrl, exchangeCodeForTokens } from "./google-calendar.oauth";
+import {
+  getGoogleOAuthClient,
+  generateAuthUrl,
+  exchangeCodeForTokens,
+} from "./google-calendar.oauth";
 import { GoogleCalendarRepository } from "./google-calendar.repository";
 import type {
   CreateGoogleEventInput,
@@ -12,95 +16,186 @@ import type {
 
 class GoogleCalendarService {
   async generateAuthUrl(userId: string): Promise<string> {
+    if (!userId) throw new Error("userId is required");
+
     const oauth2Client = getGoogleOAuthClient();
     return generateAuthUrl(oauth2Client, userId);
   }
 
   async handleCallback(code: string, state: string): Promise<{ success: boolean }> {
-    const { userId } = await this.exchangeCodeAndSaveTokens(code, state);
-    await this.createCalendarAndSaveId(userId);
-    return { success: true };
+    try {
+      const { userId } = await this.exchangeCodeAndSaveTokens(code, state);
+      await this.createCalendarAndSaveId(userId);
+      return { success: true };
+    } catch (err) {
+      console.error("handleCallback ERROR:", err);
+      throw err;
+    }
   }
 
-  async exchangeCodeAndSaveTokens(code: string, state: string): Promise<{ userId: string }> {
-    const oauth2Client = getGoogleOAuthClient();
-    const tokens = await exchangeCodeForTokens(oauth2Client, code);
-    const { userId } = JSON.parse(state);
+  async exchangeCodeAndSaveTokens(
+    code: string,
+    state: string
+  ): Promise<{ userId: string }> {
+    try {
+      if (!code || !state) {
+        throw new Error("Missing OAuth code or state");
+      }
 
-    await GoogleCalendarRepository.upsertConnection({
-      userId,
-      accessToken: tokens.access_token!,
-      refreshToken: tokens.refresh_token ?? null,
-      expiryDate: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
-      scope: tokens.scope ?? null,
-    });
+      const oauth2Client = getGoogleOAuthClient();
+      const tokens = await exchangeCodeForTokens(oauth2Client, code);
 
-    return { userId };
+      if (!tokens.access_token) {
+        throw new Error("Google did not return access_token");
+      }
+
+      let userId: string;
+
+      try {
+        const parsed = JSON.parse(state);
+        if (!parsed?.userId) throw new Error("Invalid OAuth state");
+        userId = parsed.userId;
+      } catch {
+        throw new Error("OAuth state parsing failed");
+      }
+
+      await GoogleCalendarRepository.upsertConnection({
+        userId,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token ?? null,
+        expiryDate: tokens.expiry_date
+          ? new Date(tokens.expiry_date)
+          : null,
+        scope: tokens.scope ?? null,
+      });
+
+      return { userId };
+    } catch (err) {
+      console.error("exchangeCodeAndSaveTokens ERROR:", err);
+      throw err;
+    }
   }
 
   async createCalendarAndSaveId(userId: string): Promise<void> {
-    const conn = await GoogleCalendarRepository.getByUserId(userId);
-    if (!conn?.accessToken) throw new Error("Google Calendar not connected");
+    try {
+      if (!userId) throw new Error("userId is required");
 
-    const oauth2Client = getGoogleOAuthClient();
-    oauth2Client.setCredentials({
-      access_token: conn.accessToken,
-      refresh_token: conn.refreshToken ?? undefined,
-      expiry_date: conn.expiryDate?.getTime() ?? undefined,
-    });
+      const conn = await GoogleCalendarRepository.getByUserId(userId);
+      if (!conn?.accessToken) {
+        throw new Error("Google Calendar not connected");
+      }
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, userId),
-    });
-    const doctorName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() || "Doctor";
-    const calendarName = `Clinicos (Dr. ${doctorName}) Booking`;
+      const oauth2Client = getGoogleOAuthClient();
+      oauth2Client.setCredentials({
+        access_token: conn.accessToken,
+        refresh_token: conn.refreshToken ?? undefined,
+        expiry_date: conn.expiryDate?.getTime() ?? undefined,
+      });
 
-    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-    const calendarResponse = await calendar.calendars.insert({
-      requestBody: {
-        summary: calendarName,
-        description: `Appointment management calendar for Dr. ${doctorName} - Clinicos`,
-        timeZone: "UTC",
-      },
-    });
+      // SAFE DB QUERY (FIXED)
+      const user = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+        .then((r) => r[0]);
 
-    const calendarId = calendarResponse.data.id!;
-    await GoogleCalendarRepository.updateCalendarId(userId, calendarId);
+      const doctorName =
+        [user?.firstName, user?.lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || "Doctor";
+
+      const calendarName = `Clinicos (Dr. ${doctorName}) Booking`;
+
+      const calendar = google.calendar({
+        version: "v3",
+        auth: oauth2Client,
+      });
+
+      let calendarResponse;
+
+      try {
+        calendarResponse = await calendar.calendars.insert({
+          requestBody: {
+            summary: calendarName,
+            description: `Appointment management calendar for Dr. ${doctorName} - Clinicos`,
+            timeZone: "UTC",
+          },
+        });
+      } catch (err) {
+        console.error("Google calendar insert failed:", err);
+        throw err;
+      }
+
+      const calendarId = calendarResponse.data.id;
+
+      if (!calendarId) {
+        throw new Error("Failed to create Google Calendar");
+      }
+
+      await GoogleCalendarRepository.updateCalendarId(userId, calendarId);
+    } catch (err) {
+      console.error("createCalendarAndSaveId ERROR:", err);
+      throw err;
+    }
   }
 
   private async getAuthenticatedClient(userId: string) {
-    const conn = await GoogleCalendarRepository.getByUserId(userId);
-    if (!conn?.accessToken) return null;
+    try {
+      const conn = await GoogleCalendarRepository.getByUserId(userId);
+      if (!conn?.accessToken) return null;
 
-    const oauth2Client = getGoogleOAuthClient();
-    oauth2Client.setCredentials({
-      access_token: conn.accessToken,
-      refresh_token: conn.refreshToken ?? undefined,
-      expiry_date: conn.expiryDate?.getTime() ?? undefined,
-    });
+      const oauth2Client = getGoogleOAuthClient();
+      oauth2Client.setCredentials({
+        access_token: conn.accessToken,
+        refresh_token: conn.refreshToken ?? undefined,
+        expiry_date: conn.expiryDate?.getTime() ?? undefined,
+      });
 
-    oauth2Client.on("tokens", async (newTokens) => {
-      const shouldUpdate =
-        newTokens.access_token || newTokens.refresh_token || newTokens.expiry_date;
-      if (!shouldUpdate) return;
+      oauth2Client.on("tokens", async (newTokens) => {
+        try {
+          const shouldUpdate =
+            newTokens.access_token ||
+            newTokens.refresh_token ||
+            newTokens.expiry_date;
 
-      await GoogleCalendarRepository.updateTokens(
-        userId,
-        newTokens.access_token ?? conn.accessToken!,
-        newTokens.refresh_token ?? conn.refreshToken,
-        newTokens.expiry_date ? new Date(newTokens.expiry_date) : conn.expiryDate,
-      );
-    });
+          if (!shouldUpdate) return;
 
-    return { client: oauth2Client, calendarId: conn.calendarId ?? "primary" };
+          await GoogleCalendarRepository.updateTokens(
+            userId,
+            newTokens.access_token ?? conn.accessToken!,
+            newTokens.refresh_token ?? conn.refreshToken,
+            newTokens.expiry_date
+              ? new Date(newTokens.expiry_date)
+              : conn.expiryDate
+          );
+        } catch (err) {
+          console.error("Token update failed:", err);
+        }
+      });
+
+      return {
+        client: oauth2Client,
+        calendarId: conn.calendarId ?? "primary",
+      };
+    } catch (err) {
+      console.error("getAuthenticatedClient ERROR:", err);
+      return null;
+    }
   }
 
-  async createCalendarEvent(userId: string, input: CreateGoogleEventInput): Promise<CalendarEventResponse> {
+  async createCalendarEvent(
+    userId: string,
+    input: CreateGoogleEventInput
+  ): Promise<CalendarEventResponse> {
     const result = await this.getAuthenticatedClient(userId);
     if (!result) throw new Error("Google Calendar not connected");
 
     const { client: auth, calendarId } = result;
+
     const calendar = google.calendar({ version: "v3", auth });
+
     const response = await calendar.events.insert({
       calendarId,
       requestBody: {
@@ -121,12 +216,16 @@ class GoogleCalendarService {
     };
   }
 
-  async updateCalendarEvent(userId: string, input: UpdateGoogleEventInput): Promise<void> {
+  async updateCalendarEvent(
+    userId: string,
+    input: UpdateGoogleEventInput
+  ): Promise<void> {
     const result = await this.getAuthenticatedClient(userId);
     if (!result) throw new Error("Google Calendar not connected");
 
     const { client: auth, calendarId } = result;
     const calendar = google.calendar({ version: "v3", auth });
+
     const body: Record<string, unknown> = {};
 
     if (input.summary) body.summary = input.summary;
@@ -148,15 +247,25 @@ class GoogleCalendarService {
 
     const { client: auth, calendarId } = result;
     const calendar = google.calendar({ version: "v3", auth });
-    await calendar.events.delete({ calendarId, eventId });
+
+    await calendar.events.delete({
+      calendarId,
+      eventId,
+    });
   }
 
-  async checkAvailability(userId: string, timeMin: string, timeMax: string): Promise<FreeBusyResult> {
+  async checkAvailability(
+    userId: string,
+    timeMin: string,
+    timeMax: string
+  ): Promise<FreeBusyResult> {
     const result = await this.getAuthenticatedClient(userId);
     if (!result) throw new Error("Google Calendar not connected");
 
     const { client: auth, calendarId } = result;
+
     const calendar = google.calendar({ version: "v3", auth });
+
     const response = await calendar.freebusy.query({
       requestBody: {
         timeMin,
@@ -165,17 +274,21 @@ class GoogleCalendarService {
       },
     });
 
-    const busy = (response.data.calendars?.[calendarId]?.busy ?? []).map((b) => ({
-      start: b.start!,
-      end: b.end!,
-    }));
+    const busy =
+      (response.data.calendars?.[calendarId]?.busy ?? []).map((b) => ({
+        start: b.start!,
+        end: b.end!,
+      })) || [];
 
     return { busy };
   }
 
-  async verifyConnection(userId: string): Promise<{ valid: boolean; error?: string }> {
+  async verifyConnection(
+    userId: string
+  ): Promise<{ valid: boolean; error?: string }> {
     try {
       const conn = await GoogleCalendarRepository.getByUserId(userId);
+
       if (!conn?.accessToken || !conn?.refreshToken) {
         return { valid: false, error: "No tokens found" };
       }
@@ -187,23 +300,31 @@ class GoogleCalendarService {
         expiry_date: conn.expiryDate?.getTime() ?? undefined,
       });
 
-      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      const calendar = google.calendar({
+        version: "v3",
+        auth: oauth2Client,
+      });
+
       await calendar.calendarList.list({ maxResults: 1 });
 
       return { valid: true };
-    } catch (err: unknown) {
-      const apiErr = err as { response?: { status?: number }; message?: string };
+    } catch (err: any) {
+      console.error("verifyConnection ERROR:", err);
+
       const isAuthError =
-        apiErr?.response?.status === 401 ||
-        apiErr?.response?.status === 403 ||
-        apiErr?.message?.includes("invalid_grant") ||
-        apiErr?.message?.includes("invalid_token") ||
-        apiErr?.message?.includes("Token has expired") ||
-        apiErr?.message?.includes("No refresh token");
+        err?.response?.status === 401 ||
+        err?.response?.status === 403 ||
+        err?.message?.includes("invalid_grant") ||
+        err?.message?.includes("invalid_token") ||
+        err?.message?.includes("Token has expired");
 
       if (isAuthError) {
         await GoogleCalendarRepository.disconnect(userId);
-        return { valid: false, error: "Refresh token expired. Please reconnect Google Calendar." };
+        return {
+          valid: false,
+          error:
+            "Refresh token expired. Please reconnect Google Calendar.",
+        };
       }
 
       throw err;
@@ -211,15 +332,22 @@ class GoogleCalendarService {
   }
 
   async disconnect(userId: string): Promise<void> {
-    const result = await this.getAuthenticatedClient(userId);
-    if (result) {
-      try {
-        await result.client.revokeCredentials();
-      } catch {
-        // Token may already be invalid; proceed with local cleanup
+    try {
+      const result = await this.getAuthenticatedClient(userId);
+
+      if (result) {
+        try {
+          await result.client.revokeCredentials();
+        } catch (err) {
+          console.error("Token revoke failed:", err);
+        }
       }
+
+      await GoogleCalendarRepository.delete(userId);
+    } catch (err) {
+      console.error("disconnect ERROR:", err);
+      throw err;
     }
-    await GoogleCalendarRepository.delete(userId);
   }
 }
 

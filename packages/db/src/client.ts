@@ -16,6 +16,7 @@ export function createDb(databaseUrl: string) {
 }
 
 const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
+console.log('databaseUrl',databaseUrl);
 const globalForDb = globalThis as unknown as {
   client?: postgres.Sql;
 };
