@@ -1,110 +1,124 @@
 {
   "$schema": "https://turbo.build/schema.json",
+
   "globalPassThroughEnv": [
     "DATABASE_URL",
     "AUTH_SECRET",
+    "JWT_SECRET",
+    "COOKIE_NAME",
+
     "NEXT_PUBLIC_APP_URL",
     "NEXT_PUBLIC_APP_NAME",
+
     "ADMIN_EMAIL",
     "ADMIN_PASSWORD",
+
+    "DOCTOR_EMAIL",
+    "DOCTOR_PASSWORD",
+
+    "NURSE_EMAIL",
+    "NURSE_PASSWORD",
+
+    "ACCOUNTANT_EMAIL",
+    "ACCOUNTANT_PASSWORD",
+
+    "RECEPTIONIST_EMAIL",
+    "RECEPTIONIST_PASSWORD",
+
     "NODE_ENV",
-    "REDIS_HOST",
-    "REDIS_PORT",
-    "REDIS_PASSWORD",
-    "REDIS_DB",
+
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+
     "SMTP_HOST",
     "SMTP_PORT",
     "SMTP_USER",
     "SMTP_PASS",
-    "EMAIL_FROM"
+    "EMAIL_FROM",
+
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_REDIRECT_URL",
+
+    "TOKEN_ENCRYPTION_KEY",
+
+    "OPENAI_API_KEY",
+
+    "REDIS_HOST",
+    "REDIS_PORT",
+    "REDIS_PASSWORD",
+    "REDIS_DB"
   ],
 
   "tasks": {
     "dev": {
       "cache": false,
-      "persistent": true,
-      "env": [
-        "DATABASE_URL",
-        "AUTH_SECRET",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_APP_NAME",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD",
-        "NODE_ENV",
-        "REDIS_HOST",
-        "REDIS_PORT",
-        "REDIS_PASSWORD",
-        "REDIS_DB",
-        "SMTP_HOST",
-        "SMTP_PORT",
-        "SMTP_USER",
-        "SMTP_PASS",
-        "EMAIL_FROM"
-      ]
+      "persistent": true
     },
 
     "start": {
       "cache": false,
-      "persistent": true,
-      "env": [
-        "DATABASE_URL",
-        "AUTH_SECRET",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_APP_NAME",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD",
-        "NODE_ENV"
-      ]
+      "persistent": true
     },
 
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["apps/web/.next/**", "!apps/web/.next/cache/**"],
-      "env": [
-        "DATABASE_URL",
-        "AUTH_SECRET",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_APP_NAME",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD",
-        "NODE_ENV",
-        "REDIS_HOST",
-        "REDIS_PORT",
-        "REDIS_PASSWORD",
-        "REDIS_DB",
-        "SMTP_HOST",
-        "SMTP_PORT",
-        "SMTP_USER",
-        "SMTP_PASS",
-        "EMAIL_FROM"
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
       ]
     },
 
     "@mediclinic/web#build": {
       "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**"],
-      "env": [
-        "DATABASE_URL",
-        "AUTH_SECRET",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_APP_NAME",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD",
-        "NODE_ENV"
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**"
+      ]
+    },
+
+    "@mediclinic/auth#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+
+    "@mediclinic/db#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+
+    "@mediclinic/logger#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+
+    "@mediclinic/queue#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+
+    "@mediclinic/rbac#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+
+    "@mediclinic/ui#build": {
+      "outputs": [
+        "dist/**"
       ]
     },
 
     "typecheck": {
-      "dependsOn": ["^build"],
-      "env": [
-        "DATABASE_URL",
-        "AUTH_SECRET",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_APP_NAME",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD",
-        "NODE_ENV"
-      ]
+      "dependsOn": ["^build"]
     },
 
     "lint": {},
@@ -116,40 +130,24 @@
     },
 
     "db:generate": {
-      "cache": false,
-      "env": [
-        "DATABASE_URL"
-      ]
+      "cache": false
     },
 
     "db:push": {
-      "cache": false,
-      "env": [
-        "DATABASE_URL"
-      ]
+      "cache": false
     },
 
     "db:migrate": {
-      "cache": false,
-      "env": [
-        "DATABASE_URL"
-      ]
+      "cache": false
     },
 
     "db:seed": {
-      "cache": false,
-      "env": [
-        "DATABASE_URL",
-        "ADMIN_EMAIL",
-        "ADMIN_PASSWORD"
-      ]
+      "cache": false
     },
+
     "db:studio": {
       "cache": false,
-      "persistent": true,
-      "env": [
-        "DATABASE_URL"
-      ]
+      "persistent": true
     }
   }
 }
