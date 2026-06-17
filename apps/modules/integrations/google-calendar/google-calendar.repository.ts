@@ -40,16 +40,24 @@ export const GoogleCalendarRepository = {
       });
   },
 
-  async getByUserId(userId: string): Promise<GoogleCalendarConnection | undefined> {
-    const connection = await db.query.googleCalendarConnections.findFirst({
-      where: eq(googleCalendarConnections.userId, userId),
-    });
-    if (!connection) return undefined;
-    return {
-      ...connection,
-      refreshToken: connection.refreshToken ? decryptToken(connection.refreshToken) : null,
-    };
-  },
+  async getByUserId(
+  userId: string
+): Promise<GoogleCalendarConnection | undefined> {
+  const connection = await db.query.googleCalendarConnections.findFirst({
+    where: eq(googleCalendarConnections.userId, userId),
+  });
+
+  if (!connection) return undefined;
+
+  return {
+    ...connection,
+    createdAt: connection.createdAt ?? new Date(),
+    updatedAt: connection.updatedAt ?? new Date(),
+    refreshToken: connection.refreshToken
+      ? decryptToken(connection.refreshToken)
+      : null,
+  };
+},
 
   async updateTokens(userId: string, accessToken: string, refreshToken: string | null, expiryDate: Date | null) {
     const encryptedRefreshToken = refreshToken ? encryptToken(refreshToken) : null;

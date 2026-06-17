@@ -1,17 +1,17 @@
 import type { google } from "googleapis";
 
-export type GoogleCalendarConnection = {
+export interface GoogleCalendarConnection {
   id: string;
   userId: string;
+  calendarId: string | null;
   accessToken: string | null;
   refreshToken: string | null;
   expiryDate: Date | null;
   scope: string | null;
-  calendarId: string | null;
   isConnected: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
 
 export type GoogleAuthTokens = {
   access_token: string;
