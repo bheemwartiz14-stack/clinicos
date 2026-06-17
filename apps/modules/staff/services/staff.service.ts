@@ -1,6 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { hashPassword } from "@mediclinic/auth";
-import { db, departments, roles, staffProfiles, userRoles, users } from "@mediclinic/db";
+import { db, departments, roles, staffProfiles, users } from "@mediclinic/db";
+
 export const staffManageRoles = ["admin", "receptionist", "accountant"] as const;
 export type StaffManageRole = (typeof staffManageRoles)[number];
 
@@ -50,12 +51,15 @@ function isStaffManageRole(role: string | null | undefined): role is StaffManage
   return staffManageRoles.includes(role as StaffManageRole);
 }
 
-async function assignRole(userId: string, roleCode: StaffManageRole) {
-  const [role] = await db.select().from(roles).where(eq(roles.code, roleCode)).limit(1);
-  if (!role) throw new Error("Selected role does not exist");
+async function getRoleByCode(roleCode: StaffManageRole) {
+  const [role] = await db
+    .select()
+    .from(roles)
+    .where(eq(roles.code, roleCode))
+    .limit(1);
 
-  await db.delete(userRoles).where(eq(userRoles.userId, userId));
-  await db.insert(userRoles).values({ userId, roleId: role.id });
+  if (!role) throw new Error("Selected role does not exist");
+  return role;
 }
 
 export const staffService = {
@@ -73,7 +77,10 @@ export const staffService = {
     ];
 
     for (const department of defaults) {
-      await db.insert(departments).values(department).onConflictDoNothing({ target: departments.name });
+      await db
+        .insert(departments)
+        .values(department)
+        .onConflictDoNothing({ target: departments.name });
     }
   },
 
@@ -90,8 +97,7 @@ export const staffService = {
       .from(staffProfiles)
       .innerJoin(users, eq(staffProfiles.userId, users.id))
       .leftJoin(departments, eq(staffProfiles.departmentId, departments.id))
-      .leftJoin(userRoles, eq(userRoles.userId, users.id))
-      .leftJoin(roles, eq(userRoles.roleId, roles.id))
+      .leftJoin(roles, eq(users.roleId, roles.id)) // ✅ direct relation
       .orderBy(desc(staffProfiles.createdAt));
 
     return rows
@@ -125,6 +131,8 @@ export const staffService = {
   async create(input: StaffInput) {
     if (!input.password) throw new Error("Password is required for new staff");
 
+    const role = await getRoleByCode(input.role);
+
     const [user] = await db
       .insert(users)
       .values({
@@ -135,11 +143,11 @@ export const staffService = {
         phone: input.phone || null,
         passwordHash: await hashPassword(input.password),
         status: input.status,
-        emailVerified: true
+        emailVerified: true,
+        roleId: role.id // ✅ DIRECT
       })
       .returning();
 
-    await assignRole(user.id, input.role);
     await db.insert(staffProfiles).values({
       userId: user.id,
       departmentId: input.departmentId || null,
@@ -156,6 +164,8 @@ export const staffService = {
     const staff = await this.get(id);
     if (!staff) throw new Error("Staff member not found");
 
+    const role = await getRoleByCode(input.role);
+
     await db
       .update(users)
       .set({
@@ -164,11 +174,11 @@ export const staffService = {
         username: input.username || null,
         email: input.email.toLowerCase(),
         phone: input.phone || null,
-        status: input.status
+        status: input.status,
+        roleId: role.id // ✅ DIRECT UPDATE
       })
       .where(eq(users.id, staff.userId));
 
-    await assignRole(staff.userId, input.role);
     await db
       .update(staffProfiles)
       .set({
@@ -186,7 +196,15 @@ export const staffService = {
   async deactivate(id: string) {
     const staff = await this.get(id);
     if (!staff) throw new Error("Staff member not found");
-    await db.update(users).set({ status: "inactive" }).where(eq(users.id, staff.userId));
-    await db.update(staffProfiles).set({ isActive: false }).where(eq(staffProfiles.id, id));
+
+    await db
+      .update(users)
+      .set({ status: "inactive" })
+      .where(eq(users.id, staff.userId));
+
+    await db
+      .update(staffProfiles)
+      .set({ isActive: false })
+      .where(eq(staffProfiles.id, id));
   }
 };

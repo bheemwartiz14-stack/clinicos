@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, CircleSlash, Clock, Plus, Search, Timer, User } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { createAppointmentAction } from "../actions/appointment.actions";
-import type { AppointmentRecord, AvailableSlot, DoctorOption } from "../services/appointment.service";
+import type { AppointmentRecord, AvailableSlot, DoctorOption } from "../types/appointment.types";
 import { FormField, SelectField, TextareaField } from "@/components/form-controls";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,7 +48,16 @@ function getDateString(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-const HOURS = Array.from({ length: 10 }, (_, i) => `${String(i + 8).padStart(2, "0")}:00`);
+function computeHours(slots: AvailableSlot[]): string[] {
+  const hours = new Set<string>();
+  for (const slot of slots) {
+    hours.add(slot.startTime.slice(0, 2));
+  }
+  if (hours.size === 0) {
+    return Array.from({ length: 10 }, (_, i) => `${String(i + 8).padStart(2, "0")}:00`);
+  }
+  return Array.from(hours).sort().map((h) => `${h}:00`);
+}
 
 function getCurrentTimeRounded() {
   const now = new Date();
@@ -74,6 +83,7 @@ export function AppointmentsCalendarView({
   appointments,
   doctors,
   currentDate,
+  slots,
 }: {
   appointments: AppointmentRecord[];
   doctors: DoctorOption[];
@@ -97,6 +107,16 @@ export function AppointmentsCalendarView({
     () => doctors.filter((d) => !selectedDoctorId || d.id === selectedDoctorId),
     [doctors, selectedDoctorId]
   );
+
+  const slotsByDoctorAndHour = useMemo(() => {
+    const map: Record<string, AvailableSlot[]> = {};
+    for (const slot of slots) {
+      const key = `${slot.doctorId}-${slot.startTime.slice(0, 2)}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(slot);
+    }
+    return map;
+  }, [slots]);
 
   const nextDay = useCallback(() => {
     const d = new Date(currentDateObj);
@@ -122,6 +142,8 @@ export function AppointmentsCalendarView({
     },
     [dayAppointments]
   );
+
+  const hours = useMemo(() => computeHours(slots), [slots]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -192,7 +214,7 @@ export function AppointmentsCalendarView({
                       </Link>
                     </div>
                   ))}
-                  {HOURS.map((hour) => (
+                  {hours.map((hour) => (
                     <Fragment key={hour}>
                       <div
                         className={cn(
@@ -204,17 +226,34 @@ export function AppointmentsCalendarView({
                       </div>
                       {filteredDoctors.map((doctor) => {
                         const hourApps = getAppointmentsForDoctorAndHour(doctor.id, hour);
+                        const hourSlots = slotsByDoctorAndHour[`${doctor.id}-${hour}`] || [];
+                        const availableCount = hourSlots.filter((s) => !s.isBooked).length;
+                        const totalCount = hourSlots.length;
                         return (
                           <div
                             key={`${doctor.id}-${hour}`}
                             className={cn(
                               "relative min-h-[66px] border-b border-l p-1.5 transition-colors",
-                              parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : ""
+                              parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : "",
+                              totalCount > 0 && availableCount === 0 && "bg-red-50/30",
+                              availableCount > 0 && "bg-green-50/10"
                             )}
                           >
-                            {hourApps.length === 0 && (
+                            {hourApps.length === 0 && totalCount === 0 && (
                               <div className="flex h-full items-center justify-center">
                                 <span className="text-[8px] text-muted-foreground/25">-</span>
+                              </div>
+                            )}
+                            {totalCount > 0 && hourApps.length === 0 && (
+                              <div className="mb-1 flex items-center gap-1 rounded px-1.5 py-0.5">
+                                <span className={cn(
+                                  "text-[9px] font-medium",
+                                  availableCount > 0 ? "text-green-600" : "text-red-400"
+                                )}>
+                                  {availableCount > 0
+                                    ? `${availableCount} slot${availableCount > 1 ? "s" : ""}`
+                                    : "Fully booked"}
+                                </span>
                               </div>
                             )}
                             {hourApps.map((app) => {
@@ -548,25 +587,29 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           <div className="flex flex-wrap gap-2">
             {availableSlots.map((slot) => {
               const past = isTimeInPast(selectedDate, slot.startTime);
+              const unavailable = past || slot.isBooked;
               return (
                 <button
                   key={slot.id}
                   type="button"
-                  disabled={past}
+                  disabled={unavailable}
                   onClick={() => {
-                    if (past) return;
+                    if (unavailable) return;
                     setSelectedSlot(slot);
                     setManualTime("");
                   }}
                   className={cn(
                     "flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium transition-colors",
-                    past && "cursor-not-allowed opacity-40",
-                    !past && selectedSlot?.id === slot.id && "border-primary bg-muted text-foreground",
-                    !past && selectedSlot?.id !== slot.id && "hover:border-muted-foreground/30 hover:bg-muted/30"
+                    unavailable && "cursor-not-allowed opacity-40",
+                    !unavailable && selectedSlot?.id === slot.id && "border-primary bg-muted text-foreground",
+                    !unavailable && selectedSlot?.id !== slot.id && "hover:border-muted-foreground/30 hover:bg-muted/30"
                   )}
                 >
                   <Clock className="h-3.5 w-3.5" />
                   {formatTime(slot.startTime)}
+                  {slot.isBooked && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">Booked</span>
+                  )}
                 </button>
               );
             })}
@@ -613,10 +656,8 @@ function NewBookingForm({ doctors, onSuccess }: { doctors: DoctorOption[]; onSuc
           ]}
         />
       </div>
-
       <TextareaField label="Reason for Visit" name="reason" rows={2} />
       <TextareaField label="Notes (Optional)" name="notes" rows={2} />
-
       <SelectField
         label="Appointment Status"
         name="status"

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Edit, Eye, Plus, Trash2 } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import {
   createTemplateAction,
   updateTemplateAction,

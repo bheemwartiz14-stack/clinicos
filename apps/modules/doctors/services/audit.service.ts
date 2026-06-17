@@ -1,20 +1,7 @@
-import { sql, eq, desc, and, gte, lte } from "drizzle-orm";
-import { db, auditLogs } from "@mediclinic/db";
-import { users } from "@mediclinic/db";
+import { auditLogsService } from "@modules/auditlog/audit-logs.service";
+import type { AuditLogRecord, AuditLogFilters } from "@modules/auditlog/audit-logs.types";
 
-export type AuditLogRecord = {
-  id: string;
-  userId: string | null;
-  userName: string | null;
-  action: string;
-  entity: string;
-  entityId: string | null;
-  oldValues: any;
-  newValues: any;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: Date;
-};
+export type { AuditLogRecord, AuditLogFilters };
 
 export const auditService = {
   async log(params: {
@@ -22,12 +9,12 @@ export const auditService = {
     action: string;
     entity: string;
     entityId?: string;
-    oldValues?: any;
-    newValues?: any;
+    oldValues?: Record<string, unknown>;
+    newValues?: Record<string, unknown>;
     ipAddress?: string;
     userAgent?: string;
   }) {
-    await db.insert(auditLogs).values({
+    return auditLogsService.create({
       userId: params.userId ?? null,
       action: params.action,
       entity: params.entity,
@@ -47,48 +34,17 @@ export const auditService = {
     toDate?: Date;
     limit?: number;
     offset?: number;
-  }): Promise<{ logs: AuditLogRecord[]; total: number }> {
-    const conditions: any[] = [];
+  }) {
+    const result = await auditLogsService.list({
+      entity: params?.entity,
+      action: params?.action,
+      userId: params?.userId,
+      fromDate: params?.fromDate,
+      toDate: params?.toDate,
+      page: params?.offset ? Math.floor(params.offset / (params.limit ?? 50)) + 1 : 1,
+      limit: params?.limit ?? 50,
+    });
 
-    if (params?.entity) conditions.push(eq(auditLogs.entity, params.entity));
-    if (params?.action) conditions.push(eq(auditLogs.action, params.action));
-    if (params?.userId) conditions.push(eq(auditLogs.userId, params.userId));
-    if (params?.fromDate) conditions.push(gte(auditLogs.createdAt, params.fromDate));
-    if (params?.toDate) conditions.push(lte(auditLogs.createdAt, params.toDate));
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const rows = await db
-      .select({
-        log: auditLogs,
-        user: users,
-      })
-      .from(auditLogs)
-      .leftJoin(users, eq(auditLogs.userId, users.id))
-      .where(whereClause)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(params?.limit ?? 50)
-      .offset(params?.offset ?? 0);
-
-    const [{ count }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(auditLogs)
-      .where(whereClause ?? sql`TRUE`);
-
-    const logs: AuditLogRecord[] = rows.map(({ log, user }) => ({
-      id: log.id,
-      userId: log.userId,
-      userName: user ? [user.firstName, user.lastName].filter(Boolean).join(" ") : null,
-      action: log.action,
-      entity: log.entity,
-      entityId: log.entityId,
-      oldValues: log.oldValues,
-      newValues: log.newValues,
-      ipAddress: log.ipAddress,
-      userAgent: log.userAgent,
-      createdAt: log.createdAt,
-    }));
-
-    return { logs, total: Number(count) };
+    return { logs: result.logs, total: result.total };
   },
 };

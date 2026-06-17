@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { walkInAppointmentAction } from "../actions/appointment.actions";
-import type { DoctorOption } from "../services/appointment.service";
+import type { DoctorOption } from "../types/appointment.types";
 import { FormField, SelectField, TextareaField } from "@/components/form-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

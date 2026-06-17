@@ -15,15 +15,18 @@ export default async function AppointmentsPage({ searchParams }: { searchParams?
 
   const currentDate = params.date || new Date().toISOString().slice(0, 10);
 
-  const [appointments, doctors, slots] = await Promise.all([
+  const doctors = await appointmentService.getDoctors();
+
+  const [appointments, slots] = await Promise.all([
     appointmentService.list({
       date: currentDate,
       doctorId: params.doctorId || undefined,
     }),
-    appointmentService.getDoctors(),
     params.doctorId
-      ? appointmentService.getAvailability(params.doctorId, currentDate)
-      : Promise.resolve([]),
+      ? appointmentService.getAllSlots(params.doctorId, currentDate)
+      : Promise.all(doctors.map((d) => appointmentService.getAllSlots(d.id, currentDate))).then(
+          (results) => results.flat(),
+        ),
   ]);
 
   return (

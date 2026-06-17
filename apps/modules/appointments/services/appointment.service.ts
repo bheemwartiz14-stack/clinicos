@@ -1,177 +1,62 @@
-import { and, eq, gte, lte, asc, sql } from "drizzle-orm";
-import { db, appointments, appointmentStatusLogs, appointmentReschedules, patients, doctors, users, doctorAvailabilitySlots, doctorSpecialties } from "@mediclinic/db";
+import type {
+  AppointmentRecord,
+  AvailableSlot,
+  DoctorOption,
+  CreateAppointmentInput,
+  CreateRecurringInput,
+  RescheduleInput,
+  UpdateAppointmentInput,
+  AppointmentListFilters,
+} from "../types/appointment.types";
+import { appointmentRepository } from "../repository/appointment.repository";
+import { generateRecurringDates } from "../helpers/appointment.helpers";
+import { AppointmentSyncService } from "./appointment-sync.service";
 
-export type AppointmentRecord = {
-  id: string;
-  patientId: string;
-  patientName: string;
-  patientPhone: string;
-  doctorId: string;
-  doctorName: string;
-  doctorSpecialty: string | null;
-  slotId: string | null;
-  appointmentDate: string;
-  startTime: string;
-  endTime: string | null;
-  type: string;
-  status: string;
-  reason: string | null;
-  notes: string | null;
-  queueTokenNumber: number | null;
-  createdById: string | null;
-};
-
-export type AvailableSlot = {
-  id: string;
-  slotDate: string;
-  startTime: string;
-  endTime: string;
-  doctorId: string;
-  doctorName: string;
-  doctorSpecialty: string | null;
-};
-
-export type DoctorOption = {
-  id: string;
-  name: string;
-  specialty: string | null;
-};
-
-type AppointmentJoinRow = {
-  appointment: typeof appointments.$inferSelect;
-  patient: typeof patients.$inferSelect;
-  doctor: typeof doctors.$inferSelect;
-  user: typeof users.$inferSelect;
-  specialty: typeof doctorSpecialties.$inferSelect | null;
-};
-
-function toAppointmentRecord(row: AppointmentJoinRow): AppointmentRecord {
-  return {
-    id: row.appointment.id,
-    patientId: row.appointment.patientId,
-    patientName: row.patient.fullName,
-    patientPhone: row.patient.phone,
-    doctorId: row.appointment.doctorId,
-    doctorName: [row.user.firstName, row.user.lastName].filter(Boolean).join(" "),
-    doctorSpecialty: row.specialty?.name ?? null,
-    slotId: row.appointment.slotId,
-    appointmentDate: row.appointment.appointmentDate,
-    startTime: row.appointment.startTime,
-    endTime: row.appointment.endTime,
-    type: row.appointment.type,
-    status: row.appointment.status,
-    reason: row.appointment.reason,
-    notes: row.appointment.notes,
-    queueTokenNumber: row.appointment.queueTokenNumber,
-    createdById: row.appointment.createdById,
-  };
-}
-
-function buildBaseQuery() {
-  return db
-    .select({
-      appointment: appointments,
-      patient: patients,
-      doctor: doctors,
-      user: users,
-      specialty: doctorSpecialties,
-    })
-    .from(appointments)
-    .innerJoin(patients, eq(appointments.patientId, patients.id))
-    .innerJoin(doctors, eq(appointments.doctorId, doctors.id))
-    .innerJoin(users, eq(doctors.userId, users.id))
-    .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id));
-}
+export type { AppointmentRecord, AvailableSlot, DoctorOption };
 
 export const appointmentService = {
-  async list(filters?: {
-    date?: string;
-    doctorId?: string;
-    status?: string;
-    dateFrom?: string;
-    dateTo?: string;
-  }): Promise<AppointmentRecord[]> {
-    const conditions: ReturnType<typeof eq>[] = [];
-
-    if (filters?.date) conditions.push(eq(appointments.appointmentDate, filters.date));
-    if (filters?.doctorId) conditions.push(eq(appointments.doctorId, filters.doctorId));
-    if (filters?.dateFrom) conditions.push(gte(appointments.appointmentDate, filters.dateFrom));
-    if (filters?.dateTo) conditions.push(lte(appointments.appointmentDate, filters.dateTo));
-
-    let query = buildBaseQuery();
-    if (conditions.length) query = query.where(and(...conditions)) as any;
-    const rows = await query.orderBy(asc(appointments.appointmentDate), asc(appointments.startTime));
-
-    return rows.map(toAppointmentRecord);
+  async list(filters?: AppointmentListFilters): Promise<AppointmentRecord[]> {
+    return appointmentRepository.findAll(filters);
   },
 
   async get(id: string): Promise<AppointmentRecord | null> {
-    const [row] = await buildBaseQuery()
-      .where(eq(appointments.id, id))
-      .limit(1);
-
-    return row ? toAppointmentRecord(row) : null;
+    return appointmentRepository.findById(id);
   },
 
-  async create(input: {
-    patientId: string;
-    doctorId: string;
-    slotId?: string | null;
-    appointmentDate: string;
-    startTime: string;
-    endTime?: string | null;
-    type?: string;
-    status?: string;
-    reason?: string | null;
-    notes?: string | null;
-    consultationLink?: string | null;
-    createdById?: string | null;
-  }) {
-    const maxToken = await db
-      .select({ max: sql<number>`COALESCE(MAX(${appointments.queueTokenNumber}), 0)` })
-      .from(appointments)
-      .where(and(
-        eq(appointments.doctorId, input.doctorId),
-        eq(appointments.appointmentDate, input.appointmentDate)
-      ));
+  async create(input: CreateAppointmentInput) {
+    const maxToken = await appointmentRepository.getMaxTokenNumber(input.doctorId, input.appointmentDate);
+    const nextToken = maxToken + 1;
 
-    const nextToken = (maxToken[0]?.max ?? 0) + 1;
-
-    const [created] = await db
-      .insert(appointments)
-      .values({
-        patientId: input.patientId,
-        doctorId: input.doctorId,
-        slotId: input.slotId ?? null,
-        appointmentDate: input.appointmentDate,
-        startTime: input.startTime,
-        endTime: input.endTime ?? null,
-        type: (input.type ?? "in_clinic") as any,
-        status: (input.status ?? "booked") as any,
-        reason: input.reason ?? null,
-        notes: input.notes ?? null,
-        consultationLink: input.consultationLink ?? null,
-        queueTokenNumber: nextToken,
-        createdById: input.createdById ?? null,
-      })
-      .returning();
-
+    const created = await appointmentRepository.insert({
+      patientId: input.patientId,
+      doctorId: input.doctorId,
+      slotId: input.slotId ?? null,
+      appointmentDate: input.appointmentDate,
+      startTime: input.startTime,
+      endTime: input.endTime ?? null,
+      type: (input.type ?? "in_clinic") as any,
+      status: (input.status ?? "booked") as any,
+      reason: input.reason ?? null,
+      notes: input.notes ?? null,
+      consultationLink: input.consultationLink ?? null,
+      queueTokenNumber: nextToken,
+      createdById: input.createdById ?? null,
+    });
     if (input.slotId) {
-      await db.update(doctorAvailabilitySlots).set({ isBooked: true }).where(eq(doctorAvailabilitySlots.id, input.slotId));
+      await appointmentRepository.markSlotBooked(input.slotId, true);
     }
-
+    AppointmentSyncService.syncOnCreate(created.id).catch(() => {});
     return created;
   },
 
   async updateStatus(id: string, newStatus: string, changedById?: string | null, remarks?: string | null) {
-    const [current] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    const current = await appointmentRepository.findRawById(id);
     if (!current) throw new Error("Appointment not found");
 
     const oldStatus = current.status;
 
-    await db.update(appointments).set({ status: newStatus as any }).where(eq(appointments.id, id));
-
-    await db.insert(appointmentStatusLogs).values({
+    await appointmentRepository.updateById(id, { status: newStatus as any });
+    await appointmentRepository.insertStatusLog({
       appointmentId: id,
       oldStatus: oldStatus as any,
       newStatus: newStatus as any,
@@ -179,36 +64,32 @@ export const appointmentService = {
       remarks: remarks ?? null,
     });
 
-    if (newStatus === "cancelled" && current.slotId) {
-      await db.update(doctorAvailabilitySlots).set({ isBooked: false }).where(eq(doctorAvailabilitySlots.id, current.slotId));
+    if (newStatus === "cancelled") {
+      if (current.slotId) {
+        await appointmentRepository.markSlotBooked(current.slotId, false);
+      }
+      AppointmentSyncService.syncOnCancel(id).catch(() => {});
+    } else if (newStatus === "completed") {
+      AppointmentSyncService.syncOnDelete(id).catch(() => {});
     }
   },
 
-  async reschedule(
-    id: string,
-    input: {
-      newDate: string;
-      newStartTime: string;
-      newSlotId?: string | null;
-      reason?: string | null;
-      changedById?: string | null;
-    }
-  ) {
-    const [current] = await db.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+  async reschedule(id: string, input: RescheduleInput) {
+    const current = await appointmentRepository.findRawById(id);
     if (!current) throw new Error("Appointment not found");
 
     if (current.slotId) {
-      await db.update(doctorAvailabilitySlots).set({ isBooked: false }).where(eq(doctorAvailabilitySlots.id, current.slotId));
+      await appointmentRepository.markSlotBooked(current.slotId, false);
     }
 
-    await db.update(appointments).set({
+    await appointmentRepository.updateById(id, {
       appointmentDate: input.newDate,
       startTime: input.newStartTime,
       slotId: input.newSlotId ?? null,
       status: "rescheduled",
-    }).where(eq(appointments.id, id));
+    });
 
-    await db.insert(appointmentReschedules).values({
+    await appointmentRepository.insertRescheduleLog({
       appointmentId: id,
       oldDate: current.appointmentDate,
       oldStartTime: current.startTime,
@@ -219,95 +100,32 @@ export const appointmentService = {
     });
 
     if (input.newSlotId) {
-      await db.update(doctorAvailabilitySlots).set({ isBooked: true }).where(eq(doctorAvailabilitySlots.id, input.newSlotId));
+      await appointmentRepository.markSlotBooked(input.newSlotId, true);
     }
+
+    AppointmentSyncService.syncOnUpdate(id).catch(() => {});
   },
 
-  async update(
-    id: string,
-    input: {
-      reason?: string | null;
-      notes?: string | null;
-      type?: string;
-    }
-  ) {
-    await db.update(appointments).set({
+  async update(id: string, input: UpdateAppointmentInput) {
+    await appointmentRepository.updateById(id, {
       reason: input.reason ?? null,
       notes: input.notes ?? null,
       type: input.type as any,
-    }).where(eq(appointments.id, id));
+    });
+
+    AppointmentSyncService.syncOnUpdate(id).catch(() => {});
   },
 
   async getQueue(doctorId: string, date: string) {
-    const rows = await db
-      .select()
-      .from(appointments)
-      .innerJoin(patients, eq(appointments.patientId, patients.id))
-      .where(and(
-        eq(appointments.doctorId, doctorId),
-        eq(appointments.appointmentDate, date),
-      ))
-      .orderBy(asc(appointments.queueTokenNumber));
-
-    return rows.map((row) => ({
-      id: row.appointments.id,
-      tokenNumber: row.appointments.queueTokenNumber,
-      patientName: row.patients.fullName,
-      startTime: row.appointments.startTime,
-      status: row.appointments.status,
-    }));
+    return appointmentRepository.findQueue(doctorId, date);
   },
 
-  async createRecurring(input: {
-    patientId: string;
-    doctorId: string;
-    slotId?: string | null;
-    appointmentDate: string;
-    startTime: string;
-    endTime?: string | null;
-    type?: string;
-    reason?: string | null;
-    notes?: string | null;
-    createdById?: string | null;
-    recurringPattern: "daily" | "weekly" | "biweekly" | "monthly" | "quarterly";
-    recurringEndDate: string;
-  }) {
-    const dates: string[] = [];
-    const start = new Date(input.appointmentDate);
-    const end = new Date(input.recurringEndDate);
-
-    switch (input.recurringPattern) {
-      case "daily": {
-        let d = new Date(start);
-        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 1); }
-        break;
-      }
-      case "weekly": {
-        let d = new Date(start);
-        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 7); }
-        break;
-      }
-      case "biweekly": {
-        let d = new Date(start);
-        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setDate(d.getDate() + 14); }
-        break;
-      }
-      case "monthly": {
-        let d = new Date(start);
-        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setMonth(d.getMonth() + 1); }
-        break;
-      }
-      case "quarterly": {
-        let d = new Date(start);
-        while (d <= end) { dates.push(d.toISOString().split("T")[0]); d.setMonth(d.getMonth() + 3); }
-        break;
-      }
-    }
-
+  async createRecurring(input: CreateRecurringInput) {
+    const dates = generateRecurringDates(input.appointmentDate, input.recurringEndDate, input.recurringPattern);
     const parent = await this.create({ ...input, status: "booked" });
 
     for (let i = 1; i < dates.length; i++) {
-      await db.insert(appointments).values({
+      await appointmentRepository.insert({
         patientId: input.patientId,
         doctorId: input.doctorId,
         slotId: input.slotId ?? null,
@@ -330,43 +148,19 @@ export const appointmentService = {
   },
 
   async getDoctors(): Promise<DoctorOption[]> {
-    const rows = await db
-      .select()
-      .from(doctors)
-      .innerJoin(users, eq(doctors.userId, users.id))
-      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
-      .where(eq(users.status, "active"));
-
-    return rows.map((row) => ({
-      id: row.doctors.id,
-      name: [row.users.firstName, row.users.lastName].filter(Boolean).join(" "),
-      specialty: row.doctor_specialties?.name ?? null,
-    }));
+    return appointmentRepository.findDoctors();
   },
 
-  async getAvailability(doctorId: string, date: string) {
-    const slots = await db
-      .select({ slot: doctorAvailabilitySlots, doctor: doctors, user: users, specialty: doctorSpecialties })
-      .from(doctorAvailabilitySlots)
-      .innerJoin(doctors, eq(doctorAvailabilitySlots.doctorId, doctors.id))
-      .innerJoin(users, eq(doctors.userId, users.id))
-      .leftJoin(doctorSpecialties, eq(doctors.specialtyId, doctorSpecialties.id))
-      .where(and(
-        eq(doctorAvailabilitySlots.doctorId, doctorId),
-        eq(doctorAvailabilitySlots.slotDate, date),
-        eq(doctorAvailabilitySlots.isBooked, false),
-        eq(doctorAvailabilitySlots.isBlocked, false),
-      ))
-      .orderBy(asc(doctorAvailabilitySlots.startTime));
-
-    return slots.map((s) => ({
-      id: s.slot.id,
-      slotDate: s.slot.slotDate,
-      startTime: s.slot.startTime,
-      endTime: s.slot.endTime,
-      doctorId: s.slot.doctorId,
-      doctorName: [s.user.firstName, s.user.lastName].filter(Boolean).join(" "),
-      doctorSpecialty: s.specialty?.name ?? null,
-    }));
+  async getAvailability(doctorId: string, date: string): Promise<AvailableSlot[]> {
+    return appointmentRepository.findAvailableSlots(doctorId, date);
   },
+
+  async getAllSlots(doctorId: string, date: string): Promise<AvailableSlot[]> {
+    return appointmentRepository.findAllSlots(doctorId, date);
+  },
+
+  async getSlotHours(doctorId: string, date: string): Promise<string[]> {
+    return appointmentRepository.getSlotHours(doctorId, date);
+  },
+
 };

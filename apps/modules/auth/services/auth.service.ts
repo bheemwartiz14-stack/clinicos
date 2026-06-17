@@ -1,4 +1,5 @@
 import { and, eq, gt, or } from "drizzle-orm";
+
 import {
   generateSecureToken,
   hashPassword,
@@ -11,37 +12,67 @@ import {
   type LoginInput,
   type PasswordResetInput,
   type PasswordResetRequestInput,
-  type SessionUser
+  type SessionUser,
 } from "@mediclinic/auth";
-import { db, passwordResetTokens, roles, userRoles, userSessions, users } from "@mediclinic/db";
+
+import {
+  db,
+  passwordResetTokens,
+  roles,
+  userSessions,
+  users,
+} from "@mediclinic/db";
 import { loginHistoryService } from "./login-history.service";
-import { auditService } from "../../doctors/services/audit.service";
-import { sendNotification, sendSystemNotification } from "../../settings/notifications/services/notification-sender.service";
+import {
+  sendNotification,
+  sendSystemNotification,
+} from "../../settings/notifications/services/notification-sender.service";
+import { auditService } from "@modules/doctors/services/audit.service";
 
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const RESET_TTL_MS = 30 * 60 * 1000;
 
+const roleCache = new Map<string, any>();
+async function getRoleById(roleId: string) {
+  if (roleCache.has(roleId)) return roleCache.get(roleId);
+  const role = await db.query.roles.findFirst({
+    where: eq(roles.id, roleId),
+  });
+  if (role) roleCache.set(roleId, role);
+  return role;
+}
+
 export const authService = {
-  async login(input: LoginInput, metadata?: { ipAddress?: string; userAgent?: string }): Promise<SessionUser> {
+  async login(
+    input: LoginInput,
+    metadata?: { ipAddress?: string; userAgent?: string }
+  ): Promise<SessionUser> {
     const credentials = loginSchema.parse(input);
     const identifier = normalizeIdentifier(credentials.identifier);
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(or(eq(users.email, identifier), eq(users.username, identifier)))
-      .limit(1);
 
+    const [user] = await db .select() .from(users)  .where(
+        or(
+          eq(users.email, identifier),
+          eq(users.username, identifier)
+        )
+      )
+      .limit(1);
     if (!user || user.status !== "active") {
       await loginHistoryService.log({
         status: "failed",
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,
         failureReason: "User not found or inactive",
-      }).catch(() => {});
+      }).catch(() => { });
+
       throw new Error("Invalid email, username, or password");
     }
 
-    const passwordMatches = await verifyPassword(credentials.password, user.passwordHash);
+    const passwordMatches = await verifyPassword(
+      credentials.password,
+      user.passwordHash
+    );
+
     if (!passwordMatches) {
       await loginHistoryService.log({
         userId: user.id,
@@ -49,44 +80,42 @@ export const authService = {
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,
         failureReason: "Invalid password",
-      }).catch(() => {});
+      }).catch(() => { });
+
       sendSystemNotification({
         userId: user.id,
         type: "warning",
         subject: "Failed Login Attempt",
-        body: "A failed login attempt was detected on your account due to an incorrect password.",
+        body: "Incorrect password login attempt detected.",
         link: "/settings/profile",
-      }).catch(() => {});
+      }).catch(() => { });
+
       throw new Error("Invalid email, username, or password");
     }
 
-    const [assignedRole] = await db
-      .select({ code: roles.code })
-      .from(userRoles)
-      .innerJoin(roles, eq(userRoles.roleId, roles.id))
-      .where(eq(userRoles.userId, user.id))
-      .limit(1);
+    /**
+     * ROLE FETCH (NOW FROM users.roleId, NOT userRoles)
+     */
+    const role = await getRoleById(user.roleId);
 
-    if (!assignedRole) {
+    if (!role) {
       await loginHistoryService.log({
         userId: user.id,
         status: "failed",
         ipAddress: metadata?.ipAddress,
         userAgent: metadata?.userAgent,
-        failureReason: "No role assigned",
-      }).catch(() => {});
-      sendSystemNotification({
-        userId: user.id,
-        type: "error",
-        subject: "Account Configuration Issue",
-        body: "Your account does not have an assigned role. Please contact administration.",
-        link: "/settings/profile",
-      }).catch(() => {});
-      throw new Error("Your account does not have an assigned role");
+        failureReason: "Role not found",
+      }).catch(() => { });
+
+      throw new Error("Account role configuration missing");
     }
 
+    /**
+     * SESSION CREATION
+     */
     const sessionSecret = generateSecureToken(24);
     const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+
     const [session] = await db
       .insert(userSessions)
       .values({
@@ -94,18 +123,24 @@ export const authService = {
         tokenHash: sessionSecret,
         expiresAt,
         ipAddress: metadata?.ipAddress,
-        userAgent: metadata?.userAgent
+        userAgent: metadata?.userAgent,
       })
       .returning({ id: userSessions.id });
 
-    await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+    await db
+      .update(users)
+      .set({ lastLoginAt: new Date() })
+      .where(eq(users.id, user.id));
 
-    await loginHistoryService.log({
+    /**
+     * LOGS + AUDIT (non-blocking)
+     */
+    loginHistoryService.log({
       userId: user.id,
       status: "success",
       ipAddress: metadata?.ipAddress,
       userAgent: metadata?.userAgent,
-    }).catch(() => {});
+    }).catch(() => { });
 
     auditService.log({
       userId: user.id,
@@ -114,18 +149,23 @@ export const authService = {
       entityId: session.id,
       ipAddress: metadata?.ipAddress,
       userAgent: metadata?.userAgent,
-    }).catch(() => {});
+    }).catch(() => { });
 
-    const userName = [user.firstName, user.lastName].filter(Boolean).join(" ");
+    const userName = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(" ");
+
     const now = new Date().toLocaleString();
     const deviceInfo = metadata?.userAgent ?? "Unknown device";
+
     sendSystemNotification({
       userId: user.id,
       type: "info",
       subject: "New Login Detected",
-      body: `You logged in from ${deviceInfo} on ${now}.`,
+      body: `Login from ${deviceInfo} on ${now}`,
       link: "/settings/profile",
-    }).catch(() => {});
+    }).catch(() => { });
+
     sendNotification({
       templateCode: "auth_login_success_email",
       recipient: user.email,
@@ -138,63 +178,91 @@ export const authService = {
         portal_url: process.env.NEXT_PUBLIC_APP_URL ?? "",
       },
       userId: user.id,
-    }).catch(() => {});
+    }).catch(() => { });
 
     return {
       sessionId: session.id,
       userId: user.id,
-      role: assignedRole.code as SessionUser["role"],
+      role: role.code as SessionUser["role"],
       email: user.email,
       username: user.username,
-      name: [user.firstName, user.lastName].filter(Boolean).join(" ")
+      name: userName,
     };
   },
 
-  async logout(sessionId: string, metadata?: { ipAddress?: string; userAgent?: string }): Promise<void> {
-    const [session] = await db.select().from(userSessions).where(eq(userSessions.id, sessionId)).limit(1).catch(() => []);
+  /**
+   * LOGOUT
+   */
+  async logout(
+    sessionId: string,
+    metadata?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    const [session] = await db
+      .select()
+      .from(userSessions)
+      .where(eq(userSessions.id, sessionId))
+      .limit(1)
+      .catch(() => []);
+
     if (session) {
-      await loginHistoryService.log({
+      loginHistoryService.log({
         userId: session.userId,
         status: "success",
         ipAddress: metadata?.ipAddress ?? session.ipAddress ?? undefined,
         userAgent: metadata?.userAgent ?? session.userAgent ?? undefined,
-      }).catch(() => {});
+      }).catch(() => { });
     }
-    await db.update(userSessions).set({ isActive: false }).where(eq(userSessions.id, sessionId));
+
+    await db
+      .update(userSessions)
+      .set({ isActive: false })
+      .where(eq(userSessions.id, sessionId));
+
     auditService.log({
       action: "logout",
       entity: "session",
       entityId: sessionId,
       ipAddress: metadata?.ipAddress,
       userAgent: metadata?.userAgent,
-    }).catch(() => {});
+    }).catch(() => { });
   },
 
-  async requestPasswordReset(input: PasswordResetRequestInput): Promise<{ token?: string }> {
+  /**
+   * REQUEST PASSWORD RESET
+   */
+  async requestPasswordReset(
+    input: PasswordResetRequestInput
+  ): Promise<{ token?: string }> {
     const payload = passwordResetRequestSchema.parse(input);
     const identifier = normalizeIdentifier(payload.identifier);
+
     const [user] = await db
       .select()
       .from(users)
-      .where(or(eq(users.email, identifier), eq(users.username, identifier)))
+      .where(
+        or(
+          eq(users.email, identifier),
+          eq(users.username, identifier)
+        )
+      )
       .limit(1);
 
-    if (!user || user.status !== "active") {
-      return {};
-    }
+    if (!user || user.status !== "active") return {};
 
     const token = generateSecureToken(32);
+
     await db.insert(passwordResetTokens).values({
       userId: user.id,
       tokenHash: await hashResetToken(token),
-      expiresAt: new Date(Date.now() + RESET_TTL_MS)
+      expiresAt: new Date(Date.now() + RESET_TTL_MS),
     });
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-    const resetLink = process.env.NODE_ENV === "production"
-      ? `${appUrl}/reset-password?token=${token}`
-      : `${appUrl}/reset-password?token=${token}`;
-    const userName = [user.firstName, user.lastName].filter(Boolean).join(" ");
+    const resetLink = `${appUrl}/reset-password?token=${token}`;
+
+    const userName = [user.firstName, user.lastName]
+      .filter(Boolean)
+      .join(" ");
 
     sendNotification({
       templateCode: "auth_password_reset_request",
@@ -206,18 +274,29 @@ export const authService = {
         portal_url: appUrl,
       },
       userId: user.id,
-    }).catch(() => {});
+    }).catch(() => { });
 
     return process.env.NODE_ENV === "production" ? {} : { token };
   },
 
+  /**
+   * RESET PASSWORD
+   */
   async resetPassword(input: PasswordResetInput): Promise<void> {
     const payload = passwordResetSchema.parse(input);
+
     const tokenHash = await hashResetToken(payload.token);
+
     const [resetToken] = await db
       .select()
       .from(passwordResetTokens)
-      .where(and(eq(passwordResetTokens.tokenHash, tokenHash), eq(passwordResetTokens.isUsed, false), gt(passwordResetTokens.expiresAt, new Date())))
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          eq(passwordResetTokens.isUsed, false),
+          gt(passwordResetTokens.expiresAt, new Date())
+        )
+      )
       .limit(1);
 
     if (!resetToken) {
@@ -226,22 +305,35 @@ export const authService = {
 
     const [updatedUser] = await db
       .update(users)
-      .set({ passwordHash: await hashPassword(payload.password) })
+      .set({
+        passwordHash: await hashPassword(payload.password),
+      })
       .where(eq(users.id, resetToken.userId))
       .returning();
 
-    await db.update(passwordResetTokens).set({ isUsed: true }).where(eq(passwordResetTokens.id, resetToken.id));
-    await db.update(userSessions).set({ isActive: false }).where(eq(userSessions.userId, resetToken.userId));
+    await db
+      .update(passwordResetTokens)
+      .set({ isUsed: true })
+      .where(eq(passwordResetTokens.id, resetToken.id));
+
+    await db
+      .update(userSessions)
+      .set({ isActive: false })
+      .where(eq(userSessions.userId, resetToken.userId));
 
     if (updatedUser) {
-      const userName = [updatedUser.firstName, updatedUser.lastName].filter(Boolean).join(" ");
+      const userName = [updatedUser.firstName, updatedUser.lastName]
+        .filter(Boolean)
+        .join(" ");
+
       sendSystemNotification({
         userId: resetToken.userId,
         type: "success",
-        subject: "Password Changed Successfully",
-        body: "Your password was changed successfully. All active sessions have been terminated.",
+        subject: "Password Changed",
+        body: "All sessions terminated after password update.",
         link: "/settings/profile",
-      }).catch(() => {});
+      }).catch(() => { });
+
       sendNotification({
         templateCode: "auth_password_reset_success_email",
         recipient: updatedUser.email,
@@ -252,7 +344,7 @@ export const authService = {
           portal_url: process.env.NEXT_PUBLIC_APP_URL ?? "",
         },
         userId: resetToken.userId,
-      }).catch(() => {});
+      }).catch(() => { });
     }
-  }
+  },
 };

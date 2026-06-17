@@ -1,26 +1,11 @@
 "use client";
 
 import { Shield, Filter, Download, Search } from "lucide-react";
-import type { AuditLogRecord } from "../services/audit.service";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { AuditLogRecord } from "@modules/auditlog/audit-logs.types";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-
-type AuditLog = {
-  id: string;
-  userId: string | null;
-  userName: string | null;
-  action: string;
-  entity: string;
-  entityId: string | null;
-  oldValues: any;
-  newValues: any;
-  ipAddress: string | null;
-  userAgent: string | null;
-  createdAt: Date;
-};
 
 const actionColors: Record<string, string> = {
   create: "bg-green-500/10 text-green-500",
@@ -71,7 +56,7 @@ export function AuditLogsView({ logs: initialLogs }: { logs: AuditLogRecord[] })
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">{log.userName ?? "System"}</span>
-                    <Badge variant="secondary" className={actionColors[log.action] ?? ""}>
+                    <Badge variant="secondary" className={actionColors[log.action.toLowerCase()] ?? ""}>
                       {log.action}
                     </Badge>
                     <span className="text-sm text-muted-foreground">{log.entity}</span>

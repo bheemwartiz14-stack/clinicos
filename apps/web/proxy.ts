@@ -9,6 +9,7 @@ const routePermissions: Array<{ path: string; permission: Permission }> = [
   { path: "/settings/preferences", permission: "settings.profile" },
   { path: "/settings/security", permission: "settings.profile" },
   { path: "/settings/profile", permission: "settings.profile" },
+  { path: "/settings/intergations", permission: "settings.profile" },
   { path: "/settings/account", permission: "settings.profile" },
   { path: "/settings/staff-manage", permission: "staff.manage" },
   { path: "/settings", permission: "settings.profile" },
@@ -86,6 +87,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|icons|images|uploads).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|sw.js|icons|images|uploads).*)",
   ],
 };

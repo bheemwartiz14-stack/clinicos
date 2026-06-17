@@ -50,3 +50,17 @@ export const notificationLogs = pgTable("notification_logs", {
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+export const notificationLog = pgTable("notification_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  subject: varchar("subject", { length: 255 }),
+  description: text("description"),
+  body: text("body"),
+  status: notificationStatusEnum("status").default("queued").notNull(),
+  error: text("error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  isRead: boolean("is_read").default(false).notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});

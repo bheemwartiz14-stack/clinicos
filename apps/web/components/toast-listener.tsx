@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 
 type ToastDetail = {
   type: "success" | "error";

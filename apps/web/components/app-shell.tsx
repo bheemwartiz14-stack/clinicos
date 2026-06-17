@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+
 import {
   Activity,
   AlertTriangle,
@@ -28,7 +28,7 @@ import { type Permission, filterByPermission } from "@mediclinic/rbac";
 import type { SessionUser } from "@mediclinic/auth";
 import { logoutAction } from "@modules/auth/actions/auth.actions";
 import { ThemeToggle } from "./theme-toggle";
-import { NotificationBell } from "./notification-bell";
+import { NotificationBell } from "@modules/notifications/components/NotificationBell";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -88,14 +88,6 @@ const navItems: NavItem[] = [
     icon: Stethoscope,
     permission: "doctors.view",
     section: "Workspace",
-    children: [
-      {
-        label: "Doctor Profiles",
-        href: "/doctors",
-        icon: UserCog,
-        permission: "doctors.view",
-      }
-    ],
   },
   {
     label: "Billing",
@@ -143,6 +135,13 @@ const navItems: NavItem[] = [
     ],
   },
   {
+    label: "integrations",
+    href: "/settings/integration",
+    icon: UsersRound,
+    permission: "settings.profile",
+    section: "Administration",
+  },
+  {
     label: "Staff",
     href: "/settings/staff-manage",
     icon: UsersRound,
@@ -155,26 +154,6 @@ const navItems: NavItem[] = [
     icon: Bell,
     permission: "settings.notifications",
     section: "Administration",
-    children: [
-      {
-        label: "Dashboard",
-        href: "/notifications",
-        icon: Bell,
-        permission: "settings.notifications",
-      },
-      {
-        label: "Templates",
-        href: "/settings/notifications/templates",
-        icon: FileText,
-        permission: "settings.notifications",
-      },
-      {
-        label: "Logs",
-        href: "/settings/notifications/logs",
-        icon: Activity,
-        permission: "settings.notifications",
-      },
-    ],
   },
   {
     label: "Audit Logs",
@@ -190,6 +169,7 @@ const navItems: NavItem[] = [
     permission: "rbac.manage",
     section: "Administration",
   },
+
 ];
 
 type ShellUser = {
@@ -438,14 +418,9 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
             </div>
           </div>
         </header>
-        <motion.main
-          className="px-4 py-5 sm:px-6"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25 }}
-        >
+        <main className="px-4 py-5 sm:px-6">
           {children}
-        </motion.main>
+        </main>
       </div>
 
       {mobileNavOpen ? (

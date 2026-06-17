@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Calendar, CheckCircle2, Clock, FileText, Hash, RefreshCw, Stethoscope, User, XCircle } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Calendar, CheckCircle2, Clock, FileText, Hash, RefreshCw, Stethoscope, Timer, User, XCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { updateAppointmentStatusAction, rescheduleAppointmentAction } from "../actions/appointment.actions";
-import type { AppointmentRecord } from "../services/appointment.service";
+import type { AppointmentRecord, AvailableSlot } from "../types/appointment.types";
 import { FormField, TextareaField } from "@/components/form-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -52,8 +53,46 @@ function avatarColor(name: string) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
+function getDateString(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function isTimeInPast(date: string, time: string): boolean {
+  if (date !== getDateString(new Date())) return false;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m < currentMinutes;
+}
+
 export function AppointmentDetailView({ appointment }: { appointment: AppointmentRecord }) {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(getDateString(new Date()));
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
+
+  const loadSlots = useCallback(async (doctorId: string, date: string) => {
+    if (!doctorId || !date) return;
+    setLoadingSlots(true);
+    try {
+      const res = await fetch(`/api/appointments/availability?doctorId=${doctorId}&date=${date}`);
+      const data = await res.json();
+      setAvailableSlots(data);
+      setSelectedSlot(null);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (rescheduleOpen && appointment.doctorId) {
+      loadSlots(appointment.doctorId, selectedDate);
+    }
+  }, [rescheduleOpen, appointment.doctorId, loadSlots]);
+
   const style = STATUS_STYLES[appointment.status] || STATUS_STYLES.pending;
 
   const actionButtons = [
@@ -198,7 +237,7 @@ export function AppointmentDetailView({ appointment }: { appointment: Appointmen
                   Reschedule
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Reschedule Appointment</DialogTitle>
                   <DialogDescription>Select a new date and time for this appointment.</DialogDescription>
@@ -209,12 +248,63 @@ export function AppointmentDetailView({ appointment }: { appointment: Appointmen
                   className="grid gap-4"
                 >
                   <input type="hidden" name="appointmentId" value={appointment.id} />
-                  <FormField label="New Date" name="newDate" type="date" required />
-                  <FormField label="New Time" name="newStartTime" type="time" required />
+                  <input type="hidden" name="newStartTime" value={selectedSlot?.startTime || ""} />
+                  <input type="hidden" name="newSlotId" value={selectedSlot?.id || ""} />
+                  <FormField
+                    label="New Date"
+                    name="newDate"
+                    type="date"
+                    required
+                    min={getDateString(new Date())}
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      if (appointment.doctorId && e.target.value) loadSlots(appointment.doctorId, e.target.value);
+                    }}
+                  />
+                  <div className="grid gap-2">
+                    <Label className="text-sm font-semibold">Select Time</Label>
+
+                    {loadingSlots ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Timer className="h-4 w-4 animate-spin" />
+                        Loading available slots...
+                      </div>
+                    ) : availableSlots.filter(
+                      (s) => !s.isBooked && !isTimeInPast(selectedDate, s.startTime)
+                    ).length > 0 ? (
+                      <div className="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+                        {availableSlots
+                          .filter(
+                            (s) => !s.isBooked && !isTimeInPast(selectedDate, s.startTime)
+                          )
+                          .map((slot) => (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              onClick={() => setSelectedSlot(slot)}
+                              className={cn(
+                                "flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium transition-colors",
+                                selectedSlot?.id === slot.id
+                                  ? "border-primary bg-muted text-foreground"
+                                  : "hover:border-muted-foreground/30 hover:bg-muted/30"
+                              )}
+                            >
+                              <Clock className="h-3.5 w-3.5" />
+                              {formatTime(slot.startTime)}
+                            </button>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        No slots available for this date.
+                      </p>
+                    )}
+                  </div>
                   <TextareaField label="Reason for reschedule" name="reason" rows={2} />
                   <div className="flex justify-end gap-2 pt-2">
                     <Button type="button" variant="outline" onClick={() => setRescheduleOpen(false)}>Cancel</Button>
-                    <Button type="submit">Confirm Reschedule</Button>
+                    <Button type="submit" disabled={!selectedSlot}>Confirm Reschedule</Button>
                   </div>
                 </form>
               </DialogContent>

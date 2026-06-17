@@ -1,43 +1,18 @@
+import { googleCalendarService } from "@modules/integrations/google-calendar/google-calendar.service";
+import { getGoogleOAuthClient } from "@modules/integrations/google-calendar/google-calendar.oauth";
+import { GoogleCalendarRepository } from "@modules/integrations/google-calendar/google-calendar.repository";
 import { google } from "googleapis";
-import { eq, and } from "drizzle-orm";
-import { db, doctorAvailabilitySlots } from "@mediclinic/db";
+import type { CalendarEventResponse, FreeBusyResult } from "@modules/integrations/google-calendar/google-calendar.type";
 
-const SCOPES = ["https://www.googleapis.com/auth/calendar"];
-
-type OAuthConfig = {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-};
-
-function getConfig(): OAuthConfig {
-  return {
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI ?? "http://localhost:3000/api/auth/google/callback",
-  };
-}
-
-function getOAuth2Client(config?: OAuthConfig) {
-  const cfg = config ?? getConfig();
-  return new google.auth.OAuth2(cfg.clientId, cfg.clientSecret, cfg.redirectUri);
-}
-
-export const googleCalendarService = {
+export const doctorCalendarService = {
   getAuthUrl(doctorId: string): string {
-    const oauth2Client = getOAuth2Client();
-    return oauth2Client.generateAuthUrl({
-      access_type: "offline",
-      scope: SCOPES,
-      state: doctorId,
-      prompt: "consent",
-    });
+    return googleCalendarService.generateAuthUrl(doctorId) as unknown as string;
   },
 
-  async handleCallback(code: string): Promise<{ tokens: any }> {
-    const oauth2Client = getOAuth2Client();
+  async handleCallback(code: string): Promise<{ tokens: { access_token: string; refresh_token?: string | null; expiry_date?: number | null } }> {
+    const oauth2Client = getGoogleOAuthClient();
     const { tokens } = await oauth2Client.getToken(code);
-    return { tokens };
+    return { tokens: { access_token: tokens.access_token!, refresh_token: tokens.refresh_token, expiry_date: tokens.expiry_date ?? null } };
   },
 
   async createEvent(params: {
@@ -50,8 +25,8 @@ export const googleCalendarService = {
     timeZone?: string;
     attendees?: { email: string }[];
     addMeetLink?: boolean;
-  }): Promise<{ id: string; hangoutLink?: string | null }> {
-    const oauth2Client = getOAuth2Client();
+  }): Promise<CalendarEventResponse> {
+    const oauth2Client = getGoogleOAuthClient();
     oauth2Client.setCredentials({
       access_token: params.accessToken,
       refresh_token: params.refreshToken,
@@ -59,7 +34,7 @@ export const googleCalendarService = {
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
-    const event: any = {
+    const event: Record<string, unknown> = {
       summary: params.summary,
       description: params.description,
       start: { dateTime: params.startTime, timeZone: params.timeZone ?? "UTC" },
@@ -82,6 +57,7 @@ export const googleCalendarService = {
     return {
       id: response.data.id!,
       hangoutLink: response.data.hangoutLink ?? null,
+      htmlLink: response.data.htmlLink ?? null,
     };
   },
 
@@ -95,24 +71,24 @@ export const googleCalendarService = {
     endTime?: string;
     timeZone?: string;
   }): Promise<void> {
-    const oauth2Client = getOAuth2Client();
+    const oauth2Client = getGoogleOAuthClient();
     oauth2Client.setCredentials({
       access_token: params.accessToken,
       refresh_token: params.refreshToken,
     });
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
-    const event: any = {};
+    const body: Record<string, unknown> = {};
 
-    if (params.summary) event.summary = params.summary;
-    if (params.description) event.description = params.description;
-    if (params.startTime) event.start = { dateTime: params.startTime, timeZone: params.timeZone ?? "UTC" };
-    if (params.endTime) event.end = { dateTime: params.endTime, timeZone: params.timeZone ?? "UTC" };
+    if (params.summary) body.summary = params.summary;
+    if (params.description) body.description = params.description;
+    if (params.startTime) body.start = { dateTime: params.startTime, timeZone: params.timeZone ?? "UTC" };
+    if (params.endTime) body.end = { dateTime: params.endTime, timeZone: params.timeZone ?? "UTC" };
 
     await calendar.events.update({
       calendarId: "primary",
       eventId: params.eventId,
-      requestBody: event,
+      requestBody: body,
     });
   },
 
@@ -121,7 +97,7 @@ export const googleCalendarService = {
     refreshToken?: string;
     eventId: string;
   }): Promise<void> {
-    const oauth2Client = getOAuth2Client();
+    const oauth2Client = getGoogleOAuthClient();
     oauth2Client.setCredentials({
       access_token: params.accessToken,
       refresh_token: params.refreshToken,
@@ -136,8 +112,8 @@ export const googleCalendarService = {
     refreshToken?: string;
     timeMin: string;
     timeMax: string;
-  }): Promise<{ busy: { start: string; end: string }[] }> {
-    const oauth2Client = getOAuth2Client();
+  }): Promise<FreeBusyResult> {
+    const oauth2Client = getGoogleOAuthClient();
     oauth2Client.setCredentials({
       access_token: params.accessToken,
       refresh_token: params.refreshToken,
@@ -165,7 +141,7 @@ export const googleCalendarService = {
     refreshToken?: string;
     doctorId: string;
   }): Promise<void> {
-    const oauth2Client = getOAuth2Client();
+    const oauth2Client = getGoogleOAuthClient();
     oauth2Client.setCredentials({
       access_token: params.accessToken,
       refresh_token: params.refreshToken,
@@ -173,26 +149,27 @@ export const googleCalendarService = {
 
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
+    const { db } = await import("@mediclinic/db");
+    const { eq, and } = await import("drizzle-orm");
+    const { doctorAvailabilitySlots } = await import("@mediclinic/db");
+
     const slots = await db
       .select()
       .from(doctorAvailabilitySlots)
       .where(
         and(
           eq(doctorAvailabilitySlots.doctorId, params.doctorId),
-          eq(doctorAvailabilitySlots.isBooked, false)
+          eq(doctorAvailabilitySlots.isBooked, false),
         )
       );
 
     for (const slot of slots) {
-      const startDateTime = `${slot.slotDate}T${slot.startTime}`;
-      const endDateTime = `${slot.slotDate}T${slot.endTime}`;
-
       await calendar.events.insert({
         calendarId: "primary",
         requestBody: {
           summary: `Available: Dr. ${params.doctorId}`,
-          start: { dateTime: startDateTime, timeZone: "UTC" },
-          end: { dateTime: endDateTime, timeZone: "UTC" },
+          start: { dateTime: `${slot.slotDate}T${slot.startTime}`, timeZone: "UTC" },
+          end: { dateTime: `${slot.slotDate}T${slot.endTime}`, timeZone: "UTC" },
           transparency: "transparent",
         },
       });
@@ -200,4 +177,4 @@ export const googleCalendarService = {
   },
 };
 
-export type GoogleCalendarService = typeof googleCalendarService;
+export type DoctorCalendarServiceType = typeof doctorCalendarService;

@@ -11,19 +11,20 @@ import {
 
 
 export const userStatusEnum = pgEnum("user_status", [
-  "active",
-  "inactive",
-  "blocked",
+    "active",
+    "inactive",
+    "blocked",
 ]);
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
     firstName: varchar("first_name", { length: 100 }).notNull(),
     lastName: varchar("last_name", { length: 100 }),
-    username:varchar("username", { length: 100 }),
+    username: varchar("username", { length: 100 }),
+    roleId: uuid("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
     email: varchar("email", { length: 255 }).notNull().unique(),
     phone: varchar("phone", { length: 30 }),
     passwordHash: text("password_hash").notNull(),
-    avatar: text("avatar"), 
+    avatar: text("avatar"),
     status: userStatusEnum("status").default("active").notNull(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
@@ -66,20 +67,6 @@ export const rolePermissions = pgTable(
         ),
     ]
 );
-
-
-export const userRoles = pgTable("user_roles",
-    {
-        id: uuid("id").defaultRandom().primaryKey(),
-        userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-        roleId: uuid("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
-        assignedAt: timestamp("assigned_at", { withTimezone: true }).defaultNow().notNull(),
-    },
-    (table) => [
-        uniqueIndex("user_roles_unique_idx").on(table.userId, table.roleId),
-    ]
-);
-
 export const userSessions = pgTable("user_sessions", {
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
@@ -93,10 +80,10 @@ export const userSessions = pgTable("user_sessions", {
 
 
 export const passwordResetTokens = pgTable("password_reset_tokens", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
-  tokenHash: text("token_hash").notNull(),
-  isUsed: boolean("is_used").default(false).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+    tokenHash: text("token_hash").notNull(),
+    isUsed: boolean("is_used").default(false).notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

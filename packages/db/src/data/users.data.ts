@@ -1,16 +1,29 @@
 import bcrypt from "bcryptjs";
 
+const DEFAULTS = {
+  ADMIN_EMAIL: "admin@clinicos.com",
+  ADMIN_PASSWORD: "Admin@1234",
+  DOCTOR_EMAIL: "doctor@clinicos.com",
+  DOCTOR_PASSWORD: "Doctor@1234",
+  RECEPTIONIST_EMAIL: "receptionist@clinicos.com",
+  RECEPTIONIST_PASSWORD: "Receptionist@1234",
+  ACCOUNTANT_EMAIL: "accountant@clinicos.com",
+  ACCOUNTANT_PASSWORD: "Accountant@1234",
+  NURSE_EMAIL: "nurse@clinicos.com",
+  NURSE_PASSWORD: "Nurse@1234",
+} as const;
+
 export async function getUsersData() {
   return [
     {
       firstName: "Admin",
       lastName: "User",
       username: "admin",
-      email: process.env.ADMIN_EMAIL!,
+      email: process.env.ADMIN_EMAIL ?? DEFAULTS.ADMIN_EMAIL,
       phone: "9999999999",
       passwordHash: await bcrypt.hash(
-        process.env.ADMIN_PASSWORD!,
-        10
+        process.env.ADMIN_PASSWORD ?? DEFAULTS.ADMIN_PASSWORD,
+        10,
       ),
       avatar: null,
       status: "active",
@@ -20,16 +33,15 @@ export async function getUsersData() {
       updatedAt: new Date(),
       roleCode: "admin",
     },
-
     {
       firstName: "Doctor",
       lastName: "User",
-       username: "doctor",
-      email: process.env.DOCTOR_EMAIL!,
+      username: "doctor",
+      email: process.env.DOCTOR_EMAIL ?? DEFAULTS.DOCTOR_EMAIL,
       phone: "9999999998",
       passwordHash: await bcrypt.hash(
-        process.env.DOCTOR_PASSWORD!,
-        10
+        process.env.DOCTOR_PASSWORD ?? DEFAULTS.DOCTOR_PASSWORD,
+        10,
       ),
       avatar: null,
       status: "active",
@@ -39,16 +51,15 @@ export async function getUsersData() {
       updatedAt: new Date(),
       roleCode: "doctor",
     },
-
     {
       firstName: "Receptionist",
       lastName: "User",
-       username: "receptionist",
-      email: process.env.RECEPTIONIST_EMAIL!,
+      username: "receptionist",
+      email: process.env.RECEPTIONIST_EMAIL ?? DEFAULTS.RECEPTIONIST_EMAIL,
       phone: "9999999996",
       passwordHash: await bcrypt.hash(
-        process.env.RECEPTIONIST_PASSWORD!,
-        10
+        process.env.RECEPTIONIST_PASSWORD ?? DEFAULTS.RECEPTIONIST_PASSWORD,
+        10,
       ),
       avatar: null,
       status: "active",
@@ -58,16 +69,15 @@ export async function getUsersData() {
       updatedAt: new Date(),
       roleCode: "receptionist",
     },
-
     {
       firstName: "Accountant",
       lastName: "User",
       username: "accountant",
-      email: process.env.ACCOUNTANT_EMAIL!,
+      email: process.env.ACCOUNTANT_EMAIL ?? DEFAULTS.ACCOUNTANT_EMAIL,
       phone: "9999999995",
       passwordHash: await bcrypt.hash(
-        process.env.ACCOUNTANT_PASSWORD!,
-        10
+        process.env.ACCOUNTANT_PASSWORD ?? DEFAULTS.ACCOUNTANT_PASSWORD,
+        10,
       ),
       avatar: null,
       status: "active",
@@ -81,11 +91,11 @@ export async function getUsersData() {
       firstName: "Nurse",
       lastName: "User",
       username: "nurse",
-      email: process.env.NURSE_EMAIL! ?? "nurse@mediclinicpro.com",
+      email: process.env.NURSE_EMAIL ?? DEFAULTS.NURSE_EMAIL,
       phone: "9999999994",
       passwordHash: await bcrypt.hash(
-        process.env.NURSE_PASSWORD ?? "Nurse@1234",
-        10
+        process.env.NURSE_PASSWORD ?? DEFAULTS.NURSE_PASSWORD,
+        10,
       ),
       avatar: null,
       status: "active",
@@ -95,5 +105,5 @@ export async function getUsersData() {
       updatedAt: new Date(),
       roleCode: "nurse",
     },
-  ] as const;
+  ];
 }

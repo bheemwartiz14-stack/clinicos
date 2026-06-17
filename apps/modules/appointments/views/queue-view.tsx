@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Clock, Hash, User, CheckCircle2, XCircle, ArrowRight, Search } from "lucide-react";
 import { useState } from "react";
 import { updateAppointmentStatusAction } from "../actions/appointment.actions";
-import type { DoctorOption } from "../services/appointment.service";
+import type { DoctorOption } from "../types/appointment.types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
