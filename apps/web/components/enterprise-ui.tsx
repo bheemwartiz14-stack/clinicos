@@ -11,10 +11,10 @@ export type StatusTone = "neutral" | "success" | "warning" | "danger" | "info";
 
 const statusToneClass: Record<StatusTone, string> = {
   neutral: "bg-secondary text-secondary-foreground",
-  success: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
-  warning: "bg-amber-500/14 text-amber-700 dark:text-amber-300",
-  danger: "bg-destructive/12 text-destructive dark:text-red-300",
-  info: "bg-sky-500/12 text-sky-700 dark:text-sky-300"
+  success: "bg-emerald-500/12 text-emerald-700",
+  warning: "bg-amber-500/14 text-amber-700",
+  danger: "bg-destructive/12 text-destructive",
+  info: "bg-sky-500/12 text-sky-700"
 };
 
 export function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: StatusTone }) {

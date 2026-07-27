@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup";
 import { ToastListener } from "@/components/toast-listener";
-import { ThemeProviderWrapper } from "@/components/theme-provider-wrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,12 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
+      <html
       lang="en"
-      suppressHydrationWarning
       className="font-sans"
     >
-      <body suppressHydrationWarning>
+      <body>
         <Script id="remove-bis" strategy="beforeInteractive">
           {`
             (function(){
@@ -42,9 +40,7 @@ export default function RootLayout({
             })();
           `}
         </Script>
-        <ThemeProviderWrapper>
           <QueryProvider>{children}</QueryProvider>
-        </ThemeProviderWrapper>
 
         <ServiceWorkerCleanup />
         <ToastListener />

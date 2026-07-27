@@ -209,7 +209,7 @@ export function PreferencesSettingsView({ profile }: SettingsProps) {
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Appearance</CardTitle>
-          <CardDescription>Use the header theme toggle to switch between light and dark modes.</CardDescription>
+          <CardDescription>The system uses a light mode theme for clarity.</CardDescription>
         </CardHeader>
       </Card>
     </div>

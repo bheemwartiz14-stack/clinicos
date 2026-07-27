@@ -27,7 +27,6 @@ import { useState } from "react";
 import { type Permission, filterByPermission } from "@mediclinic/rbac";
 import type { SessionUser } from "@mediclinic/auth";
 import { logoutAction } from "@modules/auth/actions/auth.actions";
-import { ThemeToggle } from "./theme-toggle";
 import { NotificationBell } from "@modules/notifications/components/NotificationBell";
 import { Button } from "@/components/ui/button";
 import {

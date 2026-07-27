@@ -61,9 +61,9 @@ function StepIndicator({ step, index }: { step: Step; index: number }) {
         step.state === "processing"
           ? "border-primary/40 bg-primary/5"
           : step.state === "completed"
-            ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20"
+            ? "border-green-200 bg-green-50/50"
             : step.state === "error"
-              ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/20"
+              ? "border-red-200 bg-red-50/50"
               : "bg-muted/30"
       }`}
     >
@@ -74,9 +74,9 @@ function StepIndicator({ step, index }: { step: Step; index: number }) {
             step.state === "pending"
               ? "text-muted-foreground/50"
               : step.state === "completed"
-                ? "text-green-700 dark:text-green-300"
+                ? "text-green-700"
                 : step.state === "error"
-                  ? "text-red-600 dark:text-red-400"
+                  ? "text-red-600"
                   : "text-foreground"
           }`}
         >
@@ -177,8 +177,8 @@ function CallbackContent() {
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/20">
-            <CheckCircle2 className="size-8 text-green-600 dark:text-green-400" />
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-green-100">
+            <CheckCircle2 className="size-8 text-green-600" />
           </div>
           <CardTitle>Connected Successfully</CardTitle>
           <CardDescription>
@@ -191,10 +191,10 @@ function CallbackContent() {
               <StepIndicator key={i} step={step} index={i} />
             ))}
           </div>
-          <div className="rounded-lg border bg-green-50/50 dark:bg-green-950/20 p-4">
+          <div className="rounded-lg border bg-green-50/50 p-4">
             <div className="flex items-center gap-3 text-sm">
-              <Calendar className="size-4 text-green-600 dark:text-green-400 shrink-0" />
-              <span className="text-green-700 dark:text-green-300">
+              <Calendar className="size-4 text-green-600 shrink-0" />
+              <span className="text-green-700">
                 Appointments will now sync to your Google Calendar automatically.
               </span>
             </div>
@@ -211,8 +211,8 @@ function CallbackContent() {
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
-            <XCircle className="size-8 text-red-600 dark:text-red-400" />
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-red-100">
+            <XCircle className="size-8 text-red-600" />
           </div>
           <CardTitle>Connection Failed</CardTitle>
           <CardDescription>

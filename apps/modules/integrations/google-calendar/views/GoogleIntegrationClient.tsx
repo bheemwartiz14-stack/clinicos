@@ -112,7 +112,7 @@ export default function GoogleIntegrationClient({ userId }: Props) {
             <Badge
               variant={isConnected ? "default" : needsReauth ? "destructive" : "secondary"}
               className={`gap-1.5 px-3 py-1 text-xs font-medium ${
-                isConnected ? "bg-green-500/10 text-green-600 hover:bg-green-500/15 dark:bg-green-500/15 dark:text-green-400" : ""
+                isConnected ? "bg-green-500/10 text-green-600 hover:bg-green-500/15" : ""
               }`}
             >
               <span
@@ -131,7 +131,7 @@ export default function GoogleIntegrationClient({ userId }: Props) {
 
         <CardContent className="space-y-4">
           {isConnected ? (
-            <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-green-50/50 to-transparent dark:from-green-950/10">
+            <div className="overflow-hidden rounded-xl border bg-gradient-to-br from-green-50/50 to-transparent">
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-green-500/10">
@@ -176,17 +176,17 @@ export default function GoogleIntegrationClient({ userId }: Props) {
           )}
 
           {needsReauth && (
-            <div className="overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/50 to-transparent dark:border-amber-800 dark:from-amber-950/10">
+            <div className="overflow-hidden rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50/50 to-transparent">
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/10">
                     <AlertTriangle className="size-4 text-amber-500" />
                   </div>
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                    <p className="text-sm font-medium text-amber-700">
                       Reconnection Required
                     </p>
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="text-xs text-amber-600">
                       {status?.verificationError}
                     </p>
                   </div>

@@ -63,7 +63,7 @@ export function SpecialtiesListView({
               {assignedDoctorsOnPage} doctors shown
             </span>
             {selectedDepartment ? (
-              <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+              <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700">
                 {selectedDepartment.name}
               </span>
             ) : null}
