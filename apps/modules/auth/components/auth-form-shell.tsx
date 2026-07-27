@@ -7,9 +7,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export function AuthFormShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
     <main className="relative min-h-screen bg-background px-5 py-10 text-foreground sm:px-8 lg:px-12">
-      <div className="absolute right-5 top-5 sm:right-8 sm:top-8 lg:right-12 lg:top-10">
-        <ThemeToggle />
-      </div>
       <section className="mx-auto grid min-h-[calc(100vh-5rem)] w-full max-w-[980px] items-center gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:gap-14">
         <div className="mx-auto w-full max-w-[420px] lg:mx-0">
           <Badge variant="outline" className="mb-5 h-7 gap-2 rounded-md border-primary/20 bg-background px-3 text-primary-foreground/80">

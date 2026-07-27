@@ -34,7 +34,7 @@ export const revalidate = 0;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Command Center | MediClinic Pro",
+    title: "MediClinic Pro",
     description:
       "Secure clinic operations dashboard for appointments, queue management, billing, payroll, and AI-assisted workflows.",
   };
@@ -43,7 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HomePage() {
   const session = await requirePagePermission("dashboard.view");
   const dashboardTitle =
-    session.role === "admin" ? "Clinic Command Center" :
+    session.role === "admin" ? "MediClinic Pro" :
     session.role === "doctor" ? "Practice Dashboard" :
     session.role === "receptionist" ? "Front Desk Console" :
     "Revenue Dashboard";
@@ -60,7 +60,6 @@ export default async function HomePage() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="capitalize">{session.role} workspace</Badge>
-              <Badge variant="outline">U.S. clinic management</Badge>
             </div>
             <h1 className="mt-4 text-2xl font-semibold tracking-normal">{dashboardTitle}</h1>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{dashboardDescription}</p>
@@ -88,11 +87,6 @@ export default async function HomePage() {
             )}
           </div>
         </div>
-        <div className="grid border-t bg-muted/30 sm:grid-cols-3">
-          <HeroSignal icon={Building2} label="Market" value="United States" />
-          <HeroSignal icon={ShieldCheck} label="Workflow" value="Access controlled" />
-          <HeroSignal icon={Landmark} label="Finance" value="USD billing" />
-        </div>
       </section>
 
       {session.role === "admin" && <AdminDashboard />}
@@ -106,7 +100,6 @@ export default async function HomePage() {
 async function AdminDashboard() {
   const data = await dashboardService.adminOverview();
   const availabilityRate = data.metrics.doctors ? Math.round((data.metrics.availableDoctors / data.metrics.doctors) * 100) : 0;
-  const apptStatusCounts = data.todayStatusCounts;
 
   return (
     <>
@@ -116,67 +109,8 @@ async function AdminDashboard() {
         <MetricCard title="Today's Appointments" value={data.metrics.todayAppointments} detail="Scheduled for today" icon={CalendarCheck2} trend="Live day" />
         <MetricCard title="Total Patients" value={data.metrics.patients} detail="Registered patients" icon={Activity} trend="Patient panel" />
       </div>
-
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1.8fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Operational Health</CardTitle>
-            <CardDescription>Capacity, access, and setup signals for the current clinic workspace.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <ProgressRow label="Doctor availability" value={availabilityRate} caption={`${data.metrics.availableDoctors}/${data.metrics.doctors} doctors available`} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <SignalCard label="Active sessions" value={data.metrics.activeSessions} />
-              <SignalCard label="Upcoming slots" value={data.metrics.upcomingSlots} />
-              <SignalCard label="RBAC roles" value={data.metrics.roles} />
-              <SignalCard label="Specialties" value={data.metrics.specialties} />
-            </div>
-            <StatusGrid title="Today's Appointment Status" counts={apptStatusCounts} emptyLabel="No appointments today." />
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <div>
-              <CardTitle>Recent Doctors</CardTitle>
-              <CardDescription>Latest doctor profiles and availability state.</CardDescription>
-            </div>
-            <CardAction>
-              <Button asChild variant="outline" size="sm"><Link href="/doctors">View All</Link></Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Doctor</TableHead>
-                  <TableHead>Specialty</TableHead>
-                  <TableHead>Fee</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.recentDoctors.map((doctor) => (
-                  <TableRow key={doctor.id}>
-                    <TableCell>
-                      <div className="font-medium">{doctor.name}</div>
-                      <div className="text-xs text-muted-foreground">{doctor.email}</div>
-                    </TableCell>
-                    <TableCell>{doctor.specialty}</TableCell>
-                    <TableCell>${doctor.consultationFee}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1.5">
-                        <Badge variant={doctor.status === "active" ? "default" : "outline"}>{doctor.status}</Badge>
-                        <Badge variant={doctor.isAvailable ? "default" : "outline"}>{doctor.isAvailable ? "Available" : "Off"}</Badge>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {data.recentDoctors.length === 0 && <p className="py-8 text-sm text-muted-foreground text-center">No doctors yet.</p>}
-          </CardContent>
-        </Card>
       </div>
     </>
   );

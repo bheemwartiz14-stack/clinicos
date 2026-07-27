@@ -134,7 +134,7 @@ export function PatientsListView({
         <Button asChild>
           <Link href="/patients/create">
             <Plus className="h-4 w-4" aria-hidden />
-            Register Patient
+            Add Patient
           </Link>
         </Button>
       </div>
@@ -317,16 +317,11 @@ export function PatientsListView({
                 <Users className="h-8 w-8 text-muted-foreground/50" />
               </div>
               <h3 className="text-lg font-semibold">No patients found</h3>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {q || activeFilter !== "all"
-                  ? "Try adjusting your search terms or filters."
-                  : "Register your first patient to get started."}
-              </p>
               {!q && activeFilter === "all" && (
                 <Button asChild className="mt-4">
                   <Link href="/patients/create">
                     <Plus className="h-4 w-4" aria-hidden />
-                    Register Patient
+                    Add Patient
                   </Link>
                 </Button>
               )}

@@ -369,7 +369,6 @@ export function AppShell({ children, session, shellUser }: { children: React.Rea
 
             <div className="flex items-center gap-1">
               <NotificationBell />
-              <ThemeToggle className="h-8 w-8 border-transparent bg-transparent shadow-none hover:bg-muted [&_svg]:h-4 [&_svg]:w-4" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="flex h-9 items-center gap-2 rounded-full bg-muted py-1 pl-1 pr-3 text-left transition hover:bg-accent">

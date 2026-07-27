@@ -9,8 +9,8 @@ export type GoogleCalendarConnection = {
   scope: string | null;
   calendarId: string | null;
   isConnected: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | null;
+  updatedAt: Date | null;
 };
 
 export type GoogleAuthTokens = {
