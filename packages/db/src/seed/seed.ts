@@ -6,7 +6,6 @@ import { seedDepartments } from "./department.seed";
 import { seedSpecialties } from "./specialty.seed";
 import { seedNotificationTemplates } from "./notification-template.seed";
 import { seedUsers } from "./users.seed";
-import { seedPatients } from "./patients.seed";
 const logger = createScopedLogger("db-seed");
 async function main() {
   try {
@@ -23,8 +22,6 @@ async function main() {
     logger.info("Notification template seeders completed");
     await seedUsers();
     logger.info("Users and staff profiles seeders completed");
-    await seedPatients();
-    logger.info("Patients seeders completed");
     logger.info("Database seeding completed successfully");
   } catch (error) {
     logger.error("Seeder error", { error });
