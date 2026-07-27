@@ -81,7 +81,17 @@ async function insertUser(
   userData: Record<string, unknown>,
   roleId: string,
 ): Promise<UserRow | null> {
-  const { roleCode: _roleCode, ...insertData } = userData;
+  const email = userData.email as string;
+
+  const existing = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+  if (existing) {
+    logger.info("User already exists, skipping", { email });
+    return null;
+  }
+
+  const { roleCode: _roleCode, doctorMeta: _doctorMeta, ...insertData } = userData;
 
   await db
     .insert(users)
@@ -89,7 +99,7 @@ async function insertUser(
     .onConflictDoNothing({ target: users.email });
 
   const user = await db.query.users.findFirst({
-    where: eq(users.email, userData.email as string),
+    where: eq(users.email, email),
   });
 
   return user ?? null;
@@ -113,17 +123,25 @@ async function seedStaffUser(
     return;
   }
 
+  const existingProfile = await db.query.staffProfiles.findFirst({
+    where: eq(staffProfiles.userId, user.id),
+  });
+  if (existingProfile) {
+    logger.info("Staff profile already exists", { email: user.email });
+    return;
+  }
+
   await db
     .insert(staffProfiles)
     .values({
       userId: user.id,
       departmentId: department.id,
-      employeeCode: mapping.employeeCode,
+      employeeCode: `${mapping.employeeCode}-${user.id.slice(0, 4)}`,
       designation: mapping.designation,
       joiningDate: new Date().toISOString().slice(0, 10),
       isActive: true,
     })
-    .onConflictDoNothing({ target: staffProfiles.userId });
+    .onConflictDoNothing();
 
   logger.info("Staff profile created", {
     email: user.email,
@@ -132,16 +150,36 @@ async function seedStaffUser(
   });
 }
 
-async function seedDoctorUser(user: UserRow): Promise<void> {
-  const department = await lookupDepartment("GEN");
-  if (!department) {
-    logger.warn("General Medicine department not found, skipping doctor profile");
+interface DoctorMeta {
+  departmentCode: string;
+  specialtyCode: string;
+  qualification: string;
+  experienceYears: number;
+  consultationFee: string;
+  bio: string;
+}
+
+async function seedDoctorUser(user: UserRow, meta?: DoctorMeta): Promise<void> {
+  const existingDoctor = await db.query.doctors.findFirst({
+    where: eq(doctors.userId, user.id),
+  });
+  if (existingDoctor) {
+    logger.info("Doctor profile already exists, skipping", { email: user.email });
     return;
   }
 
-  const specialty = await lookupSpecialty("general");
+  const deptCode = meta?.departmentCode ?? "GEN";
+  const specCode = meta?.specialtyCode ?? "general";
+
+  const department = await lookupDepartment(deptCode);
+  if (!department) {
+    logger.warn(`Department ${deptCode} not found, skipping doctor profile`);
+    return;
+  }
+
+  const specialty = await lookupSpecialty(specCode);
   if (!specialty) {
-    logger.warn("General Medicine specialty not found, skipping doctor profile");
+    logger.warn(`Specialty ${specCode} not found, skipping doctor profile`);
     return;
   }
 
@@ -151,14 +189,13 @@ async function seedDoctorUser(user: UserRow): Promise<void> {
       userId: user.id,
       departmentId: department.id,
       specialtyId: specialty.id,
-      qualification: "MBBS",
-      experienceYears: 5,
+      qualification: meta?.qualification ?? "MBBS",
+      experienceYears: meta?.experienceYears ?? 5,
       licenseNumber: `LIC-${user.id.slice(0, 6).toUpperCase()}`,
-      consultationFee: "500",
-      bio: "General Physician",
+      consultationFee: meta?.consultationFee ?? "500",
+      bio: meta?.bio ?? "General Physician",
       isAvailable: true,
     })
-    .onConflictDoNothing({ target: doctors.userId })
     .returning();
 
   const doctorId = doctor?.id;
@@ -234,7 +271,8 @@ export async function seedUsers(): Promise<void> {
     }
 
     if (roleCode === "doctor") {
-      await seedDoctorUser(user);
+      const meta = (userData as Record<string, unknown>).doctorMeta as DoctorMeta | undefined;
+      await seedDoctorUser(user, meta);
     } else {
       await seedStaffUser(user, roleCode);
     }
