@@ -5,7 +5,7 @@ import { PatientForm } from "@modules/patients/views/patients-list-view";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Register Patient | MediClinic Pro"
+  title: "Add Patient | MediClinic Pro"
 };
 
 export default async function CreatePatientPage() {

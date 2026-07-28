@@ -92,6 +92,11 @@ export function PatientsListView({
   const searchParams = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState(q ?? "");
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(navigator.platform?.includes("Mac") ?? false);
+  }, []);
 
   const activeFilter = status ?? "all";
   const filtered =
@@ -127,34 +132,38 @@ export function PatientsListView({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">
-            Patient Records
-          </Badge>
-          <h1 className="text-2xl font-semibold tracking-tight">Patient Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Search, register, and manage patient profiles.
-          </p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">
+              Patient Records
+            </Badge>
+            <h1 className="text-2xl font-bold tracking-tight">Patient Management</h1>
+            <p className="text-sm text-muted-foreground">
+              Search, register, and manage patient profiles.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/patients/create">
+              <Plus className="h-4 w-4" aria-hidden />
+              Add Patient
+            </Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/patients/create">
-            <Plus className="h-4 w-4" aria-hidden />
-            Add Patient
-          </Link>
-        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Total Patients", value: total, icon: Users, color: "text-primary bg-primary/10" },
-          { label: "Active", value: active, icon: UserRound, color: "text-emerald-600 bg-emerald-100" },
-          { label: "Inactive", value: total - active, icon: Calendar, color: "text-amber-600 bg-amber-100" },
+          { label: "Total Patients", value: total, icon: Users, color: "from-primary/10 to-primary/5 text-primary" },
+          { label: "Active", value: active, icon: UserRound, color: "from-emerald-500/10 to-emerald-500/5 text-emerald-600" },
+          { label: "Inactive", value: total - active, icon: CalendarDays, color: "from-amber-500/10 to-amber-500/5 text-amber-600" },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-sm">
-            <CardContent className="flex items-center gap-4 p-4">
-              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
+          <Card key={stat.label} className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-4 p-5">
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${stat.color}`}>
+                <stat.icon className="h-6 w-6 text-white" />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm text-muted-foreground">{stat.label}</p>
@@ -165,7 +174,7 @@ export function PatientsListView({
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border shadow-sm">
         <CardContent className="space-y-4 p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -176,10 +185,10 @@ export function PatientsListView({
                 setSearchValue(e.target.value);
                 updateQuery("q", e.target.value);
               }}
-              placeholder="Search by name, phone, or email...  "
-              className="h-12 border bg-muted/50 pl-12 pr-12 text-base focus-visible:bg-background"
+              placeholder="Search by name, phone, or email..."
+              className="h-12 border bg-muted/50 pl-12 pr-16 text-base focus-visible:bg-background"
             />
-            {searchValue && (
+            {searchValue ? (
               <button
                 type="button"
                 onClick={() => {
@@ -187,13 +196,13 @@ export function PatientsListView({
                   updateQuery("q", "");
                   searchRef.current?.focus();
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                className="absolute right-12 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
-            )}
+            ) : null}
             <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
-              {navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K
+              {isMac ? "⌘" : "Ctrl"}K
             </kbd>
           </div>
 
@@ -207,7 +216,7 @@ export function PatientsListView({
                 key={tab.key}
                 type="button"
                 onClick={() => updateQuery("status", tab.key === "all" ? "" : tab.key)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
                   activeFilter === tab.key
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -226,7 +235,7 @@ export function PatientsListView({
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
+      <Card className="overflow-hidden border shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -241,11 +250,11 @@ export function PatientsListView({
             </TableHeader>
             <TableBody>
               {filtered.map((patient) => (
-                <TableRow key={patient.id} className="group cursor-pointer">
+                <TableRow key={patient.id} className="group cursor-pointer transition-colors hover:bg-muted/20">
                   <TableCell className="px-5 py-4">
                     <Link href={`/patients/${patient.id}`} className="flex items-center gap-3">
                       <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white shadow-sm ${avatarGradient(patient.fullName)}`}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-110 ${avatarGradient(patient.fullName)}`}
                       >
                         {getInitials(patient.fullName)}
                       </span>
@@ -350,20 +359,32 @@ export function PatientForm({ patient }: { patient?: PatientRecord | null }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {patient ? "Edit Patient" : "Register Patient"}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage patient demographics, contact, and emergency details.
-        </p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative">
+          <h1 className="text-2xl font-bold tracking-tight">
+            {patient ? "Edit Patient" : "Add Patient"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage patient demographics, contact, and emergency details.
+          </p>
+        </div>
       </div>
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="border-b bg-muted/20">
-          <CardTitle>Patient Information</CardTitle>
-          <CardDescription>
-            Quick patient registration with essential fields.
-          </CardDescription>
+
+      <Card className="border shadow-sm">
+        <CardHeader className="border-b bg-muted/10">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle>Patient Information</CardTitle>
+              <CardDescription>
+                Quick patient registration with essential fields.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           <form action={action} className="grid gap-5 md:grid-cols-2">
@@ -430,7 +451,7 @@ export function PatientForm({ patient }: { patient?: PatientRecord | null }) {
             />
             <div className="flex items-end gap-2 md:col-span-2">
               <Button type="submit" size="lg">
-                {patient ? "Save Patient" : "Register Patient"}
+                {patient ? "Save Patient" : "Add Patient"}
               </Button>
               <Button asChild variant="outline" size="lg">
                 <Link href="/patients">Cancel</Link>
