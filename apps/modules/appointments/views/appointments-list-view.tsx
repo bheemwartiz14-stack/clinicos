@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, CircleSlash, Clock, Plus, Search, Timer, User } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, CircleSlash, Clock, ListTodo, Plus, Search, Timer, User, XCircle } from "lucide-react";
 import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { createAppointmentAction } from "../actions/appointment.actions";
 import type { AppointmentRecord, AvailableSlot, DoctorOption } from "../types/appointment.types";
@@ -13,16 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { cn } from "@mediclinic/ui";
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string; border: string }> = {
-  booked: { bg: "bg-background", text: "text-foreground", dot: "bg-slate-500", border: "border-border" },
-  confirmed: { bg: "bg-background", text: "text-foreground", dot: "bg-emerald-600", border: "border-border" },
-  checked_in: { bg: "bg-background", text: "text-foreground", dot: "bg-blue-600", border: "border-border" },
-  in_consultation: { bg: "bg-background", text: "text-foreground", dot: "bg-amber-600", border: "border-border" },
-  completed: { bg: "bg-background", text: "text-foreground", dot: "bg-green-700", border: "border-border" },
-  cancelled: { bg: "bg-background", text: "text-foreground", dot: "bg-red-600", border: "border-border" },
-  rescheduled: { bg: "bg-background", text: "text-foreground", dot: "bg-orange-600", border: "border-border" },
-  no_show: { bg: "bg-background", text: "text-muted-foreground", dot: "bg-muted-foreground", border: "border-border" },
-  pending: { bg: "bg-background", text: "text-foreground", dot: "bg-yellow-600", border: "border-border" },
+const STATUS_CONFIG = {
+  booked: { label: "Booked", dot: "bg-slate-500", badge: "border-slate-200 bg-slate-50 text-slate-700" },
+  confirmed: { label: "Confirmed", dot: "bg-emerald-500", badge: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  checked_in: { label: "Checked in", dot: "bg-blue-500", badge: "border-blue-200 bg-blue-50 text-blue-700" },
+  in_consultation: { label: "In consultation", dot: "bg-amber-500", badge: "border-amber-200 bg-amber-50 text-amber-700" },
+  completed: { label: "Completed", dot: "bg-green-600", badge: "border-green-200 bg-green-50 text-green-700" },
+  cancelled: { label: "Cancelled", dot: "bg-red-500", badge: "border-red-200 bg-red-50 text-red-700" },
+  rescheduled: { label: "Rescheduled", dot: "bg-orange-500", badge: "border-orange-200 bg-orange-50 text-orange-700" },
+  no_show: { label: "No show", dot: "bg-gray-400", badge: "border-gray-200 bg-gray-50 text-gray-600" },
+  pending: { label: "Pending", dot: "bg-yellow-500", badge: "border-yellow-200 bg-yellow-50 text-yellow-700" },
 };
 
 const STATUS_GROUPS = [
@@ -77,6 +77,11 @@ function isTimeInPast(date: string, time: string): boolean {
 
 function getCurrentTime() {
   return new Date().toTimeString().slice(0, 5);
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
+  return <Badge className={`shrink-0 ${cfg.badge}`}>{cfg.label}</Badge>;
 }
 
 export function AppointmentsCalendarView({
@@ -159,68 +164,67 @@ export function AppointmentsCalendarView({
     year: "numeric",
   });
 
+  const totalSlots = slots.length;
+  const bookedSlots = slots.filter((s) => s.isBooked).length;
+
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-normal">Appointments</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage today&apos;s schedule and bookings</p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-5 sm:p-6">
+        <div className="absolute right-0 top-0 h-24 w-24 translate-x-6 -translate-y-6 rounded-full bg-primary/5" />
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Appointments</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Manage today&apos;s schedule and bookings</p>
+          </div>
+          <Button asChild>
+            <a href="#new-booking"><Plus className="h-4 w-4" />New Booking</a>
+          </Button>
         </div>
-        <Button asChild>
-          <a href="#new-booking">
-            <Plus className="h-4 w-4" />
-            New Booking
-          </a>
-        </Button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-5 py-3">
+        <div className="flex items-center gap-3">
+          <CalendarDays className="h-5 w-5 text-primary" />
+          <span className="text-sm font-semibold">{displayDate}</span>
+          {isToday && <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px]">Today</Badge>}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="icon" onClick={prevDay} className="h-8 w-8" aria-label="Previous day">
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </Button>
+          {!isToday && <Button variant="outline" size="sm" onClick={goToday} className="h-8 text-xs">Today</Button>}
+          <Button variant="outline" size="icon" onClick={nextDay} className="h-8 w-8" aria-label="Next day">
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col gap-5 xl:flex-row">
         <div className="min-w-0 flex-1">
-          <Card className="overflow-hidden rounded-lg border shadow-none">
-            <div className="border-b px-5 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="mt-1 text-xs text-muted-foreground">{displayDate}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Button variant="outline" size="icon" onClick={prevDay} className="h-8 w-8" aria-label="Previous day">
-                      <ChevronLeft className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button variant={isToday ? "default" : "outline"} size="sm" onClick={goToday} className="h-8 text-xs">Today</Button>
-                    <Button variant="outline" size="icon" onClick={nextDay} className="h-8 w-8" aria-label="Next day">
-                      <ChevronRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
+          <Card className="overflow-hidden rounded-xl border shadow-sm">
             <div className="overflow-x-auto">
               <div className="min-w-[700px]">
                 <div className="grid" style={{ gridTemplateColumns: `64px repeat(${filteredDoctors.length}, 1fr)` }}>
-                  <div className="sticky left-0 z-10 border-b bg-muted/40 p-2 text-[10px] font-semibold uppercase text-muted-foreground">
+                  <div className="sticky left-0 z-10 border-b bg-muted/30 p-2 text-[10px] font-semibold uppercase text-muted-foreground">
                     Time
                   </div>
                   {filteredDoctors.map((doctor) => (
-                    <div key={doctor.id} className="border-b border-l bg-muted/30 p-3 text-center">
+                    <div key={doctor.id} className="border-b border-l bg-muted/20 p-3 text-center">
                       <Link href={`/doctors/${doctor.id}`} className="group inline-block">
-                        <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-md border bg-background text-[11px] font-bold text-foreground transition group-hover:border-primary">
+                        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-primary text-sm font-bold text-white shadow-sm transition group-hover:shadow-md group-hover:scale-105">
                           {getInitials(doctor.name)}
                         </div>
                         <div className="mt-1.5 text-xs font-semibold leading-tight">{doctor.name}</div>
-                        <div className="text-[10px] text-muted-foreground">({doctor.specialty ?? "General"})</div>
+                        <div className="text-[10px] text-muted-foreground">{doctor.specialty ?? "General"}</div>
                       </Link>
                     </div>
                   ))}
                   {hours.map((hour) => (
                     <Fragment key={hour}>
-                      <div
-                        className={cn(
-                          "border-b border-r px-2 py-3 text-[11px] text-muted-foreground",
-                          parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/10" : ""
-                        )}
-                      >
+                      <div className={cn(
+                        "border-b border-r px-2 py-3 text-[11px] text-muted-foreground",
+                        parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/10" : ""
+                      )}>
                         <span className="font-medium">{formatTime(hour)}</span>
                       </div>
                       {filteredDoctors.map((doctor) => {
@@ -229,49 +233,34 @@ export function AppointmentsCalendarView({
                         const availableCount = hourSlots.filter((s) => !s.isBooked).length;
                         const totalCount = hourSlots.length;
                         return (
-                          <div
-                            key={`${doctor.id}-${hour}`}
-                            className={cn(
-                              "relative min-h-[66px] border-b border-l p-1.5 transition-colors",
-                              parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : "",
-                              totalCount > 0 && availableCount === 0 && "bg-red-50/30",
-                              availableCount > 0 && "bg-green-50/10"
-                            )}
-                          >
+                          <div key={`${doctor.id}-${hour}`} className={cn(
+                            "relative min-h-[72px] border-b border-l p-1 transition-colors",
+                            parseInt(hour) >= 12 && parseInt(hour) < 14 ? "bg-muted/5" : "",
+                            totalCount > 0 && availableCount === 0 && "bg-red-50/20",
+                            availableCount > 0 && "bg-green-50/5"
+                          )}>
                             {hourApps.length === 0 && totalCount === 0 && (
                               <div className="flex h-full items-center justify-center">
-                                <span className="text-[8px] text-muted-foreground/25">-</span>
+                                <span className="text-[8px] text-muted-foreground/20">–</span>
                               </div>
                             )}
                             {totalCount > 0 && hourApps.length === 0 && (
                               <div className="mb-1 flex items-center gap-1 rounded px-1.5 py-0.5">
-                                <span className={cn(
-                                  "text-[9px] font-medium",
-                                  availableCount > 0 ? "text-green-600" : "text-red-400"
-                                )}>
-                                  {availableCount > 0
-                                    ? `${availableCount} slot${availableCount > 1 ? "s" : ""}`
-                                    : "Fully booked"}
+                                <span className={cn("text-[9px] font-medium", availableCount > 0 ? "text-green-600" : "text-red-400")}>
+                                  {availableCount > 0 ? `${availableCount} open` : "Full"}
                                 </span>
                               </div>
                             )}
                             {hourApps.map((app) => {
-                              const style = STATUS_STYLES[app.status] || STATUS_STYLES.pending;
+                              const cfg = STATUS_CONFIG[app.status as keyof typeof STATUS_CONFIG] ?? STATUS_CONFIG.pending;
                               return (
-                                <Link
-                                  key={app.id}
-                                  href={`/appointments/${app.id}`}
-                                  className={cn(
-                                    "group relative z-10 mb-1 block rounded border px-2 py-1.5 text-[11px] transition-colors hover:bg-muted/40",
-                                    style.bg, style.border
-                                  )}
-                                >
+                                <Link key={app.id} href={`/appointments/${app.id}`} className="group relative z-10 mb-1 block rounded-lg border bg-background px-2 py-1.5 text-[11px] shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 hover:border-primary/30">
                                   <div className="flex items-center gap-1.5">
-                                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
                                     <span className="flex-1 truncate font-semibold leading-none">{app.patientName}</span>
                                   </div>
                                   <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
-                                    <Clock className="h-2.5 w-2.5" />
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
                                     <span>{formatTime(app.startTime)}</span>
                                   </div>
                                 </Link>
@@ -286,31 +275,35 @@ export function AppointmentsCalendarView({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 border-t px-5 py-3">
-              {STATUS_GROUPS.map((sg) => {
-                const st = STATUS_STYLES[sg.value];
-                const count = statusCounts[sg.value] || 0;
-                return (
-                  <Badge key={sg.value} variant="outline" className={cn("flex items-center gap-1 text-[10px] py-0.5", st.bg, st.text)}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
-                    {sg.label}
-                    <span className="ml-0.5 font-bold">{count}</span>
-                  </Badge>
-                );
-              })}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3">
+              <div className="flex flex-wrap gap-2">
+                {STATUS_GROUPS.map((sg) => {
+                  const cfg = STATUS_CONFIG[sg.value as keyof typeof STATUS_CONFIG];
+                  const count = statusCounts[sg.value] || 0;
+                  return (
+                    <Badge key={sg.value} variant="outline" className={cn("flex items-center gap-1.5 text-[10px] py-0.5", cfg?.badge ?? "")}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${cfg?.dot ?? ""}`} />
+                      {sg.label}
+                      <span className="ml-0.5 font-bold">{count}</span>
+                    </Badge>
+                  );
+                })}
+              </div>
+              <span className="text-[10px] text-muted-foreground">{bookedSlots}/{totalSlots} slots booked</span>
             </div>
           </Card>
         </div>
 
         <div id="new-booking" className="w-full shrink-0 xl:w-[380px]">
-          <div className="rounded-lg border bg-card xl:sticky xl:top-20">
-            <div className="border-b px-5 py-4">
+          <div className="rounded-xl border bg-card shadow-sm xl:sticky xl:top-20">
+            <div className="border-b bg-gradient-to-r from-primary/5 to-transparent px-5 py-4">
               <div className="flex items-center gap-3">
-                <span className="grid h-9 w-9 place-items-center rounded-md border bg-background text-foreground">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary/10 text-primary">
                   <Plus className="h-4 w-4" />
                 </span>
                 <div>
-                  <h2 className="text-sm font-bold">B. New Booking Form (Staff)</h2>
+                  <h2 className="text-sm font-bold">New Booking</h2>
+                  <p className="text-xs text-muted-foreground">Schedule a patient appointment</p>
                 </div>
               </div>
             </div>

@@ -5,12 +5,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Calendar,
+  CalendarDays,
+  Clock,
   Edit,
   Eye,
   FileText,
+  Mail,
+  MapPin,
+  Phone,
   Plus,
   Receipt,
   Search,
+  Shield,
   SlidersHorizontal,
   Stethoscope,
   UserRound,
@@ -437,192 +443,212 @@ export function PatientForm({ patient }: { patient?: PatientRecord | null }) {
   );
 }
 
+function StatCard({ icon: Icon, label, value, color }: { icon: React.ComponentType<{ className?: string }>; label: string; value: number; color: string }) {
+  return (
+    <Card className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+      <CardContent className="flex items-center gap-4 p-5">
+        <span className={`grid h-11 w-11 place-items-center rounded-xl ${color}`}>
+          <Icon className="h-5 w-5 text-white" />
+        </span>
+        <div>
+          <p className="text-2xl font-bold tabular-nums">{value}</p>
+          <p className="text-xs text-muted-foreground">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+const STATUS_BADGE: Record<string, string> = {
+  completed: "border-green-200 bg-green-50 text-green-700",
+  confirmed: "border-blue-200 bg-blue-50 text-blue-700",
+  checked_in: "border-cyan-200 bg-cyan-50 text-cyan-700",
+  cancelled: "border-red-200 bg-red-50 text-red-700",
+  no_show: "border-gray-200 bg-gray-50 text-gray-600",
+  pending: "border-yellow-200 bg-yellow-50 text-yellow-700",
+  booked: "border-violet-200 bg-violet-50 text-violet-700",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = STATUS_BADGE[status] ?? "border-gray-200 bg-gray-50 text-gray-600";
+  return <Badge className={`shrink-0 ${cls}`}>{status.replace(/_/g, " ")}</Badge>;
+}
+
+function InfoRow({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string | React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-5 py-3 text-sm transition-colors hover:bg-muted/20">
+      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+      <span className="text-muted-foreground min-w-[90px]">{label}</span>
+      <span className="font-medium ml-auto text-right">{value}</span>
+    </div>
+  );
+}
+
 export function PatientDetailView({
   patient,
   medicalHistory,
   appointmentHistory,
   billingHistory,
   notes,
+  documents = [],
 }: {
   patient: PatientRecord;
   medicalHistory: PatientMedicalHistoryRecord[];
   appointmentHistory: AppointmentRecord[];
   billingHistory: InvoiceRecord[];
   notes: PatientNoteRecord[];
+  documents?: Array<{ id: string; title: string; fileUrl: string; fileType: string | null; fileSize: number | null; categoryName: string | null; createdAt: Date }>;
 }) {
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "medical", label: `Medical (${medicalHistory.length})` },
+    { id: "appointments", label: `Appointments (${appointmentHistory.length})` },
+    { id: "billing", label: `Billing (${billingHistory.length})` },
+    { id: "documents", label: `Documents (${documents.length})` },
+    { id: "notes", label: `Notes (${notes.length})` },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-gradient-to-r from-primary/5 via-transparent to-transparent p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <span
-              className={`flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br text-lg font-bold text-white shadow-lg ${avatarGradient(patient.fullName)}`}
-            >
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-5">
+            <span className={`flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-bold text-white shadow-lg ring-4 ring-background ${avatarGradient(patient.fullName)}`}>
               {getInitials(patient.fullName)}
             </span>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  {patient.fullName}
-                </h1>
-                <Badge
-                  className={
-                    patient.isActive
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-gray-200 bg-gray-50 text-gray-500"
-                  }
-                >
-                  <span
-                    className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${
-                      patient.isActive ? "bg-emerald-500" : "bg-gray-400"
-                    }`}
-                  />
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight">{patient.fullName}</h1>
+                <Badge className={
+                  patient.isActive
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-gray-200 bg-gray-50 text-gray-500"
+                }>
+                  <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${patient.isActive ? "bg-emerald-500" : "bg-gray-400"}`} />
                   {patient.isActive ? "Active" : "Inactive"}
                 </Badge>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {patient.phone} · {patient.email ?? "No email"}
-              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1"><Phone className="h-3.5 w-3.5" />{patient.phone}</span>
+                {patient.email && <span className="flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{patient.email}</span>}
+                {patient.bloodGroup && <Badge variant="outline" className="font-mono text-[11px]">{patient.bloodGroup}</Badge>}
+              </div>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button asChild variant="outline">
-              <Link href={`/patients/${patient.id}/edit`}>Edit Patient</Link>
+            <Button asChild variant="default" size="sm">
+              <Link href={`/patients/${patient.id}/edit`}><Edit className="h-3.5 w-3.5 mr-1" />Edit</Link>
             </Button>
-            <Button asChild variant="ghost">
-              <Link href="/patients">Back to Patients</Link>
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/patients">Back</Link>
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        {[
-          { label: "Appointments", value: appointmentHistory.length, color: "text-primary" },
-          { label: "Invoices", value: billingHistory.length, color: "text-emerald-600" },
-          { label: "Conditions", value: medicalHistory.length, color: "text-violet-600" },
-          { label: "Notes", value: notes.length, color: "text-amber-600" },
-        ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-sm">
-            <CardContent className="p-4 text-center">
-              <p className={`text-2xl font-bold tabular-nums ${stat.color}`}>{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.label}</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatCard icon={CalendarDays} label="Appointments" value={appointmentHistory.length} color="bg-primary" />
+        <StatCard icon={Receipt} label="Invoices" value={billingHistory.length} color="bg-emerald-500" />
+        <StatCard icon={Shield} label="Conditions" value={medicalHistory.length} color="bg-violet-500" />
+        <StatCard icon={FileText} label="Notes" value={notes.length} color="bg-amber-500" />
+      </div>
+
+      <div className="border-b">
+        <div className="flex gap-0 -mb-px">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "overview" && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="border shadow-sm">
+            <CardHeader className="border-b bg-muted/10 pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <UserRound className="h-4 w-4 text-primary" />
+                Demographics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y p-0">
+              <InfoRow icon={UserRound} label="Gender" value={patient.gender ?? "—"} />
+              <InfoRow icon={Calendar} label="DOB" value={patient.dateOfBirth ?? "—"} />
+              <InfoRow icon={Shield} label="Blood" value={patient.bloodGroup ? <Badge variant="outline" className="font-mono">{patient.bloodGroup}</Badge> : "—"} />
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="text-sm font-semibold">Demographics</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y p-0">
-            {[
-              { label: "Gender", value: patient.gender ?? "—" },
-              { label: "Date of birth", value: patient.dateOfBirth ?? "—" },
-              {
-                label: "Blood group",
-                value: patient.bloodGroup ? (
-                  <Badge variant="outline" className="font-mono">
-                    {patient.bloodGroup}
-                  </Badge>
-                ) : (
-                  "—"
-                ),
-              },
-            ].map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between px-5 py-3 text-sm"
-              >
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="font-medium">{row.value}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+          <Card className="border shadow-sm">
+            <CardHeader className="border-b bg-muted/10 pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Phone className="h-4 w-4 text-primary" />
+                Contact
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y p-0">
+              <InfoRow icon={Phone} label="Phone" value={patient.phone} />
+              <InfoRow icon={Mail} label="Email" value={patient.email ?? "—"} />
+              <InfoRow icon={MapPin} label="Address" value={patient.address ?? "—"} />
+            </CardContent>
+          </Card>
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="text-sm font-semibold">Contact</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y p-0">
-            {[
-              { label: "Phone", value: patient.phone },
-              { label: "Email", value: patient.email ?? "—" },
-              { label: "Address", value: patient.address ?? "—" },
-            ].map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between px-5 py-3 text-sm"
-              >
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="max-w-[200px] truncate text-right font-medium">
-                  {row.value}
-                </span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+          <Card className="border shadow-sm">
+            <CardHeader className="border-b bg-muted/10 pb-3">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Phone className="h-4 w-4 text-primary" />
+                Emergency Contact
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y p-0">
+              <InfoRow icon={UserRound} label="Name" value={patient.emergencyContactName ?? "—"} />
+              <InfoRow icon={Phone} label="Phone" value={patient.emergencyContactPhone ?? "—"} />
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
-            <CardTitle className="text-sm font-semibold">Emergency Contact</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y p-0">
-            {[
-              { label: "Name", value: patient.emergencyContactName ?? "—" },
-              { label: "Phone", value: patient.emergencyContactPhone ?? "—" },
-            ].map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between px-5 py-3 text-sm"
-              >
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="font-medium">{row.value}</span>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
+      {activeTab === "medical" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <Stethoscope className="h-4 w-4 text-primary" />
+              <Shield className="h-4 w-4 text-violet-500" />
               Medical History
             </CardTitle>
             <CardDescription>Recorded conditions and diagnoses.</CardDescription>
           </CardHeader>
           <CardContent className="p-5">
             {medicalHistory.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <Stethoscope className="mb-2 h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  No medical history recorded.
-                </p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <Shield className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No medical history recorded.</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {medicalHistory.map((item) => (
-                  <div
-                    key={item.id}
-                    className="relative rounded-lg border-l-4 border-l-violet-500 bg-muted/20 p-4 pl-4"
-                  >
-                    <div className="flex items-start justify-between gap-2">
+                  <div key={item.id} className="relative rounded-xl border-l-4 border-l-violet-500 bg-muted/15 p-4 transition-colors hover:bg-muted/25">
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-semibold">{item.condition}</p>
-                        {item.description ? (
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {item.description}
-                          </p>
-                        ) : null}
+                        {item.description && <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>}
                       </div>
-                      <span className="shrink-0 text-xs text-muted-foreground">
-                        {item.diagnosedAt ?? ""}
-                      </span>
+                      {item.diagnosedAt && (
+                        <span className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />{item.diagnosedAt}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -630,164 +656,177 @@ export function PatientDetailView({
             )}
           </CardContent>
         </Card>
+      )}
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
+      {activeTab === "appointments" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <Calendar className="h-4 w-4 text-emerald-600" />
+              <CalendarDays className="h-4 w-4 text-emerald-500" />
               Appointment History
             </CardTitle>
             <CardDescription>Past and upcoming appointments.</CardDescription>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-0">
             {appointmentHistory.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <Calendar className="mb-2 h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  No appointments recorded.
-                </p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <CalendarDays className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No appointments recorded.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {appointmentHistory.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">
-                          {item.appointmentDate}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {item.startTime}
-                        </span>
+              <div className="divide-y">
+                {appointmentHistory.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/10">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/20">
+                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
                       </div>
-                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        {item.type.replace("_", " ")} · {item.reason ?? "General"}
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold">{item.appointmentDate}</span>
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />{item.startTime}
+                          </span>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground mt-0.5">
+                          {item.type.replace(/_/g, " ")}{item.reason ? ` · ${item.reason}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    <Badge
-                      className={
-                        item.status === "completed"
-                          ? "shrink-0 border-green-200 bg-green-50 text-green-700"
-                          : item.status === "confirmed"
-                            ? "shrink-0 border-blue-200 bg-blue-50 text-blue-700"
-                            : item.status === "cancelled"
-                              ? "shrink-0 border-red-200 bg-red-50 text-red-700"
-                              : "shrink-0 border-gray-200 bg-gray-50 text-gray-600"
-                      }
-                    >
-                      {item.status}
-                    </Badge>
+                    <StatusBadge status={item.status} />
                   </div>
                 ))}
-                {appointmentHistory.length > 5 && (
-                  <p className="text-center text-xs text-muted-foreground">
-                    + {appointmentHistory.length - 5} more
-                  </p>
-                )}
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
+      {activeTab === "billing" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <Receipt className="h-4 w-4 text-amber-600" />
+              <Receipt className="h-4 w-4 text-amber-500" />
               Billing History
             </CardTitle>
             <CardDescription>Invoices and payment status.</CardDescription>
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-0">
             {billingHistory.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <Receipt className="mb-2 h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  No billing records found.
-                </p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <Receipt className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No billing records found.</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {billingHistory.slice(0, 5).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold">{item.invoiceNumber}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleDateString()}
-                      </p>
+              <div className="divide-y">
+                {billingHistory.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/10">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/20">
+                        <Receipt className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{item.invoiceNumber}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{new Date(item.createdAt).toLocaleDateString()}</p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="font-bold tabular-nums">
-                        ${item.totalAmount}
-                      </span>
-                      <Badge
-                        className={
-                          item.paymentStatus === "paid"
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : item.paymentStatus === "pending"
-                              ? "border-yellow-200 bg-yellow-50 text-yellow-700"
-                              : "border-red-200 bg-red-50 text-red-700"
-                        }
-                      >
-                        {item.paymentStatus}
-                      </Badge>
+                      <span className="font-bold tabular-nums text-sm">${item.totalAmount}</span>
+                      <StatusBadge status={item.paymentStatus} />
                     </div>
                   </div>
                 ))}
-                {billingHistory.length > 5 && (
-                  <p className="text-center text-xs text-muted-foreground">
-                    + {billingHistory.length - 5} more
-                  </p>
-                )}
               </div>
             )}
           </CardContent>
         </Card>
+      )}
 
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="border-b bg-muted/20">
+      {activeTab === "documents" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-              <FileText className="h-4 w-4 text-violet-600" />
+              <FileText className="h-4 w-4 text-blue-500" />
+              Patient Documents
+            </CardTitle>
+            <CardDescription>Uploaded reports, images, and records.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {documents.length === 0 ? (
+              <div className="flex flex-col items-center py-12 text-center">
+                <FileText className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No documents uploaded.</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {documents.map((doc) => {
+                  const isImage = doc.fileType?.startsWith("image/");
+                  const icon = isImage ? "🖼" : "📄";
+                  const ext = doc.fileUrl.split(".").pop()?.toUpperCase() ?? "FILE";
+                  const size = doc.fileSize ? (doc.fileSize / 1024 / 1024).toFixed(1) + " MB" : "";
+                  return (
+                    <div key={doc.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/10">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-muted/20 text-lg">
+                          {icon}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{doc.title}</p>
+                          <p className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <span className="font-mono uppercase text-[10px]">{ext}</span>
+                            {size && <span>{size}</span>}
+                            {doc.categoryName && <span>· {doc.categoryName}</span>}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">
+                          {new Date(doc.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">View</a>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "notes" && (
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <FileText className="h-4 w-4 text-violet-500" />
               Patient Notes
             </CardTitle>
             <CardDescription>Clinical notes and observations.</CardDescription>
           </CardHeader>
           <CardContent className="p-5">
             {notes.length === 0 ? (
-              <div className="flex flex-col items-center py-8 text-center">
-                <FileText className="mb-2 h-8 w-8 text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  No notes recorded.
-                </p>
+              <div className="flex flex-col items-center py-12 text-center">
+                <FileText className="mb-3 h-10 w-10 text-muted-foreground/20" />
+                <p className="text-sm text-muted-foreground">No notes recorded.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {notes.slice(0, 5).map((item) => (
-                  <div key={item.id} className="rounded-lg border p-3">
-                    <p className="text-sm">{item.note}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {new Date(item.createdAt).toLocaleDateString()}{" "}
-                      {new Date(item.createdAt).toLocaleTimeString()}
+                {notes.map((item) => (
+                  <div key={item.id} className="rounded-xl border bg-muted/10 p-4 transition-colors hover:bg-muted/20">
+                    <p className="text-sm leading-relaxed">{item.note}</p>
+                    <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" />
+                      {new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
                     </p>
                   </div>
                 ))}
-                {notes.length > 5 && (
-                  <p className="text-center text-xs text-muted-foreground">
-                    + {notes.length - 5} more
-                  </p>
-                )}
               </div>
             )}
           </CardContent>
         </Card>
-      </div>
+      )}
     </div>
   );
 }

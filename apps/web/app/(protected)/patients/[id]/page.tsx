@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { requirePagePermission } from "@/lib/auth";
 import { patientService } from "@modules/patients/services/patient.service";
+import { documentService } from "@modules/documents/services/document.service";
 import { PatientDetailView } from "@modules/patients/views/patients-list-view";
 
 export const dynamic = "force-dynamic";
@@ -13,12 +14,13 @@ export const metadata: Metadata = {
 export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePagePermission("patients.view");
   const { id } = await params;
-  const [patient, medicalHistory, appointmentHistory, billingHistory, notes] = await Promise.all([
+  const [patient, medicalHistory, appointmentHistory, billingHistory, notes, documents] = await Promise.all([
     patientService.get(id),
     patientService.medicalHistory(id),
     patientService.appointmentHistory(id),
     patientService.billingHistory(id),
-    patientService.notes(id)
+    patientService.notes(id),
+    documentService.getPatientDocuments(id),
   ]);
   if (!patient) notFound();
   return (
@@ -28,6 +30,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
       appointmentHistory={appointmentHistory}
       billingHistory={billingHistory}
       notes={notes}
+      documents={documents}
     />
   );
 }

@@ -114,13 +114,6 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: "Documents",
-    href: "/patient-documents",
-    icon: FileText,
-    permission: "documents.view",
-    section: "Workspace",
-  },
-  {
     label: "Reports",
     href: "/reports",
     icon: Activity,
