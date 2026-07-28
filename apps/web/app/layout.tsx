@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
+import { Figtree } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup";
 import { ToastListener } from "@/components/toast-listener";
 import "./globals.css";
+
+const figtree = Figtree({
+  subsets: ["latin"],
+  variable: "--font-figtree",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -26,7 +32,7 @@ export default function RootLayout({
   return (
       <html
       lang="en"
-      className="font-sans"
+      className={`${figtree.variable} font-sans`}
     >
       <body suppressHydrationWarning>
         <QueryProvider>

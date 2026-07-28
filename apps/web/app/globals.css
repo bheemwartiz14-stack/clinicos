@@ -8,24 +8,26 @@
 @layer base {
   :root {
     color-scheme: light;
-    --background: 0 0% 100%;
-    --foreground: 0 0% 0%;
+
+    /* Wholesaler design tokens */
+    --background: 210 40% 98%;
+    --foreground: 257 47% 37%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 257 46% 55%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover-foreground: 257 47% 37%;
     --primary: 211 100% 40%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 97%;
-    --secondary-foreground: 0 0% 0%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 0 0% 96%;
-    --accent-foreground: 0 0% 0%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 160 21% 97%;
+    --secondary-foreground: 257 47% 37%;
+    --muted: 160 21% 97%;
+    --muted-foreground: 257 40% 70%;
+    --accent: 160 21% 97%;
+    --accent-foreground: 257 47% 37%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 90%;
-    --input: 0 0% 90%;
+    --border: 210 40% 93%;
+    --input: 210 40% 93%;
     --ring: 211 100% 40%;
     --chart-1: 211 80% 48%;
     --chart-2: 158 64% 46%;
@@ -33,18 +35,19 @@
     --chart-4: 280 65% 56%;
     --chart-5: 16 86% 55%;
     --sidebar: 0 0% 100%;
-    --sidebar-foreground: 0 0% 0%;
+    --sidebar-foreground: 257 47% 37%;
     --sidebar-primary: 211 100% 40%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 0 0% 96%;
-    --sidebar-accent-foreground: 0 0% 0%;
-    --sidebar-border: 0 0% 90%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 160 21% 97%;
+    --sidebar-accent-foreground: 257 47% 37%;
+    --sidebar-border: 210 40% 93%;
     --sidebar-ring: 211 100% 40%;
-    --radius: 0.625rem;
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 4px);
+    --radius: 1rem;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1rem;
+    --font-figtree: "Figtree", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   }
 
   * {
@@ -52,7 +55,10 @@
   }
 
   html {
-    @apply bg-background font-sans antialiased;
+    @apply bg-background font-sans text-sm antialiased;
+    font-family: var(--font-figtree, Figtree, ui-sans-serif, system-ui, sans-serif);
+    font-size: 14px;
+    line-height: 20px;
   }
 
   body {
