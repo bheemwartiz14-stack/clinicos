@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { requirePagePermission } from "@/lib/auth";
 import { dashboardService } from "@modules/dashboard/services/dashboard.service";
+import { appointmentService } from "@modules/appointments/services/appointment.service";
+import { AppointmentsCalendarView } from "@modules/appointments/views/appointments-list-view";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +96,15 @@ async function AdminDashboard() {
   const data = await dashboardService.adminOverview();
   const availabilityRate = data.metrics.doctors ? Math.round((data.metrics.availableDoctors / data.metrics.doctors) * 100) : 0;
 
+  const currentDate = new Date().toISOString().slice(0, 10);
+  const doctors = await appointmentService.getDoctors();
+  const [appointments, slots] = await Promise.all([
+    appointmentService.list({ date: currentDate }),
+    Promise.all(doctors.map((d) => appointmentService.getAllSlots(d.id, currentDate))).then(
+      (results) => results.flat(),
+    ),
+  ]);
+
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -102,6 +113,13 @@ async function AdminDashboard() {
         <MetricCard title="Today's Appointments" value={data.metrics.todayAppointments} detail="Scheduled for today" icon={CalendarCheck2} trend="Live day" />
         <MetricCard title="Total Patients" value={data.metrics.patients} detail="Registered patients" icon={Activity} trend="Patient panel" />
       </div>
+
+      <AppointmentsCalendarView
+        appointments={appointments}
+        doctors={doctors}
+        currentDate={currentDate}
+        slots={slots}
+      />
     </>
   );
 }
