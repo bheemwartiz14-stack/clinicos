@@ -63,6 +63,11 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
   const searchParams = useSearchParams();
   const searchRef = useRef<HTMLInputElement>(null);
   const [searchValue, setSearchValue] = useState("");
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => {
+    setIsMac(navigator.platform?.includes("Mac") ?? false);
+  }, []);
 
   const activeFilter = searchParams.get("status") ?? "all";
   const query = searchParams.get("q")?.toLowerCase() ?? "";
@@ -99,24 +104,26 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">
-            Medical Staff
-          </Badge>
-          <h1 className="text-2xl font-semibold tracking-tight">Doctor Management</h1>
-          <p className="text-sm text-muted-foreground">Profiles, specialties, fees, schedules, and availability.</p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">Medical Staff</Badge>
+            <h1 className="text-2xl font-bold tracking-tight">Doctor Management</h1>
+            <p className="text-sm text-muted-foreground">Profiles, specialties, fees, schedules, and availability.</p>
+          </div>
+          <Button asChild>
+            <Link href="/doctors/add">
+              <Plus className="h-4 w-4" aria-hidden />
+              Add Doctor
+            </Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/doctors/add">
-            <Plus className="h-4 w-4" aria-hidden />
-            Add Doctor
-          </Link>
-        </Button>
       </div>
 
       {generatedPassword ? (
-        <Card className="border-0 shadow-sm border-primary/30 bg-primary/5">
+        <Card className="border border-primary/30 bg-gradient-to-br from-primary/5 to-transparent shadow-sm">
           <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">Doctor created. Temporary password generated.</p>
@@ -129,14 +136,14 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Total Doctors", value: total, icon: Users, color: "text-primary bg-primary/10" },
-          { label: "Active", value: active, icon: UserRound, color: "text-emerald-600 bg-emerald-100" },
-          { label: "Inactive", value: total - active, icon: Stethoscope, color: "text-amber-600 bg-amber-100" },
+          { label: "Total Doctors", value: total, icon: Users, color: "from-primary/10 to-primary/5 text-primary" },
+          { label: "Active", value: active, icon: UserRound, color: "from-emerald-500/10 to-emerald-500/5 text-emerald-600" },
+          { label: "Inactive", value: total - active, icon: Stethoscope, color: "from-amber-500/10 to-amber-500/5 text-amber-600" },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-sm">
-            <CardContent className="flex items-center gap-4 p-4">
-              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
+          <Card key={stat.label} className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-4 p-5">
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${stat.color}`}>
+                <stat.icon className="h-6 w-6 text-white" />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm text-muted-foreground">{stat.label}</p>
@@ -147,7 +154,7 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border shadow-sm">
         <CardContent className="space-y-4 p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -159,23 +166,19 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
                 updateQuery("q", e.target.value);
               }}
               placeholder="Search by name, email, phone, or specialty..."
-              className="h-12 border bg-muted/50 pl-12 pr-12 text-base focus-visible:bg-background"
+              className="h-12 border bg-muted/50 pl-12 pr-16 text-base focus-visible:bg-background"
             />
             {searchValue && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchValue("");
-                  updateQuery("q", "");
-                  searchRef.current?.focus();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
+                onClick={() => { setSearchValue(""); updateQuery("q", ""); searchRef.current?.focus(); }}
+                className="absolute right-12 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:text-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
             )}
             <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:inline">
-              {navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}K
+              {isMac ? "⌘" : "Ctrl"}K
             </kbd>
           </div>
 
@@ -185,30 +188,24 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
               { key: "active", label: "Active" },
               { key: "inactive", label: "Inactive" },
             ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
+              <button key={tab.key} type="button"
                 onClick={() => updateQuery("status", tab.key === "all" ? "" : tab.key)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${
                   activeFilter === tab.key
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
                 {tab.label}
-                {tab.key === "active" && (
-                  <span className="tabular-nums">({active})</span>
-                )}
-                {tab.key === "inactive" && (
-                  <span className="tabular-nums">({total - active})</span>
-                )}
+                {tab.key === "active" && <span className="tabular-nums">({active})</span>}
+                {tab.key === "inactive" && <span className="tabular-nums">({total - active})</span>}
               </button>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
+      <Card className="overflow-hidden border shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -223,21 +220,15 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
             </TableHeader>
             <TableBody>
               {filtered.map((doctor) => (
-                <TableRow key={doctor.id} className="group cursor-pointer">
+                <TableRow key={doctor.id} className="cursor-pointer transition-colors hover:bg-muted/10">
                   <TableCell className="px-5 py-4">
                     <Link href={`/doctors/${doctor.id}`} className="flex items-center gap-3">
-                      <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-sm font-bold text-white shadow-sm ${avatarGradient(doctor.name)}`}
-                      >
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-110 ${avatarGradient(doctor.name)}`}>
                         {getInitials(doctor.name)}
                       </span>
                       <div className="min-w-0">
-                        <div className="truncate font-semibold text-foreground">
-                        {`Dr. ${doctor.name}`}
-                        </div>
-                        <div className="truncate text-xs text-muted-foreground">
-                          {doctor.email} · {doctor.phone ?? "No phone"}
-                        </div>
+                        <div className="truncate font-semibold text-foreground">{`Dr. ${doctor.name}`}</div>
+                        <div className="truncate text-xs text-muted-foreground">{doctor.email} · {doctor.phone ?? "No phone"}</div>
                       </div>
                     </Link>
                   </TableCell>
@@ -245,34 +236,17 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
                     <div className="text-sm">{doctor.specialtyName ?? "—"}</div>
                     <div className="text-xs text-muted-foreground">{doctor.qualification ?? ""}</div>
                   </TableCell>
-                  <TableCell className="px-5 py-4 text-sm">
-                    {doctor.departmentName ?? "—"}
-                  </TableCell>
-                  <TableCell className="px-5 py-4 font-medium tabular-nums">
-                    ${doctor.consultationFee}
-                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm">{doctor.departmentName ?? "—"}</TableCell>
+                  <TableCell className="px-5 py-4 font-medium tabular-nums">${doctor.consultationFee}</TableCell>
                   <TableCell className="px-5 py-4">
                     <div className="flex flex-col gap-1.5">
-                      <Badge
-                        className={
-                          doctor.status === "active"
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : doctor.status === "inactive"
-                              ? "border-gray-200 bg-gray-50 text-gray-500"
-                              : "border-red-200 bg-red-50 text-red-700"
-                        }
-                      >
-                        <span
-                          className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${
-                            doctor.status === "active" ? "bg-emerald-500" : doctor.status === "inactive" ? "bg-gray-400" : "bg-red-500"
-                          }`}
-                        />
+                      <Badge className={doctor.status === "active" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : doctor.status === "inactive" ? "border-gray-200 bg-gray-50 text-gray-500" : "border-red-200 bg-red-50 text-red-700"}>
+                        <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${doctor.status === "active" ? "bg-emerald-500" : doctor.status === "inactive" ? "bg-gray-400" : "bg-red-500"}`} />
                         {doctor.status}
                       </Badge>
                       {doctor.isAvailable ? (
                         <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                          <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          Available
+                          <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />Available
                         </Badge>
                       ) : null}
                     </div>
@@ -280,16 +254,10 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
                   <TableCell className="px-5 py-4">
                     <div className="flex justify-end gap-1">
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/doctors/${doctor.id}`}>
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">View</span>
-                        </Link>
+                        <Link href={`/doctors/${doctor.id}`}><Eye className="h-4 w-4" /><span className="sr-only">View</span></Link>
                       </Button>
                       <Button asChild variant="ghost" size="sm">
-                        <Link href={`/doctors/${doctor.id}/edit`}>
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">Edit</span>
-                        </Link>
+                        <Link href={`/doctors/${doctor.id}/edit`}><Edit className="h-4 w-4" /><span className="sr-only">Edit</span></Link>
                       </Button>
                       <form action={deactivateDoctorAction} className="inline-flex">
                         <input type="hidden" name="id" value={doctor.id} />
@@ -312,24 +280,17 @@ export function DoctorsListView({ doctors, generatedPassword }: { doctors: Docto
               </div>
               <h3 className="text-lg font-semibold">No doctors found</h3>
               <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                {query || activeFilter !== "all"
-                  ? "Try adjusting your search terms or filters."
-                  : "Add your first doctor to get started."}
+                {query || activeFilter !== "all" ? "Try adjusting your search terms or filters." : "Add your first doctor to get started."}
               </p>
               {!query && activeFilter === "all" && (
                 <Button asChild className="mt-4">
-                  <Link href="/doctors/add">
-                    <Plus className="h-4 w-4" aria-hidden />
-                    Add Doctor
-                  </Link>
+                  <Link href="/doctors/add"><Plus className="h-4 w-4" aria-hidden /> Add Doctor</Link>
                 </Button>
               )}
             </div>
           ) : (
             <div className="flex items-center justify-between border-t px-5 py-3 text-xs text-muted-foreground">
-              <span>
-                Showing {filtered.length} of {total} doctor{total !== 1 ? "s" : ""}
-              </span>
+              <span>Showing {filtered.length} of {total} doctor{total !== 1 ? "s" : ""}</span>
             </div>
           )}
         </div>
@@ -342,18 +303,30 @@ export function DoctorForm({ doctor, departments, specialties }: { doctor?: Doct
   const action = doctor ? updateDoctorAction.bind(null, doctor.id) : createDoctorAction;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-normal">{doctor ? "Edit Doctor" : "Add Doctor"}</h1>
-        <p className="text-sm text-muted-foreground">Manage profile, specialty, fees, and availability status.</p>
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative">
+          <h1 className="text-2xl font-bold tracking-tight">{doctor ? "Edit Doctor" : "Add Doctor"}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage profile, specialty, fees, and availability status.</p>
+        </div>
       </div>
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle>Doctor Profile</CardTitle>
-          <CardDescription>Doctor users automatically receive the Doctor role. Create can also generate Monday-Saturday schedules and slots.</CardDescription>
+
+      <Card className="border shadow-sm">
+        <CardHeader className="border-b bg-muted/10">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle>Doctor Profile</CardTitle>
+              <CardDescription>Doctor users automatically receive the Doctor role. Create can also generate Monday-Saturday schedules and slots.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form action={action} className="grid gap-4 md:grid-cols-2">
+        <CardContent className="p-6">
+          <form action={action} className="grid gap-5 md:grid-cols-2">
             <FormField label="First name" name="firstName" defaultValue={doctor?.firstName ?? ""} required />
             <FormField label="Last name" name="lastName" defaultValue={doctor?.lastName ?? ""} />
             <FormField label="Email" name="email" type="email" defaultValue={doctor?.email ?? ""} required />
@@ -371,13 +344,11 @@ export function DoctorForm({ doctor, departments, specialties }: { doctor?: Doct
             </div>
             <TextareaField label="Bio" name="bio" defaultValue={doctor?.bio ?? ""} className="md:col-span-2" rows={4} />
             {!doctor ? (
-              <div className="grid gap-4 rounded-lg border bg-muted/25 p-4 md:col-span-2 md:grid-cols-3">
+              <div className="grid gap-4 rounded-xl border bg-muted/10 p-5 md:col-span-2 md:grid-cols-3">
                 <div className="md:col-span-3">
                   <CheckboxField label="Create initial schedule and generate slots now (Monday to Saturday)" name="createSchedule" defaultChecked />
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {days.slice(1).map((day) => (
-                      <Badge key={day} variant="outline">{day}</Badge>
-                    ))}
+                    {days.slice(1).map((day) => <Badge key={day} variant="outline">{day}</Badge>)}
                   </div>
                 </div>
                 <FormField label="Start time" name="scheduleStartTime" type="time" defaultValue="09:00" />
@@ -385,9 +356,9 @@ export function DoctorForm({ doctor, departments, specialties }: { doctor?: Doct
                 <FormField label="Slot minutes" name="scheduleSlotDurationMinutes" type="number" min={5} defaultValue={30} />
               </div>
             ) : null}
-            <div className="flex items-end gap-2">
-              <Button type="submit">{doctor ? "Save Doctor" : "Create Doctor"}</Button>
-              <Button asChild variant="outline"><Link href="/doctors">Cancel</Link></Button>
+            <div className="flex items-end gap-2 md:col-span-2">
+              <Button type="submit" size="lg">{doctor ? "Save Doctor" : "Create Doctor"}</Button>
+              <Button asChild variant="outline" size="lg"><Link href="/doctors">Cancel</Link></Button>
             </div>
           </form>
         </CardContent>
@@ -398,22 +369,38 @@ export function DoctorForm({ doctor, departments, specialties }: { doctor?: Doct
 
 export function DoctorDetailView({ doctor, schedules, leaves, slots }: { doctor: DoctorRecord; schedules: Schedule[]; leaves: Leave[]; slots: Slot[] }) {
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-normal">{`Dr. ${doctor.name}`}</h1>
-          <p className="text-sm text-muted-foreground">{doctor.specialtyName ?? "Doctor"} · Fee ${doctor.consultationFee}</p>
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-lg font-bold text-white shadow-lg ring-4 ring-background ${avatarGradient(doctor.name)}`}>
+              {getInitials(doctor.name)}
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">{`Dr. ${doctor.name}`}</h1>
+              <p className="text-sm text-muted-foreground">{doctor.specialtyName ?? "Doctor"} · Fee ${doctor.consultationFee}</p>
+            </div>
+          </div>
+          <Button asChild variant="outline"><Link href="/doctors">Back to Doctors</Link></Button>
         </div>
-        <Button asChild variant="outline"><Link href="/doctors">Back to Doctors</Link></Button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Doctor Schedule</CardTitle>
-            <CardDescription>Add weekly schedules to generate appointment slots.</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Calendar className="h-4 w-4" />
+              </span>
+              <div>
+                <CardTitle>Doctor Schedule</CardTitle>
+                <CardDescription>Add weekly schedules to generate appointment slots.</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-5">
             <form action={addScheduleAction} className="grid gap-3 md:grid-cols-2">
               <input type="hidden" name="doctorId" value={doctor.id} />
               <SelectField label="Day" name="dayOfWeek" defaultValue="1" options={days.map((day, index) => ({ value: String(index), label: day }))} />
@@ -421,18 +408,25 @@ export function DoctorDetailView({ doctor, schedules, leaves, slots }: { doctor:
               <FormField label="Start time" name="startTime" type="time" defaultValue="09:00" required />
               <FormField label="End time" name="endTime" type="time" defaultValue="17:00" required />
               <CheckboxField label="Active" name="isActive" defaultChecked />
-              <Button type="submit">Add Schedule</Button>
+              <div className="md:col-span-2"><Button type="submit">Add Schedule</Button></div>
             </form>
             <List items={schedules.map((item) => `${days[item.dayOfWeek]} ${item.startTime}-${item.endTime} (${item.slotDurationMinutes} min)`)} empty="No schedules yet." />
           </CardContent>
         </Card>
 
-        <Card className="rounded-lg">
-          <CardHeader>
-            <CardTitle>Leave / Block Dates</CardTitle>
-            <CardDescription>Block full or partial days from availability.</CardDescription>
+        <Card className="border shadow-sm">
+          <CardHeader className="border-b bg-muted/10">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Calendar className="h-4 w-4" />
+              </span>
+              <div>
+                <CardTitle>Leave / Block Dates</CardTitle>
+                <CardDescription>Block full or partial days from availability.</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-5">
             <form action={addLeaveAction} className="grid gap-3 md:grid-cols-2">
               <input type="hidden" name="doctorId" value={doctor.id} />
               <FormField label="Leave date" name="leaveDate" type="date" required />
@@ -440,23 +434,29 @@ export function DoctorDetailView({ doctor, schedules, leaves, slots }: { doctor:
               <FormField label="Start time" name="startTime" type="time" />
               <FormField label="End time" name="endTime" type="time" />
               <CheckboxField label="Full day" name="isFullDay" defaultChecked />
-              <Button type="submit">Add Leave</Button>
+              <div className="md:col-span-2"><Button type="submit">Add Leave</Button></div>
             </form>
             <List items={leaves.map((item) => `${item.leaveDate} · ${item.isFullDay ? "Full day" : `${item.startTime}-${item.endTime}`} · ${item.reason ?? "No reason"}`)} empty="No leave dates." />
           </CardContent>
         </Card>
       </div>
 
-      <Card className="rounded-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Calendar className="h-4 w-4" aria-hidden /> Available Appointment Slots</CardTitle>
-          <CardDescription>Generated from active schedules for the next 14 days.</CardDescription>
+      <Card className="border shadow-sm">
+        <CardHeader className="border-b bg-muted/10">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Calendar className="h-4 w-4" />
+            </span>
+            <div>
+              <CardTitle>Available Appointment Slots</CardTitle>
+              <CardDescription>Generated from active schedules for the next 14 days.</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {slots.slice(0, 80).map((slot) => (
-            <Badge key={slot.id} variant={slot.isBooked || slot.isBlocked ? "outline" : "default"}>{slot.slotDate} {slot.startTime}</Badge>
-          ))}
-          {slots.length === 0 ? <p className="text-sm text-muted-foreground">No slots generated yet. Add a schedule first.</p> : null}
+        <CardContent className="flex flex-wrap gap-2 p-5">
+          {slots.slice(0, 80).length > 0 ? slots.slice(0, 80).map((slot) => (
+            <Badge key={slot.id} variant={slot.isBooked || slot.isBlocked ? "outline" : "default"} className="text-xs">{slot.slotDate} {slot.startTime}</Badge>
+          )) : <p className="text-sm text-muted-foreground">No slots generated yet. Add a schedule first.</p>}
         </CardContent>
       </Card>
     </div>

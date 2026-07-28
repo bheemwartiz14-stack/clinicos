@@ -61,31 +61,35 @@ export function InvoicesListView({ invoices }: { invoices: InvoiceRecord[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">Billing</Badge>
-          <h1 className="text-2xl font-semibold tracking-tight">Invoices</h1>
-          <p className="text-sm text-muted-foreground">Manage patient invoices and payments.</p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">Billing</Badge>
+            <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
+            <p className="text-sm text-muted-foreground">Manage patient invoices and payments.</p>
+          </div>
+          <Button asChild>
+            <Link href="/billing/invoices/create">
+              <Plus className="h-4 w-4" aria-hidden />
+              Create Invoice
+            </Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/billing/invoices/create">
-            <Plus className="h-4 w-4" aria-hidden />
-            Create Invoice
-          </Link>
-        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
         {[
-          { label: "Total Invoices", value: invoices.length, icon: FileText, color: "text-primary bg-primary/10" },
-          { label: "Pending", value: pending, icon: CreditCard, color: "text-yellow-600 bg-yellow-100" },
-          { label: "Paid", value: paid, icon: DollarSign, color: "text-green-600 bg-green-100" },
-          { label: "Total Revenue", value: `$${total.toFixed(2)}`, icon: Receipt, color: "text-blue-600 bg-blue-100" },
+          { label: "Total Invoices", value: invoices.length, icon: FileText, color: "from-primary/10 to-primary/5 text-primary" },
+          { label: "Pending", value: pending, icon: CreditCard, color: "from-amber-500/10 to-amber-500/5 text-amber-600" },
+          { label: "Paid", value: paid, icon: DollarSign, color: "from-green-500/10 to-green-500/5 text-green-600" },
+          { label: "Total Revenue", value: `$${total.toFixed(2)}`, icon: Receipt, color: "from-blue-500/10 to-blue-500/5 text-blue-600" },
         ].map((stat) => (
-          <Card key={stat.label} className="border-0 shadow-sm">
-            <CardContent className="flex items-center gap-4 p-4">
-              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${stat.color}`}>
-                <stat.icon className="h-6 w-6" />
+          <Card key={stat.label} className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+            <CardContent className="flex items-center gap-4 p-5">
+              <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br ${stat.color}`}>
+                <stat.icon className="h-6 w-6 text-white" />
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm text-muted-foreground">{stat.label}</p>
@@ -96,7 +100,7 @@ export function InvoicesListView({ invoices }: { invoices: InvoiceRecord[] }) {
         ))}
       </div>
 
-      <Card className="border-0 shadow-sm">
+      <Card className="border shadow-sm">
         <CardContent className="space-y-4 p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
@@ -125,7 +129,7 @@ export function InvoicesListView({ invoices }: { invoices: InvoiceRecord[] }) {
             ].map((tab) => (
               <button key={tab.key} type="button"
                 onClick={() => updateQuery("status", tab.key === "all" ? "" : tab.key)}
-                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${statusFilter === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all ${statusFilter === tab.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
               >
                 {tab.label}
               </button>
@@ -134,7 +138,7 @@ export function InvoicesListView({ invoices }: { invoices: InvoiceRecord[] }) {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
+      <Card className="overflow-hidden border shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -149,7 +153,7 @@ export function InvoicesListView({ invoices }: { invoices: InvoiceRecord[] }) {
             </TableHeader>
             <TableBody>
               {invoices.map((inv) => (
-                <TableRow key={inv.id} className="group">
+                <TableRow key={inv.id} className="transition-colors hover:bg-muted/10">
                   <TableCell className="px-5 py-4">
                     <span className="font-mono text-sm font-semibold">{inv.invoiceNumber}</span>
                   </TableCell>

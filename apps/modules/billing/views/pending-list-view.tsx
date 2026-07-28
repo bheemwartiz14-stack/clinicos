@@ -33,37 +33,42 @@ export function PendingListView({ invoices }: { invoices: InvoiceRecord[] }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pending Payments</h1>
-        <p className="text-sm text-muted-foreground">Invoices awaiting payment.</p>
+      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-primary/5 to-background p-6 sm:p-8">
+        <div className="absolute right-0 top-0 h-32 w-32 translate-x-8 -translate-y-8 rounded-full bg-primary/5" />
+        <div className="absolute bottom-0 left-1/3 h-24 w-24 translate-y-6 rounded-full bg-primary/5" />
+        <div className="relative">
+          <Badge variant="outline" className="mb-3 border-primary/20 bg-primary/5 text-primary">Billing</Badge>
+          <h1 className="text-2xl font-bold tracking-tight">Pending Payments</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Invoices awaiting payment.</p>
+        </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="border-0 shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
-            <span className="grid h-12 w-12 place-items-center rounded-xl bg-yellow-100 text-yellow-600">
-              <DollarSign className="h-6 w-6" />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+          <CardContent className="flex items-center gap-4 p-5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600">
+              <DollarSign className="h-6 w-6 text-white" />
             </span>
             <div>
-              <p className="text-sm text-muted-foreground">Pending Invoices</p>
+              <p className="truncate text-sm text-muted-foreground">Pending Invoices</p>
               <p className="text-2xl font-bold tabular-nums">{invoices.length}</p>
             </div>
           </CardContent>
         </Card>
-        <Card className="border-0 shadow-sm">
-          <CardContent className="flex items-center gap-4 p-4">
-            <span className="grid h-12 w-12 place-items-center rounded-xl bg-red-100 text-red-600">
-              <DollarSign className="h-6 w-6" />
+        <Card className="border shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+          <CardContent className="flex items-center gap-4 p-5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-red-500/10 to-red-500/5 text-red-600">
+              <DollarSign className="h-6 w-6 text-white" />
             </span>
             <div>
-              <p className="text-sm text-muted-foreground">Total Pending Amount</p>
+              <p className="truncate text-sm text-muted-foreground">Total Pending Amount</p>
               <p className="text-2xl font-bold tabular-nums">${totalPending.toFixed(2)}</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
+      <Card className="overflow-hidden border shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -77,12 +82,12 @@ export function PendingListView({ invoices }: { invoices: InvoiceRecord[] }) {
             </TableHeader>
             <TableBody>
               {invoices.map((inv) => (
-                <TableRow key={inv.id}>
+                <TableRow key={inv.id} className="transition-colors hover:bg-muted/10">
                   <TableCell className="px-5 py-4 font-mono font-semibold">{inv.invoiceNumber}</TableCell>
                   <TableCell className="px-5 py-4">{inv.patientName}</TableCell>
-                  <TableCell className="px-5 py-4 font-bold">${parseFloat(inv.totalAmount).toFixed(2)}</TableCell>
+                  <TableCell className="px-5 py-4 font-bold tabular-nums">${parseFloat(inv.totalAmount).toFixed(2)}</TableCell>
                   <TableCell className="px-5 py-4">
-                    <Badge className="bg-yellow-100 text-yellow-800">{inv.paymentStatus}</Badge>
+                    <Badge className="border-amber-200 bg-amber-50 text-amber-700">{inv.paymentStatus}</Badge>
                   </TableCell>
                   <TableCell className="px-5 py-4">
                     <div className="flex justify-end gap-1">
