@@ -180,21 +180,6 @@ export default function GoogleIntegrationClient({ userId }: Props) {
               </div>
             </div>
           )}
-
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-lg border bg-muted/30 p-3 text-center">
-              <p className="text-lg font-semibold tracking-tight">Auto</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Sync</p>
-            </div>
-            <div className="rounded-lg border bg-muted/30 p-3 text-center">
-              <p className="text-lg font-semibold tracking-tight">Real-time</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Updates</p>
-            </div>
-            <div className="rounded-lg border bg-muted/30 p-3 text-center">
-              <p className="text-lg font-semibold tracking-tight">2-way</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Sync</p>
-            </div>
-          </div>
         </CardContent>
 
         <CardFooter className="flex-col gap-3 pt-2">
