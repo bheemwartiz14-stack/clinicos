@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerCleanup } from "@/components/service-worker-cleanup";
@@ -28,7 +29,10 @@ export default function RootLayout({
       className="font-sans"
     >
       <body suppressHydrationWarning>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          {children}
+          <Analytics />
+        </QueryProvider>
 
         <ServiceWorkerCleanup />
         <ToastListener />
